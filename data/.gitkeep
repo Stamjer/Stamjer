@@ -1,0 +1,9 @@
+# This file ensures the data directory is included in version control
+# while keeping the actual data files (.json) ignored for security
+
+# The data directory is used to store:
+# - users.json (user account information)
+# - events.json (calendar events)
+
+# These files are automatically created by the application when it starts
+# if they don't already exist.

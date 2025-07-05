@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Active Status</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Active Status Update</h1>
+    
+    <form id="testForm">
+        <div class="form-group">
+            <label for="userId">User ID:</label>
+            <input type="number" id="userId" name="userId" value="1" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="active">Active Status:</label>
+            <select id="active" name="active" required>
+                <option value="true">Active (true)</option>
+                <option value="false">Inactive (false)</option>
+            </select>
+        </div>
+        
+        <button type="submit">Update Active Status</button>
+    </form>
+    
+    <div id="result"></div>
+    
+    <script>
+        document.getElementById('testForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const userId = parseInt(document.getElementById('userId').value);
+            const active = document.getElementById('active').value === 'true';
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Updating...';
+            
+            try {
+                const response = await fetch('http://localhost:3002/api/user/profile', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        userId: userId,
+                        active: active
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="result success">
+                            <h3>Success!</h3>
+                            <p><strong>Message:</strong> ${data.msg}</p>
+                            <p><strong>Updated User:</strong></p>
+                            <pre>${JSON.stringify(data.user, null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="result error">
+                            <h3>Error!</h3>
+                            <p><strong>Status:</strong> ${response.status}</p>
+                            <p><strong>Message:</strong> ${data.error || data.msg}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="result error">
+                        <h3>Network Error!</h3>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                        <p>Make sure the server is running on http://localhost:3002</p>
+                    </div>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>

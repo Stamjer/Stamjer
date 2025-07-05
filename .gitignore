@@ -1,0 +1,125 @@
+# ================================================================
+# STAMJER CALENDAR APPLICATION - GIT IGNORE CONFIGURATION
+# ================================================================
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.tgz
+
+# Dependencies
+node_modules/
+bower_components/
+jspm_packages/
+
+# Production builds
+dist/
+dist-ssr/
+build/
+out/
+
+# Environment variables (NEVER commit these!)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.local
+
+# Data files (may contain sensitive user information)
+data/users.json
+data/events.json
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+.nyc_output/
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file
+.env
+.env.test
+
+# Vite cache
+.vite/
+vite.config.js.timestamp-*
+
+# React Router cache
+.cache/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Additional system files
+Thumbs.db
+ehthumbs.db
+.Spotlight-V100
+.Trashes
+Desktop.ini
+
+# Backup files
+*.bak
+*_old.*
+*_backup.*
+*~
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+.temp/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+ehthumbs.db
+Thumbs.db
+
+# ================================================================
+# KEEP THESE FILES IN VERSION CONTROL
+# ================================================================
+# !.env.example        (example environment file)
+# !data/.gitkeep       (to keep data directory in git)
