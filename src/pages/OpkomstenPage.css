@@ -122,7 +122,7 @@
   position: relative;
 }
 
-.checkbox-input {
+.attendance-checkbox .checkbox-input {
   position: absolute;
   opacity: 0;
   cursor: pointer;
@@ -130,7 +130,7 @@
   width: 0;
 }
 
-.checkbox-custom {
+.attendance-checkbox .checkbox-custom {
   height: 20px;
   width: 20px;
   background-color: #fff;
@@ -140,12 +140,12 @@
   transition: all 0.2s ease;
 }
 
-.checkbox-input:checked + .checkbox-custom {
+.attendance-checkbox .checkbox-input:checked + .checkbox-custom {
   background-color: #10b981;
   border-color: #10b981;
 }
 
-.checkbox-input:checked + .checkbox-custom::after {
+.attendance-checkbox .checkbox-input:checked + .checkbox-custom::after {
   content: '';
   position: absolute;
   left: 6px;
@@ -157,33 +157,33 @@
   transform: rotate(45deg);
 }
 
-.checkbox-custom:hover {
+.attendance-checkbox .checkbox-custom:hover {
   border-color: #9ca3af;
 }
 
-.checkbox-input:checked + .checkbox-custom:hover {
+.attendance-checkbox .checkbox-input:checked + .checkbox-custom:hover {
   border-color: #059669;
   background-color: #059669;
 }
 
 /* Disabled checkbox styles */
-.checkbox-input:disabled + .checkbox-custom {
+.attendance-checkbox .checkbox-input:disabled + .checkbox-custom {
   background-color: #f3f4f6;
   border-color: #d1d5db;
   cursor: not-allowed;
   opacity: 0.6;
 }
 
-.checkbox-input:disabled:checked + .checkbox-custom {
+.attendance-checkbox .checkbox-input:disabled:checked + .checkbox-custom {
   background-color: #6b7280;
   border-color: #6b7280;
 }
 
-.checkbox-input:disabled:checked + .checkbox-custom::after {
+.attendance-checkbox .checkbox-input:disabled:checked + .checkbox-custom::after {
   border-color: #f3f4f6;
 }
 
-.checkbox-input:disabled ~ .checkbox-custom:hover {
+.attendance-checkbox .checkbox-input:disabled ~ .checkbox-custom:hover {
   border-color: #d1d5db;
   background-color: #f3f4f6;
 }
@@ -525,5 +525,433 @@
   .opkomstmaker-name {
     font-size: 0.8rem;
     padding: 0.2rem 0.5rem;
+  }
+}
+
+/* ================================================================
+ * ACTIONS CELL STYLES
+ * ================================================================ */
+
+.actions-cell {
+  width: 120px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.edit-btn {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.edit-btn:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+}
+
+.edit-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.edit-btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+/* ================================================================
+ * MODAL AND FORM STYLES (shared with CalendarPage)
+ * ================================================================ */
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  position: relative;
+}
+
+.modal-content-large {
+  max-width: 700px;
+}
+
+.close-btn {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #6b7280;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.modal-header {
+  padding: 2rem 2rem 1rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.modal-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+}
+
+.modal-body {
+  padding: 2rem;
+}
+
+.modal-footer {
+  padding: 1rem 2rem;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+.modal-btn {
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.modal-btn-primary {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  color: white;
+}
+
+.modal-btn-primary:hover {
+  background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+}
+
+.modal-btn-secondary {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.modal-btn-secondary:hover {
+  background: #e5e7eb;
+}
+
+.modal-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ================================================================
+ * FORM STYLES
+ * ================================================================ */
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group-full {
+  grid-column: span 2;
+}
+
+.form-label {
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.form-input {
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 1rem;
+  transition: border-color 0.2s ease;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.form-input.error {
+  border-color: #ef4444;
+}
+
+.form-textarea {
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 1rem;
+  transition: border-color 0.2s ease;
+  resize: vertical;
+  min-height: 100px;
+}
+
+.form-textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.field-error {
+  color: #ef4444;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+.error-message {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  padding: 0.75rem;
+  border-radius: 6px;
+  margin-top: 1rem;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+}
+
+.checkbox-input {
+  display: none;
+}
+
+.checkbox-custom {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #d1d5db;
+  border-radius: 4px;
+  position: relative;
+  transition: all 0.2s ease;
+  background-color: #fff;
+  flex-shrink: 0;
+}
+
+.checkbox-input:checked + .checkbox-custom {
+  background: #3b82f6;
+  border-color: #3b82f6;
+}
+
+.checkbox-input:checked + .checkbox-custom::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 2px;
+  width: 6px;
+  height: 10px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.opkomstmakers-checkboxes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.opkomstmaker-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  font-weight: 500;
+  color: #374151;
+  background: white;
+}
+
+.opkomstmaker-checkbox:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+}
+
+.opkomstmaker-checkbox .checkbox-input {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+  height: 0;
+  width: 0;
+}
+
+.opkomstmaker-checkbox .checkbox-custom {
+  width: 20px;
+  height: 20px;
+  background-color: #fff;
+  border: 2px solid #d1d5db;
+  border-radius: 4px;
+  position: relative;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.opkomstmaker-checkbox .checkbox-input:checked + .checkbox-custom {
+  background-color: #10b981;
+  border-color: #10b981;
+}
+
+.opkomstmaker-checkbox .checkbox-input:checked + .checkbox-custom::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 2px;
+  width: 6px;
+  height: 10px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* ================================================================
+ * TIME INPUT STYLES
+ * ================================================================ */
+
+.time-input-24 {
+  display: flex;
+  align-items: center;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 0.75rem;
+  background: white;
+  transition: border-color 0.2s ease;
+}
+
+.time-input-24:focus-within {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.time-input-24.error {
+  border-color: #ef4444;
+}
+
+.time-select {
+  border: none;
+  background: none;
+  font-size: 1rem;
+  padding: 0.25rem;
+  cursor: pointer;
+  color: #374151;
+}
+
+.time-select:focus {
+  outline: none;
+}
+
+.time-separator {
+  color: #6b7280;
+  font-weight: 500;
+  margin: 0 0.5rem;
+}
+
+.loading-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid transparent;
+  border-top: 2px solid currentColor;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ================================================================
+ * RESPONSIVE DESIGN
+ * ================================================================ */
+
+@media (max-width: 768px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .form-group-full {
+    grid-column: span 1;
+  }
+  
+  .opkomstmakers-checkboxes {
+    grid-template-columns: 1fr;
+  }
+  
+  .modal-content {
+    width: 95%;
+    max-height: 90vh;
+  }
+  
+  .modal-body {
+    padding: 1.5rem;
+  }
+  
+  .modal-footer {
+    padding: 1rem 1.5rem;
+    flex-direction: column;
+  }
+  
+  .modal-btn {
+    width: 100%;
+    justify-content: center;
   }
 }
