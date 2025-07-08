@@ -223,6 +223,22 @@ export default function MyAccount() {
                 </div>
               </div>
               
+              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                <label className="form-label">
+                  🔑 Account type
+                </label>
+                <div style={{ 
+                  padding: '0.75rem', 
+                  background: user.isAdmin ? 'var(--accent-blue-50)' : 'var(--secondary-50)', 
+                  border: `1px solid ${user.isAdmin ? 'var(--accent-blue-200)' : 'var(--secondary-200)'}`, 
+                  borderRadius: 'var(--radius-md)', 
+                  color: user.isAdmin ? 'var(--accent-blue-800)' : 'var(--secondary-800)', 
+                  fontWeight: '500' 
+                }}>
+                  {user.isAdmin ? '👑 Administrator' : '👤 Gebruiker'}
+                </div>
+              </div>
+              
               <div className="form-group">
                 <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                   <input

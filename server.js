@@ -227,7 +227,46 @@ function generateCode() {
 }
 
 // ================================================================
-// SERVER INITIALIZATION AND MAIN APPLICATION
+// AUTHENTICATION MIDDLEWARE
+// ================================================================
+
+/**
+ * Middleware to check if user is authenticated and has admin privileges
+ * For now, this is simplified - in a real app you'd use JWT tokens
+ */
+function requireAdmin(req, res, next) {
+  const { userId } = req.body
+  
+  if (!userId) {
+    return res.status(401).json({ msg: 'Authenticatie vereist. Gebruiker ID ontbreekt.' })
+  }
+  
+  // Find user by ID
+  const user = users.find(u => u.id === parseInt(userId))
+  
+  if (!user) {
+    return res.status(401).json({ msg: 'Gebruiker niet gevonden.' })
+  }
+  
+  if (!user.isAdmin) {
+    return res.status(403).json({ msg: 'Admin rechten vereist voor deze actie.' })
+  }
+  
+  // Add user to request for use in route handlers
+  req.user = user
+  next()
+}
+
+/**
+ * Helper function to check if user is admin by ID
+ */
+function isUserAdmin(userId) {
+  const user = users.find(u => u.id === parseInt(userId))
+  return user && user.isAdmin
+}
+
+// ================================================================
+// MAIN SERVER INITIALIZATION
 // ================================================================
 
 /**
@@ -389,7 +428,8 @@ async function startServer() {
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
-        active: user.active
+        active: user.active,
+        isAdmin: user.isAdmin || false
       }))
       res.json({ users: usersFullInfo })
     })
@@ -449,7 +489,8 @@ async function startServer() {
           firstName: users[userIndex].firstName,
           lastName: users[userIndex].lastName,
           email: users[userIndex].email,
-          active: users[userIndex].active
+          active: users[userIndex].active,
+          isAdmin: users[userIndex].isAdmin || false
         }
         
         console.log('👤 Returning updated user:', updatedUser)
@@ -492,12 +533,22 @@ async function startServer() {
     /**
      * Create a new calendar event
      * POST /events
-     * Body: { title, start, end?, allDay?, location?, description?, isOpkomst?, opkomstmakers? }
+     * Body: { title, start, end?, allDay?, location?, description?, isOpkomst?, opkomstmakers?, userId }
+     * Requires admin privileges
      */
     app.post('/events', async (req, res) => {
       try {
         // Extract event data from request body
-        const { title, start, end, allDay, location, description, isOpkomst, opkomstmakers } = req.body
+        const { title, start, end, allDay, location, description, isOpkomst, opkomstmakers, userId } = req.body
+        
+        // Check admin privileges
+        if (!userId) {
+          return res.status(401).json({ msg: 'Authenticatie vereist. Gebruiker ID ontbreekt.' })
+        }
+        
+        if (!isUserAdmin(userId)) {
+          return res.status(403).json({ msg: 'Alleen admins kunnen evenementen aanmaken.' })
+        }
         
         // Validate required fields
         if (!title || !start) {
@@ -538,12 +589,22 @@ async function startServer() {
     /**
      * Update an existing calendar event
      * PUT /events/:id
-     * Body: { title, start, end?, allDay?, location?, description?, isOpkomst?, opkomstmakers? }
+     * Body: { title, start, end?, allDay?, location?, description?, isOpkomst?, opkomstmakers?, userId }
+     * Requires admin privileges
      */
     app.put('/events/:id', async (req, res) => {
       try {
         const { id } = req.params
-        const { title, start, end, allDay, location, description, isOpkomst, opkomstmakers } = req.body
+        const { title, start, end, allDay, location, description, isOpkomst, opkomstmakers, userId } = req.body
+        
+        // Check admin privileges
+        if (!userId) {
+          return res.status(401).json({ msg: 'Authenticatie vereist. Gebruiker ID ontbreekt.' })
+        }
+        
+        if (!isUserAdmin(userId)) {
+          return res.status(403).json({ msg: 'Alleen admins kunnen evenementen bewerken.' })
+        }
         
         const eventIndex = events.findIndex(e => e.id === id)
         if (eventIndex === -1) {
@@ -576,10 +637,25 @@ async function startServer() {
       }
     })
 
-    // DELETE /events/:id - Event verwijderen
+    /**
+     * Delete an existing calendar event
+     * DELETE /events/:id
+     * Body: { userId }
+     * Requires admin privileges
+     */
     app.delete('/events/:id', async (req, res) => {
       try {
         const { id } = req.params
+        const { userId } = req.body
+        
+        // Check admin privileges
+        if (!userId) {
+          return res.status(401).json({ msg: 'Authenticatie vereist. Gebruiker ID ontbreekt.' })
+        }
+        
+        if (!isUserAdmin(userId)) {
+          return res.status(403).json({ msg: 'Alleen admins kunnen evenementen verwijderen.' })
+        }
         
         const eventIndex = events.findIndex(e => e.id === id)
         if (eventIndex === -1) {
@@ -678,7 +754,8 @@ async function startServer() {
           firstName: u.firstName,
           lastName: u.lastName,
           email: u.email,
-          active: u.active
+          active: u.active,
+          isAdmin: u.isAdmin || false
         }
         
         res.json({ msg: 'Ingelogd.', user: userResponse })

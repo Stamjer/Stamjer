@@ -54,13 +54,13 @@ class ErrorBoundary extends React.Component {
       return (
         <div className="error-boundary">
           <div className="error-content">
-            <h2>⚠️ Er is iets misgegaan</h2>
+            <h2>Er is iets misgegaan</h2>
             <p>We konden de applicatie niet laden. Probeer de pagina te vernieuwen.</p>
             <button 
               onClick={() => window.location.reload()} 
               className="btn btn-primary"
             >
-              🔄 Pagina vernieuwen
+              Pagina vernieuwen
             </button>
           </div>
         </div>
@@ -245,7 +245,7 @@ function App() {
                     className="btn btn-secondary"
                     aria-label="Ga naar mijn account"
                   >
-                    👤 Mijn account
+                    {user.isAdmin ? '👤 Mijn account' : '👤 Mijn account'}
                   </button>
                   <button 
                     onClick={handleLogout} 

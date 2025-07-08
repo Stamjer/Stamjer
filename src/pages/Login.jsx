@@ -47,13 +47,6 @@ export default function Login({ setUser }) {
   }, [])
 
   /**
-   * Validate password strength
-   */
-  const validatePassword = useCallback((password) => {
-    return password.length >= 6
-  }, [])
-
-  /**
    * Validate entire form
    */
   useEffect(() => {
@@ -63,13 +56,9 @@ export default function Login({ setUser }) {
       errors.email = 'Voer een geldig e-mailadres in'
     }
     
-    if (password && !validatePassword(password)) {
-      errors.password = 'Wachtwoord moet minimaal 6 karakters bevatten'
-    }
-    
     setFieldErrors(errors)
     setIsFormValid(email && password && Object.keys(errors).length === 0)
-  }, [email, password, validateEmail, validatePassword])
+  }, [email, password, validateEmail])
 
   // ================================================================
   // EVENT HANDLERS

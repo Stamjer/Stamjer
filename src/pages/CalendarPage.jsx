@@ -103,7 +103,7 @@ function Toast({ message, type = 'info', onClose }) {
 // EVENT MODAL COMPONENT
 // ================================================================
 
-function EventModal({ event, onClose, onDelete, onEdit }) {
+function EventModal({ event, onClose, onDelete, onEdit, isAdmin = false }) {
   const [isDeleting, setIsDeleting] = useState(false)
 
   if (!event) return null
@@ -256,29 +256,33 @@ function EventModal({ event, onClose, onDelete, onEdit }) {
         </div>
 
         <div className="modal-footer">
-          <button 
-            type="button" 
-            className="modal-btn modal-btn-secondary"
-            onClick={() => onEdit(event)}
-            disabled={isDeleting}
-          >
-            ✏️ Aanpassen
-          </button>
-          <button 
-            type="button" 
-            className="modal-btn modal-btn-danger"
-            onClick={handleDelete}
-            disabled={isDeleting}
-          >
-            {isDeleting ? (
-              <>
-                <div className="loading-spinner"></div>
-                Verwijderen...
-              </>
-            ) : (
-              <>🗑️ Verwijderen</>
-            )}
-          </button>
+          {isAdmin && (
+            <>
+              <button 
+                type="button" 
+                className="modal-btn modal-btn-secondary"
+                onClick={() => onEdit(event)}
+                disabled={isDeleting}
+              >
+                ✏️ Aanpassen
+              </button>
+              <button 
+                type="button" 
+                className="modal-btn modal-btn-danger"
+                onClick={handleDelete}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="loading-spinner"></div>
+                    Verwijderen...
+                  </>
+                ) : (
+                  <>🗑️ Verwijderen</>
+                )}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -289,7 +293,7 @@ function EventModal({ event, onClose, onDelete, onEdit }) {
 // NEW/EDIT EVENT FORM COMPONENT
 // ================================================================
 
-function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = [] }) {
+function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = [], currentUser = null }) {
   // Initialize opkomstmakers as an array of selected user IDs
   const initializeOpkomstmakers = () => {
     if (event?.opkomstmakers) {
@@ -459,6 +463,11 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
         description: description.trim(),
         isOpkomst: formData.isOpkomst,
         opkomstmakers: opkomstmakersString,
+        userId: currentUser?.id
+      }
+
+      if (!payload.userId) {
+        throw new Error('Gebruiker ID is verplicht voor het opslaan van evenementen')
       }
 
       const url = isEdit ? `/api/events/${event.id}` : '/api/events'
@@ -831,6 +840,27 @@ export default function CalendarPage() {
   const [error, setError] = useState(null)
   const [toast, setToast] = useState(null)
   const [users, setUsers] = useState([]) // Store available users for dropdown
+  const [currentUser, setCurrentUser] = useState(null) // Current logged-in user
+
+  // ================================================================
+  // USER AUTHENTICATION
+  // ================================================================
+
+  // Load current user from localStorage
+  useEffect(() => {
+    try {
+      const userData = localStorage.getItem('user')
+      if (userData) {
+        const user = JSON.parse(userData)
+        setCurrentUser(user)
+      }
+    } catch (error) {
+      console.error('Error loading user from localStorage:', error)
+    }
+  }, [])
+
+  // Check if current user is admin
+  const isAdmin = currentUser && currentUser.isAdmin === true
 
   // ================================================================
   // EVENT HANDLERS
@@ -908,11 +938,23 @@ export default function CalendarPage() {
 
   // Handle event deletion
   const handleDelete = useCallback(async (ev) => {
+    if (!currentUser || !currentUser.isAdmin) {
+      showToast('Alleen admins kunnen evenementen verwijderen', 'error')
+      return
+    }
+
     try {
-      const response = await fetch(`/api/events/${ev.id}`, { method: 'DELETE' })
+      const response = await fetch(`/api/events/${ev.id}`, { 
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ userId: currentUser.id })
+      })
       
       if (!response.ok) {
-        throw new Error(`Server fout: ${response.status}`)
+        const errorData = await response.json()
+        throw new Error(errorData.msg || `Server fout: ${response.status}`)
       }
 
       setEvents(prev => prev.filter(e => e.id !== ev.id))
@@ -923,7 +965,7 @@ export default function CalendarPage() {
       showToast('Kon evenement niet verwijderen', 'error')
       throw error
     }
-  }, [showToast])
+  }, [showToast, currentUser])
 
   // Handle event addition/update
   const handleAdd = useCallback((evt) => {
@@ -941,6 +983,11 @@ export default function CalendarPage() {
 
   // Handle edit button click
   const handleEdit = useCallback((ev) => {
+    if (!currentUser || !currentUser.isAdmin) {
+      showToast('Alleen admins kunnen evenementen bewerken', 'error')
+      return
+    }
+
     // Convert opkomstmakers string to array of user IDs for editing
     const opkomstmakersArray = []
     if (ev.extendedProps.opkomstmakers) {
@@ -981,7 +1028,7 @@ export default function CalendarPage() {
       opkomstmakers: opkomstmakersArray,
     })
     setSelectedEvent(null)
-  }, [users])
+  }, [users, currentUser, showToast])
 
   // Memoized calendar configuration
   const calendarConfig = useMemo(() => ({
@@ -994,7 +1041,7 @@ export default function CalendarPage() {
     headerToolbar: {
       left: 'prev today next',
       center: 'title',
-      right: 'nieuwBtn',
+      right: isAdmin ? 'nieuwBtn' : '', // Only show for admins
     },
     buttonText: { 
       today: 'Vandaag',
@@ -1007,12 +1054,12 @@ export default function CalendarPage() {
       minute: '2-digit',
       hour12: false
     },
-    customButtons: {
+    customButtons: isAdmin ? {
       nieuwBtn: {
         text: 'Nieuw evenement',
         click: () => setShowNewForm(true),
       },
-    },
+    } : {},
     events,
     eventClick: handleEventClick,
     height: 'auto',
@@ -1032,7 +1079,7 @@ export default function CalendarPage() {
         }
       }
     }
-  }), [events, handleEventClick])
+  }), [events, handleEventClick, isAdmin])
 
   // ================================================================
   // RENDER
@@ -1089,24 +1136,27 @@ export default function CalendarPage() {
           onClose={() => setSelectedEvent(null)}
           onDelete={handleDelete}
           onEdit={handleEdit}
+          isAdmin={isAdmin}
         />
       )}
 
-      {showNewForm && (
+      {showNewForm && isAdmin && (
         <NewEventForm
           onClose={() => setShowNewForm(false)}
           onAdd={handleAdd}
           users={users}
+          currentUser={currentUser}
         />
       )}
 
-      {editingEvent && (
+      {editingEvent && isAdmin && (
         <NewEventForm
           event={editingEvent}
           isEdit
           onClose={() => setEditingEvent(null)}
           onAdd={handleAdd}
           users={users}
+          currentUser={currentUser}
         />
       )}
 

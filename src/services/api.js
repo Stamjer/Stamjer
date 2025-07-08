@@ -402,16 +402,21 @@ export async function getEvents() {
 /**
  * Create new event
  * @param {Object} eventData - Event data
+ * @param {number} userId - User ID for admin validation
  * @returns {Promise<Object>} Created event
  */
-export async function createEvent(eventData) {
+export async function createEvent(eventData, userId) {
   if (!eventData.title || !eventData.start) {
     throw new Error('Titel en startdatum zijn verplicht')
   }
   
+  if (!userId) {
+    throw new Error('Gebruiker ID is verplicht voor het aanmaken van evenementen')
+  }
+  
   return enhancedFetch('/events', {
     method: 'POST',
-    body: eventData
+    body: { ...eventData, userId }
   })
 }
 
@@ -419,31 +424,42 @@ export async function createEvent(eventData) {
  * Update existing event
  * @param {string} eventId - Event ID
  * @param {Object} eventData - Updated event data
+ * @param {number} userId - User ID for admin validation
  * @returns {Promise<Object>} Updated event
  */
-export async function updateEvent(eventId, eventData) {
+export async function updateEvent(eventId, eventData, userId) {
   if (!eventId) {
     throw new Error('Event ID is verplicht')
   }
   
+  if (!userId) {
+    throw new Error('Gebruiker ID is verplicht voor het bewerken van evenementen')
+  }
+  
   return enhancedFetch(`/events/${eventId}`, {
     method: 'PUT',
-    body: eventData
+    body: { ...eventData, userId }
   })
 }
 
 /**
  * Delete event
  * @param {string} eventId - Event ID
+ * @param {number} userId - User ID for admin validation
  * @returns {Promise<Object>} Deletion result
  */
-export async function deleteEvent(eventId) {
+export async function deleteEvent(eventId, userId) {
   if (!eventId) {
     throw new Error('Event ID is verplicht')
   }
   
+  if (!userId) {
+    throw new Error('Gebruiker ID is verplicht voor het verwijderen van evenementen')
+  }
+  
   return enhancedFetch(`/events/${eventId}`, {
-    method: 'DELETE'
+    method: 'DELETE',
+    body: { userId }
   })
 }
 
