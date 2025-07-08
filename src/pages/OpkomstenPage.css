@@ -508,24 +508,116 @@
   }
 }
 
-@media (max-width: 480px) {
-  .opkomsten-container {
-    padding: 1rem 0.25rem;
-  }
-  
-  .opkomsten-title {
-    font-size: 1.75rem;
-  }
-  
-  .opkomsten-table th,
-  .opkomsten-table td {
-    padding: 0.5rem;
-  }
-  
-  .opkomstmaker-name {
-    font-size: 0.8rem;
-    padding: 0.2rem 0.5rem;
-  }
+/* ================================================================
+ * MISSING BUTTON STYLES
+ * ================================================================ */
+
+/* Basic button styles */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  text-decoration: none;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  outline: none;
+  position: relative;
+  overflow: hidden;
+  min-height: 44px;
+}
+
+.btn:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.btn-secondary {
+  background: #f3f4f6;
+  color: #374151;
+  border: 2px solid #e5e7eb;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #e5e7eb;
+  border-color: #d1d5db;
+  transform: translateY(-1px);
+}
+
+.btn-secondary:active {
+  background: #d1d5db;
+  transform: translateY(0);
+}
+
+/* ================================================================
+ * MISSING TABLE ROW STYLES
+ * ================================================================ */
+
+.opkomst-row {
+  /* Inherits from .opkomsten-table tbody tr */
+  transition: all 0.2s ease;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.opkomst-row:hover {
+  background-color: #f8fafc;
+  transform: translateY(-1px);
+}
+
+.opkomst-row:last-child {
+  border-bottom: none;
+}
+
+/* ================================================================
+ * MISSING TIME INPUT SPECIFIC STYLES
+ * ================================================================ */
+
+.time-select.hours,
+.time-select.minutes {
+  /* Inherits from .time-select */
+  border: none;
+  background: none;
+  font-size: 1rem;
+  padding: 0.25rem;
+  cursor: pointer;
+  color: #374151;
+  min-width: 50px;
+  text-align: center;
+}
+
+.time-select.hours:focus,
+.time-select.minutes:focus {
+  outline: none;
+  background: #f3f4f6;
+  border-radius: 4px;
 }
 
 /* ================================================================
@@ -914,9 +1006,8 @@
 }
 
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 /* ================================================================

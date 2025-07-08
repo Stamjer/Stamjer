@@ -41,9 +41,6 @@ import validator from 'validator'
 // bcrypt for password hashing and comparison
 import bcrypt from 'bcrypt'
 
-// DNS lookup for email domain verification
-import dns from 'dns/promises'
-
 // File system operations for reading/writing JSON data files
 import fs from 'fs/promises'
 
@@ -229,33 +226,6 @@ function generateCode() {
 // ================================================================
 // AUTHENTICATION MIDDLEWARE
 // ================================================================
-
-/**
- * Middleware to check if user is authenticated and has admin privileges
- * For now, this is simplified - in a real app you'd use JWT tokens
- */
-function requireAdmin(req, res, next) {
-  const { userId } = req.body
-  
-  if (!userId) {
-    return res.status(401).json({ msg: 'Authenticatie vereist. Gebruiker ID ontbreekt.' })
-  }
-  
-  // Find user by ID
-  const user = users.find(u => u.id === parseInt(userId))
-  
-  if (!user) {
-    return res.status(401).json({ msg: 'Gebruiker niet gevonden.' })
-  }
-  
-  if (!user.isAdmin) {
-    return res.status(403).json({ msg: 'Admin rechten vereist voor deze actie.' })
-  }
-  
-  // Add user to request for use in route handlers
-  req.user = user
-  next()
-}
 
 /**
  * Helper function to check if user is admin by ID

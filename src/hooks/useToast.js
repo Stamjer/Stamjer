@@ -69,7 +69,7 @@ export function useToast(options = {}) {
     }
 
     return id
-  }, [duration, maxToasts])
+  }, [duration, maxToasts, removeToast])
 
   /**
    * Remove a specific toast by ID
@@ -181,7 +181,7 @@ export function useToast(options = {}) {
         }
         throw error
       })
-  }, [loading, removeToast, success, error])
+  }, [loading, removeToast, success])
 
   return {
     toasts,
@@ -263,7 +263,7 @@ function ToastContainer() {
  * Individual toast item component
  */
 function ToastItem({ toast, onRemove }) {
-  const { id, message, type, action } = toast
+  const { message, type, action } = toast
 
   useEffect(() => {
     // Announce to screen readers

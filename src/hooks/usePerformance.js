@@ -31,9 +31,9 @@ import { useEffect, useRef, useState, useCallback } from 'react'
  */
 export function usePerformance(options = {}) {
   const {
-    enabled = process.env.NODE_ENV === 'development',
+    enabled = import.meta.env.DEV,
     sampleRate = 1.0,
-    logToConsole = process.env.NODE_ENV === 'development'
+    logToConsole = import.meta.env.DEV
   } = options
 
   const [metrics, setMetrics] = useState({})
@@ -89,7 +89,7 @@ export function usePerformance(options = {}) {
     }
 
     lastRenderTime.current = currentTime
-  })
+  }, [enabled, sampleRate, logToConsole])
 
   // ================================================================
   // MEMORY USAGE TRACKING
@@ -148,7 +148,7 @@ export function usePerformance(options = {}) {
   // RESOURCE MONITORING
   // ================================================================
 
-  const monitorResourceLoad = useCallback((resourceName, resourceUrl) => {
+  const monitorResourceLoad = useCallback((resourceName) => {
     if (!enabled) return
 
     const startTime = performance.now()

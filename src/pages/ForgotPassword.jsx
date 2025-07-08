@@ -9,7 +9,6 @@ export default function ForgotPassword() {
   const [code, setCode]        = useState('')
   const [password, setPassword]= useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [message, setMessage]     = useState(null)
   const [error, setError]         = useState(null)
   const navigate = useNavigate()
 
@@ -20,13 +19,12 @@ export default function ForgotPassword() {
       return
     }
     
-    setError(null); setMessage(null); setIsLoading(true)
+    setError(null); setIsLoading(true)
     console.log('Starting forgot password request for:', email)
     
     try {
       const data = await forgotPassword(email)
       console.log('Success response:', data)
-      setMessage(data.msg)
       setStep('reset')
     } catch (err) {
       console.error('Reset request error:', err)
@@ -58,13 +56,12 @@ export default function ForgotPassword() {
       return
     }
     
-    setError(null); setMessage(null); setIsLoading(true)
+    setError(null); setIsLoading(true)
     console.log('Starting password reset for:', email)
     
     try {
       const data = await resetPassword(email, code, password)
       console.log('Reset success response:', data)
-      setMessage(data.msg || 'Wachtwoord succesvol gereset!')
       setTimeout(() => navigate('/login'), 2000)
     } catch (err) {
       console.error('Reset password error:', err)

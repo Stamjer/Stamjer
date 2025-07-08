@@ -277,7 +277,6 @@ async function enhancedFetch(url, options = {}, config = {}) {
   }
   
   // Retry logic
-  let lastError
   let attempt = 0
   
   const executeRequest = async () => {
@@ -299,8 +298,6 @@ async function enhancedFetch(url, options = {}, config = {}) {
       
       return result
     } catch (error) {
-      lastError = error
-      
       // Don't retry on abort or certain error types
       if (error.name === 'AbortError') {
         throw error

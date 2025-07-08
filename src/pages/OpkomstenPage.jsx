@@ -112,7 +112,7 @@ function Toast({ message, type = 'info', onClose }) {
 // CUSTOM 24-HOUR TIME INPUT COMPONENT
 // ================================================================
 
-function TimeInput24({ id, value, onChange, disabled, className, error, ...props }) {
+function TimeInput24({ value, onChange, disabled, error }) {
   const [hours, minutes] = (value || '00:00').split(':')
   
   const handleHourChange = (e) => {
@@ -618,18 +618,16 @@ function OpkomstEditForm({ event, onClose, onSave, users = [], currentUser = nul
 // ================================================================
 
 export default function OpkomstenPage() {
-  // Add error boundary for the entire component
-  try {
-    const [opkomstEvents, setOpkomstEvents] = useState([])
-    const [users, setUsers] = useState([])
-    const [currentUser, setCurrentUser] = useState(null)
-    const [attendance, setAttendance] = useState({}) // Track attendance for each event
-    const [isLoading, setIsLoading] = useState(true)
-    const [error, setError] = useState(null)
-    const [toast, setToast] = useState(null)
-    const [editingEvent, setEditingEvent] = useState(null) // For editing events
+  const [opkomstEvents, setOpkomstEvents] = useState([])
+  const [users, setUsers] = useState([])
+  const [currentUser, setCurrentUser] = useState(null)
+  const [attendance, setAttendance] = useState({}) // Track attendance for each event
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [toast, setToast] = useState(null)
+  const [editingEvent, setEditingEvent] = useState(null) // For editing events
 
-    console.log('OpkomstenPage component initialized')
+  console.log('OpkomstenPage component initialized')
 
     // ================================================================
     // EVENT HANDLERS
@@ -965,7 +963,7 @@ export default function OpkomstenPage() {
       console.error('Error updating attendance:', err)
       showToast('Kon aanwezigheid niet bijwerken', 'error')
     }
-  }, [currentUser, showToast])
+  }, [currentUser, showToast, opkomstEvents])
 
   // Get names of participants for an event
   const getParticipantNames = useCallback((participants) => {
@@ -1177,23 +1175,4 @@ export default function OpkomstenPage() {
       )}
     </div>
   )
-  } catch (componentError) {
-    console.error('Component error:', componentError)
-    return (
-      <div className="opkomsten-container">
-        <div className="error-state">
-          <div className="error-content">
-            <h2>⚠️ Er is iets misgegaan</h2>
-            <p>Component fout: {componentError.message}</p>
-            <button 
-              onClick={() => window.location.reload()} 
-              className="btn btn-primary"
-            >
-              Probeer opnieuw
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
 }

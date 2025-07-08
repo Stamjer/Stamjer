@@ -46,14 +46,17 @@ function nextDay(dateStr) {
 /**
  * Format date for display
  */
-function formatDate(date, options = {}) {
-  return date.toLocaleDateString('nl-NL', {
+function formatDate(dateString) {
+  const date = new Date(dateString)
+  // get full localized date, e.g. "maandag 8 juli 2025"
+  const formatted = date.toLocaleDateString('nl-NL', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
-    day: 'numeric',
-    ...options
+    day: 'numeric'
   })
+  // capitalize the very first letter (the weekday)
+  return formatted.charAt(0).toUpperCase() + formatted.slice(1)
 }
 
 /**
@@ -86,8 +89,10 @@ function Toast({ message, type = 'info', onClose }) {
 
   return (
     <div className={`toast toast-${type}`} role="alert">
-      <span className="toast-icon">{icons[type]}</span>
-      <span className="toast-message">{message}</span>
+      <div className="toast-content">
+        <span className="toast-icon">{icons[type]}</span>
+        <span className="toast-message">{message}</span>
+      </div>
       <button 
         className="toast-close" 
         onClick={onClose}
@@ -335,6 +340,8 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
       if (field === 'isOpkomst') {
         if (value) {
           newData.title = 'Stam opkomst'
+          newData.startTime = '20:30'
+          newData.endTime = '22:30'
         } else {
           newData.title = ''
           newData.opkomstmakers = []
@@ -535,7 +542,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
         <form className="modal-body" onSubmit={handleSubmit}>
           <div className="form-grid">
             {/* Title */}
-            <div className="form-group">
+            <div className="form-group form-group-full">
               <label className="form-label" htmlFor="event-title">
                 📝 Titel *
               </label>
@@ -611,7 +618,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
             </div>
 
             {/* Start date */}
-            <div className="form-group">
+            <div className="form-group form-group-full">
               <label className="form-label" htmlFor="start-date">
                 📅 {formData.isAllDay ? 'Startdatum' : 'Datum'} *
               </label>
@@ -655,7 +662,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
 
             {/* End date - only show for all-day events */}
             {formData.isAllDay && (
-              <div className="form-group">
+              <div className="form-group form-group-full">
                 <label className="form-label" htmlFor="end-date">
                   📅 Einddatum *
                 </label>
@@ -775,7 +782,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
 // CUSTOM 24-HOUR TIME INPUT COMPONENT
 // ================================================================
 
-function TimeInput24({ id, value, onChange, disabled, className, error, ...props }) {
+function TimeInput24({ value, onChange, disabled, error }) {
   const [hours, minutes] = (value || '00:00').split(':')
   
   const handleHourChange = (e) => {

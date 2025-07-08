@@ -28,6 +28,15 @@ export default function MyAccount() {
   } catch {
     localStorage.removeItem('user')
   }
+  
+  // Initialize active status from user data
+  React.useEffect(() => {
+    if (user) {
+      console.log('MyAccount - Setting active status to:', user.active)
+      setActiveStatus(user.active || false)
+    }
+  }, [user])
+  
   if (!user) {
     navigate('/login')
     return null
@@ -37,12 +46,6 @@ export default function MyAccount() {
   
   // Debug logging
   console.log('MyAccount - User data:', { id, firstName, lastName, email, active })
-  
-  // Initialize active status from user data
-  React.useEffect(() => {
-    console.log('MyAccount - Setting active status to:', active)
-    setActiveStatus(active)
-  }, [active])
 
   const handlePasswordChange = async (e) => {
     e.preventDefault()

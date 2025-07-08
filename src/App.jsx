@@ -176,14 +176,6 @@ function App() {
     return ['/login', '/', '/forgot-password'].includes(location.pathname)
   }, [location.pathname])
 
-  /**
-   * Get user display name for navigation
-   */
-  const userDisplayName = useMemo(() => {
-    if (!user) return null
-    return user.firstName || user.name || user.email?.split('@')[0] || 'Gebruiker'
-  }, [user])
-
   // ================================================================
   // LOADING STATE
   // ================================================================

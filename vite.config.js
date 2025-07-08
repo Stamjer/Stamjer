@@ -11,11 +11,11 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
         rewrite: path => path.replace(/^\/api/, ''),
-        configure: (proxy, options) => {
-          proxy.on('proxyReq', (proxyReq, req, res) => {
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
             console.log('Proxying request:', req.method, req.url, '->', proxyReq.path)
           })
-          proxy.on('error', (err, req, res) => {
+          proxy.on('error', (err) => {
             console.log('Proxy error:', err)
           })
         }
