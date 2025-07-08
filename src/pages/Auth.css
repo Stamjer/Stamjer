@@ -123,12 +123,16 @@
 
 .input-wrapper {
   position: relative;
+  min-height: 3.5rem; /* guarantee room for the input */
 }
 
 /* Enhanced Input Styling */
-.form-input {
+.form-input,
+.form-input.error {
   width: 100%;
-  padding: var(--space-4) var(--space-4);
+  height: 3.5rem;                /* always 3.5rem tall */
+  padding: var(--space-4);       /* your existing padding */
+  box-sizing: border-box;        /* include border in that height */
   border: 2px solid var(--secondary-200);
   border-radius: var(--radius-lg);
   font-size: 1rem;
@@ -136,7 +140,6 @@
   background: white;
   color: var(--secondary-800);
   transition: all var(--duration-normal) var(--ease-out);
-  position: relative;
 }
 
 .form-input:focus {
@@ -579,3 +582,27 @@
   }
 }
 
+
+/* Badge styles */
+.badge {
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.75rem;      /* softer corners */
+  font-size: 0.875rem;         /* slightly smaller */
+  font-weight: 500;            /* medium weight */
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.badge-admin {
+  background: linear-gradient(135deg, #a5b4fc 0%, #6366f1 100%);
+  color: white;
+}
+
+.badge-user {
+  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+  color: #1e3a8a;
+}
+
+.badge-streepjes {
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+  color: #991b1b;
+}

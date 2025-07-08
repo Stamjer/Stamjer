@@ -25,6 +25,7 @@ import ForgotPassword from './pages/ForgotPassword'
 import CalendarPage from './pages/CalendarPage'
 import OpkomstenPage from './pages/OpkomstenPage'
 import MyAccount from './pages/MyAccount'
+import StrepenPage from './pages/StrepenPage'
 
 // Component imports
 import ProtectedRoute from './components/ProtectedRoute'
@@ -228,6 +229,15 @@ function App() {
               >
                 🗓️ Opkomsten
               </button>
+              {user && user.isAdmin && (
+                <button 
+                  onClick={() => navigate('/strepen')} 
+                  className="btn btn-secondary"
+                  aria-label="Ga naar strepen"
+                >
+                  🎯 Strepen
+                </button>
+              )}
 
               {user ? (
                 // Authenticated user menu
@@ -278,6 +288,11 @@ function App() {
             <Route path="/opkomsten" element={
               <ProtectedRoute user={user}>
                 <OpkomstenPage />
+              </ProtectedRoute>
+            }/>
+            <Route path="/strepen" element={
+              <ProtectedRoute user={user}>
+                {user && user.isAdmin ? <StrepenPage /> : <div>Alleen toegankelijk voor admins</div>}
               </ProtectedRoute>
             }/>
             <Route path="/account" element={

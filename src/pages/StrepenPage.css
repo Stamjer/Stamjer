@@ -1,0 +1,318 @@
+/* Strepen Page Styles */
+.strepen-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.strepen-header {
+  text-align: center;
+  margin-bottom: 30px;
+  padding: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.strepen-header h1 {
+  margin: 0 0 10px 0;
+  font-size: 2.5em;
+  font-weight: 700;
+}
+
+.strepen-header p {
+  margin: 0;
+  font-size: 1.2em;
+  opacity: 0.9;
+}
+
+.event-selector {
+  margin-bottom: 30px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 10px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.event-selector label {
+  display: block;
+  margin-bottom: 10px;
+  font-weight: 600;
+  color: #333;
+  font-size: 1.1em;
+}
+
+.event-selector select {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  background: white;
+  font-size: 1em;
+  transition: border-color 0.3s ease;
+}
+
+.event-selector select:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.event-info {
+  margin-bottom: 30px;
+  padding: 20px;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-left: 4px solid #667eea;
+}
+
+.event-info h2 {
+  margin: 0 0 15px 0;
+  color: #333;
+  font-size: 1.8em;
+}
+
+.event-info p {
+  margin: 8px 0;
+  color: #666;
+  font-size: 1.1em;
+}
+
+.attendance-table {
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  margin-bottom: 30px;
+}
+
+.table-header {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+  gap: 1px;
+  background: #667eea;
+  color: white;
+  font-weight: 600;
+  font-size: 1.1em;
+}
+
+.header-cell {
+  padding: 15px;
+  text-align: center;
+  background: #667eea;
+}
+
+.header-cell.name {
+  text-align: left;
+}
+
+.table-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+  gap: 1px;
+  background: #f0f0f0;
+  transition: background-color 0.2s ease;
+}
+
+.table-row:hover {
+  background: #e8f0fe;
+}
+
+.table-row.participant {
+  background: #e8f5e8;
+}
+
+.table-row.participant:hover {
+  background: #d4edda;
+}
+
+.table-row.non-participant {
+  background: #fff3cd;
+}
+
+.table-row.non-participant:hover {
+  background: #ffeaa7;
+}
+
+.cell {
+  padding: 15px;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid #eee;
+}
+
+.cell.name {
+  justify-content: flex-start;
+  font-weight: 500;
+}
+
+.table-row.modified-state {
+  border-left: 3px solid #ffc107;
+}
+
+.modified-indicator {
+  color: #ffc107;
+  font-weight: bold;
+  margin-left: 5px;
+}
+
+.table-row.default-state {
+  opacity: 0.9;
+}
+
+.table-row.modified-state {
+  opacity: 1;
+  font-weight: 500;
+}
+
+.cell input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  accent-color: #667eea;
+}
+
+.cell input[type="checkbox"]:checked {
+  background-color: #667eea;
+}
+
+.cell.present input[type="checkbox"]:checked,
+.cell.absent input[type="checkbox"]:checked {
+  position: relative;
+}
+
+.strepen-info {
+  margin-bottom: 30px;
+  padding: 20px;
+  background: #fff3cd;
+  border-radius: 10px;
+  border-left: 4px solid #ffc107;
+}
+
+.strepen-info h3 {
+  margin: 0 0 15px 0;
+  color: #856404;
+  font-size: 1.3em;
+}
+
+.strepen-info p {
+  margin: 10px 0;
+  color: #856404;
+  font-size: 1.1em;
+}
+
+.strepen-info ul {
+  margin: 10px 0;
+  padding-left: 20px;
+  color: #856404;
+}
+
+.strepen-info li {
+  margin: 5px 0;
+  font-size: 1.1em;
+}
+
+.save-section {
+  text-align: center;
+  margin-top: 30px;
+}
+
+.save-button {
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  color: white;
+  border: none;
+  padding: 15px 40px;
+  border-radius: 25px;
+  font-size: 1.2em;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.save-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.save-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.loading, .error, .no-events {
+  text-align: center;
+  padding: 60px 20px;
+  font-size: 1.3em;
+  color: #666;
+}
+
+.error {
+  color: #dc3545;
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  border-radius: 10px;
+}
+
+.no-events {
+  background: #d1ecf1;
+  border: 1px solid #bee5eb;
+  border-radius: 10px;
+  color: #0c5460;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .strepen-page {
+    padding: 15px;
+  }
+  
+  .strepen-header h1 {
+    font-size: 2em;
+  }
+  
+  .table-header,
+  .table-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  
+  .header-cell,
+  .cell {
+    border-bottom: 1px solid #ddd;
+    text-align: left;
+  }
+  
+  .header-cell:before,
+  .cell:before {
+    content: attr(data-label);
+    font-weight: bold;
+    display: inline-block;
+    width: 100px;
+    margin-right: 10px;
+  }
+  
+  .cell.name:before {
+    content: "Naam: ";
+  }
+  
+  .cell.status:before {
+    content: "Aangemeld: ";
+  }
+  
+  .cell.present:before {
+    content: "Aanwezig: ";
+  }
+  
+  .cell.absent:before {
+    content: "Afwezig: ";
+  }
+  
+  .cell.streepjes:before {
+    content: "Streepjes: ";
+  }
+}

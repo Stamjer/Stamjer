@@ -21,6 +21,7 @@ export default function MyAccount() {
   })
   const [activeStatus, setActiveStatus] = useState(false)
   const [isUpdatingActive, setIsUpdatingActive] = useState(false)
+  const [userWithStreepjes, setUserWithStreepjes] = useState(null)
   
   let user = null
   try {
@@ -28,6 +29,27 @@ export default function MyAccount() {
   } catch {
     localStorage.removeItem('user')
   }
+  
+  // Load user data with calculated streepjes
+  React.useEffect(() => {
+    const loadUserData = async () => {
+      if (user) {
+        try {
+          const response = await fetch('/api/users/full')
+          if (response.ok) {
+            const data = await response.json()
+            const currentUser = data.users.find(u => u.id === user.id)
+            if (currentUser) {
+              setUserWithStreepjes(currentUser)
+            }
+          }
+        } catch (error) {
+          console.error('Error loading user data:', error)
+        }
+      }
+    }
+    loadUserData()
+  }, [user])
   
   // Initialize active status from user data
   React.useEffect(() => {
@@ -43,6 +65,7 @@ export default function MyAccount() {
   }
 
   const { firstName, lastName, email, active = false, id } = user
+  const streepjes = userWithStreepjes?.streepjes || 0
   
   // Debug logging
   console.log('MyAccount - User data:', { id, firstName, lastName, email, active })
@@ -180,7 +203,7 @@ export default function MyAccount() {
             <>             
               <div className="form-group" style={{ marginBottom: '1.5rem' }}>
                 <label className="form-label">
-                  👤 Voornaam
+                  👤 Naam
                 </label>
                 <div style={{ 
                   padding: '0.75rem', 
@@ -190,23 +213,23 @@ export default function MyAccount() {
                   color: 'var(--secondary-800)', 
                   fontWeight: '500' 
                 }}>
-                  {firstName}
+                  {firstName} {lastName}
                 </div>
               </div>
-              
+
               <div className="form-group" style={{ marginBottom: '1.5rem' }}>
                 <label className="form-label">
-                  👥 Achternaam
+                  🔑 Account type
                 </label>
                 <div style={{ 
                   padding: '0.75rem', 
-                  background: 'var(--secondary-50)', 
-                  border: '1px solid var(--secondary-200)', 
+                  background: user.isAdmin ? 'var(--accent-blue-50)' : 'var(--secondary-50)', 
+                  border: `1px solid ${user.isAdmin ? 'var(--accent-blue-200)' : 'var(--secondary-200)'}`, 
                   borderRadius: 'var(--radius-md)', 
-                  color: 'var(--secondary-800)', 
+                  color: user.isAdmin ? 'var(--accent-blue-800)' : 'var(--secondary-800)', 
                   fontWeight: '500' 
                 }}>
-                  {lastName}
+                  {user.isAdmin ? '👑 Administrator' : '👤 Gebruiker'}
                 </div>
               </div>
               
@@ -228,18 +251,27 @@ export default function MyAccount() {
               
               <div className="form-group" style={{ marginBottom: '1.5rem' }}>
                 <label className="form-label">
-                  🔑 Account type
+                  🎯 Streepjes
                 </label>
                 <div style={{ 
                   padding: '0.75rem', 
-                  background: user.isAdmin ? 'var(--accent-blue-50)' : 'var(--secondary-50)', 
-                  border: `1px solid ${user.isAdmin ? 'var(--accent-blue-200)' : 'var(--secondary-200)'}`, 
+                  background: streepjes > 0 ? 'var(--accent-red-50)' : 'var(--secondary-50)', 
+                  border: `1px solid ${streepjes > 0 ? 'var(--accent-red-200)' : 'var(--secondary-200)'}`, 
                   borderRadius: 'var(--radius-md)', 
-                  color: user.isAdmin ? 'var(--accent-blue-800)' : 'var(--secondary-800)', 
+                  color: streepjes > 0 ? 'var(--accent-red-800)' : 'var(--secondary-800)', 
                   fontWeight: '500' 
                 }}>
-                  {user.isAdmin ? '👑 Administrator' : '👤 Gebruiker'}
+                  {streepjes}
                 </div>
+                {streepjes > 0 && (
+                  <div style={{ 
+                    fontSize: '0.875rem', 
+                    color: 'var(--accent-red-600)', 
+                    marginTop: '0.25rem'
+                  }}>
+                    Je hebt {streepjes} streepje{streepjes > 1 ? 's' : ''}
+                  </div>
+                )}
               </div>
               
               <div className="form-group">

@@ -235,6 +235,37 @@ function isUserAdmin(userId) {
   return user && user.isAdmin
 }
 
+/**
+ * Calculate streepjes for all users based on attendance data in events
+ */
+function calculateStreepjes() {
+  const streepjesCount = {}
+  
+  // Initialize streepjes count for all users
+  users.forEach(user => {
+    streepjesCount[user.id] = 0
+  })
+  
+  // Go through all events and calculate streepjes
+  events.forEach(event => {
+    if (event.isOpkomst && event.attendance) {
+      Object.entries(event.attendance).forEach(([userId, attendance]) => {
+        const userIdNumber = parseInt(userId)
+        const isParticipant = event.participants.includes(userIdNumber)
+        
+        // Give streepje if expectation doesn't match reality
+        const shouldGetStreepje = (isParticipant && attendance.absent) || (!isParticipant && attendance.present)
+        
+        if (shouldGetStreepje) {
+          streepjesCount[userIdNumber] = (streepjesCount[userIdNumber] || 0) + 1
+        }
+      })
+    }
+  })
+  
+  return streepjesCount
+}
+
 // ================================================================
 // MAIN SERVER INITIALIZATION
 // ================================================================
@@ -392,6 +423,10 @@ async function startServer() {
      */
     app.get('/users/full', (req, res) => {
       console.log('👥 Fetching all users with full info, count:', users.length)
+      
+      // Calculate streepjes for all users
+      const streepjesCount = calculateStreepjes()
+      
       // Return full user data (excluding passwords for security)
       const usersFullInfo = users.map(user => ({
         id: user.id,
@@ -399,7 +434,8 @@ async function startServer() {
         lastName: user.lastName,
         email: user.email,
         active: user.active,
-        isAdmin: user.isAdmin || false
+        isAdmin: user.isAdmin || false,
+        streepjes: streepjesCount[user.id] || 0
       }))
       res.json({ users: usersFullInfo })
     })
@@ -472,6 +508,62 @@ async function startServer() {
       } catch (error) {
         console.error('❌ Error updating user profile:', error)
         res.status(500).json({ error: 'Failed to update profile' })
+      }
+    })
+
+    /**
+     * Update event attendance (bulk update for admin)
+     * PUT /events/:id/attendance/bulk
+     * Updates the attendance data for a specific event
+     */
+    app.put('/events/:id/attendance/bulk', async (req, res) => {
+      try {
+        console.log('📊 Updating event attendance (bulk)...')
+        console.log('📊 Event ID:', req.params.id)
+        console.log('📊 Request body:', req.body)
+        
+        const eventId = req.params.id
+        const { attendance } = req.body
+        
+        if (!eventId) {
+          console.log('❌ Event ID is missing')
+          return res.status(400).json({ error: 'Event ID is required' })
+        }
+        
+        if (!attendance || typeof attendance !== 'object') {
+          console.log('❌ Invalid attendance data')
+          return res.status(400).json({ error: 'Valid attendance data is required' })
+        }
+        
+        console.log('📊 Looking for event with ID:', eventId)
+        
+        // Find event by ID
+        const eventIndex = events.findIndex(event => event.id === eventId)
+        console.log('📊 Event index found:', eventIndex)
+        
+        if (eventIndex === -1) {
+          console.log('❌ Event not found')
+          return res.status(404).json({ error: 'Event not found' })
+        }
+        
+        console.log('📊 Current event:', events[eventIndex])
+        
+        // Update the event's attendance data
+        events[eventIndex].attendance = attendance
+        console.log('✅ Updated event attendance to:', attendance)
+        
+        // Save updated events to file
+        await saveEvents()
+        
+        console.log('📊 Returning updated event')
+        
+        res.json({ 
+          msg: 'Attendance updated successfully',
+          event: events[eventIndex]
+        })
+      } catch (error) {
+        console.error('❌ Error updating event attendance:', error)
+        res.status(500).json({ error: 'Failed to update attendance' })
       }
     })
 
@@ -652,6 +744,15 @@ async function startServer() {
       try {
         const { id } = req.params
         const { userId, attending } = req.body
+        
+        // Validate input parameters
+        if (!userId) {
+          return res.status(400).json({ msg: 'User ID is required' })
+        }
+        
+        if (typeof attending !== 'boolean') {
+          return res.status(400).json({ msg: 'Attending must be a boolean value' })
+        }
         
         const eventIndex = events.findIndex(e => e.id === id)
         if (eventIndex === -1) {
