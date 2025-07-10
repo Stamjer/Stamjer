@@ -1,79 +1,101 @@
-/**
- * ================================================================
- * OPKOMSTEN PAGE STYLES
- * ================================================================
- */
+/* Opkomsten Page Styles - Unified Design System */
 
-/* ================================================================
- * CONTAINER AND LAYOUT
- * ================================================================ */
-
+/* Container and Layout */
 .opkomsten-container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 2rem 1rem;
+  padding: var(--space-8);
   min-height: 100vh;
+  background: linear-gradient(135deg, var(--secondary-50) 0%, var(--primary-50) 100%);
 }
 
 .opkomsten-header {
   text-align: center;
-  margin-bottom: 3rem;
+  margin-bottom: var(--space-12);
+  animation: fadeInUp var(--duration-slow) var(--ease-out);
 }
 
 .opkomsten-title {
-  font-size: 2.5rem;
-  font-weight: 700;
-  color: #2c3e50;
-  margin-bottom: 0.5rem;
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: var(--font-weight-bold);
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: var(--space-2);
+  line-height: 1.2;
 }
 
 .opkomsten-subtitle {
-  font-size: 1.1rem;
-  color: #6c757d;
+  font-size: clamp(1rem, 2vw, 1.25rem);
+  color: var(--secondary-600);
+  font-weight: var(--font-weight-medium);
   margin: 0;
 }
 
-/* ================================================================
- * TABLE STYLES
- * ================================================================ */
-
+/* Table Styles */
 .opkomsten-table-wrapper {
   background: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-2xl);
+  border: 1px solid var(--secondary-200);
   overflow: hidden;
-  border: 1px solid #e5e7eb;
+  animation: slideInUp var(--duration-slow) var(--ease-out) 0.2s both;
+  transition: all var(--duration-normal) var(--ease-out);
+}
+
+.opkomsten-table-wrapper:hover {
+  box-shadow: var(--shadow-2xl);
+  transform: translateY(-2px);
 }
 
 .opkomsten-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.95rem;
+  font-family: var(--font-primary);
 }
 
 .opkomsten-table thead {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--gradient-primary);
   color: white;
 }
 
 .opkomsten-table th {
-  padding: 1rem;
+  padding: var(--space-4);
   text-align: left;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   font-size: 0.875rem;
-  border-bottom: 2px solid #5a6acf;
-  color: var(--secondary-100);
+  border-bottom: 2px solid var(--primary-800);
+  color: white;
+  position: relative;
+  overflow: hidden;
+}
+
+.opkomsten-table th::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+  transition: left var(--duration-slower);
+}
+
+.opkomsten-table th:hover::before {
+  left: 100%;
 }
 
 .opkomsten-table tbody tr {
-  transition: all 0.2s ease;
-  border-bottom: 1px solid #f1f5f9;
+  transition: all var(--duration-fast) var(--ease-out);
+  border-bottom: 1px solid var(--secondary-100);
 }
 
 .opkomsten-table tbody tr:hover {
-  background-color: #f8fafc;
+  background-color: var(--secondary-50);
   transform: translateY(-1px);
 }
 
@@ -82,13 +104,11 @@
 }
 
 .opkomsten-table td {
-  padding: 1rem;
+  padding: var(--space-4);
   vertical-align: top;
 }
 
-/* ================================================================
- * CELL SPECIFIC STYLES
- * ================================================================ */
+/* Cell Specific Styles */
 
 /* Date Cell */
 .date-cell {
@@ -97,16 +117,16 @@
 }
 
 .date-content {
-  font-weight: 600;
-  color: #2c3e50;
+  font-weight: var(--font-weight-semibold);
+  color: var(--secondary-800);
   line-height: 1.4;
 }
 
 .time-info {
   font-size: 0.85rem;
-  color: #6c757d;
-  margin-top: 0.25rem;
-  font-weight: 400;
+  color: var(--secondary-600);
+  margin-top: var(--space-1);
+  font-weight: var(--font-weight-normal);
 }
 
 /* Attendance Cell */
@@ -134,16 +154,16 @@
 .attendance-checkbox .checkbox-custom {
   height: 20px;
   width: 20px;
-  background-color: #fff;
-  border: 2px solid #d1d5db;
-  border-radius: 4px;
+  background-color: white;
+  border: 2px solid var(--secondary-300);
+  border-radius: var(--radius-sm);
   position: relative;
-  transition: all 0.2s ease;
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
 .attendance-checkbox .checkbox-input:checked + .checkbox-custom {
-  background-color: #10b981;
-  border-color: #10b981;
+  background-color: var(--accent-green);
+  border-color: var(--accent-green);
 }
 
 .attendance-checkbox .checkbox-input:checked + .checkbox-custom::after {
@@ -159,34 +179,36 @@
 }
 
 .attendance-checkbox .checkbox-custom:hover {
-  border-color: #9ca3af;
+  border-color: var(--secondary-400);
+  transform: scale(1.1);
 }
 
 .attendance-checkbox .checkbox-input:checked + .checkbox-custom:hover {
-  border-color: #059669;
-  background-color: #059669;
+  border-color: var(--accent-green-light);
+  background-color: var(--accent-green-light);
 }
 
 /* Disabled checkbox styles */
 .attendance-checkbox .checkbox-input:disabled + .checkbox-custom {
-  background-color: #f3f4f6;
-  border-color: #d1d5db;
+  background-color: var(--secondary-100);
+  border-color: var(--secondary-300);
   cursor: not-allowed;
   opacity: 0.6;
 }
 
 .attendance-checkbox .checkbox-input:disabled:checked + .checkbox-custom {
-  background-color: #6b7280;
-  border-color: #6b7280;
+  background-color: var(--secondary-500);
+  border-color: var(--secondary-500);
 }
 
 .attendance-checkbox .checkbox-input:disabled:checked + .checkbox-custom::after {
-  border-color: #f3f4f6;
+  border-color: var(--secondary-100);
 }
 
 .attendance-checkbox .checkbox-input:disabled ~ .checkbox-custom:hover {
-  border-color: #d1d5db;
-  background-color: #f3f4f6;
+  border-color: var(--secondary-300);
+  background-color: var(--secondary-100);
+  transform: none;
 }
 
 .attendance-checkbox:has(.checkbox-input:disabled) {

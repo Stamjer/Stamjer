@@ -292,7 +292,7 @@ export default function StrepenPage() {
   return (
     <div className="strepen-page">
       <div className="strepen-header">
-        <h1>🎯 Strepen</h1>
+        <h1>Strepen</h1>
         <p>Aanwezigheidsbeheer voor opkomsten</p>
       </div>
 
