@@ -399,6 +399,78 @@ img {
   font-weight: var(--font-weight-medium);
 }
 
+/* Enhanced Mobile Responsiveness - Global Styles */
+
+/* Mobile-First Form Improvements */
+input, textarea, select, button {
+  font-size: 16px; /* Prevents zoom on iOS */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+/* Touch-friendly interactive elements */
+a, button, input, select, textarea {
+  touch-action: manipulation; /* Removes 300ms click delay */
+}
+
+/* Improved focus styles for touch devices */
+@media (hover: none) and (pointer: coarse) {
+  .btn:hover {
+    transform: none; /* Disable hover transforms on touch devices */
+  }
+  
+  button:hover,
+  .btn:hover {
+    box-shadow: var(--shadow-lg);
+  }
+}
+
+/* Enhanced Mobile Typography */
+body {
+  -webkit-text-size-adjust: 100%; /* Prevents iOS text size adjustment */
+  text-size-adjust: 100%;
+}
+
+/* Better text readability on mobile */
+h1, h2, h3, h4, h5, h6 {
+  line-height: 1.3;
+  word-wrap: break-word;
+  hyphens: auto;
+}
+
+p {
+  max-width: 65ch; /* Optimal reading line length */
+}
+
+/* Improved mobile scrolling */
+html {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Safe area support for modern mobile devices */
+@supports (padding: max(0px)) {
+  .nav-container {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+  
+  .page-container {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+}
+
+/* Enhanced Mobile Tables */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--secondary-200);
+  border-radius: var(--radius-lg);
+}
+
 /* Responsive design utilities */
 @media (max-width: 768px) {
   html {
@@ -407,6 +479,50 @@ img {
   
   body {
     line-height: 1.5;
+  }
+  
+  /* Larger touch targets */
+  .btn,
+  button,
+  input[type="submit"],
+  input[type="button"] {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0.75rem 1rem;
+  }
+  
+  /* Better form elements */
+  input,
+  textarea,
+  select {
+    min-height: 44px;
+    padding: 0.75rem;
+    border-radius: var(--radius-lg);
+    border: 2px solid var(--secondary-200);
+    font-size: 1rem;
+  }
+  
+  input:focus,
+  textarea:focus,
+  select:focus {
+    border-color: var(--primary-500);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    outline: none;
+  }
+}
+
+/* Small mobile improvements */
+@media (max-width: 480px) {
+  /* Even larger touch targets for small screens */
+  .btn,
+  button {
+    min-height: 48px;
+    padding: 0.875rem 1.25rem;
+  }
+  
+  /* Better form spacing */
+  .form-group {
+    margin-bottom: 1.25rem;
   }
 }
 

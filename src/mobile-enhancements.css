@@ -1,0 +1,341 @@
+/* Mobile-First Additional Enhancements */
+
+/* Prevent text size adjustments on orientation change */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Better scrolling on mobile */
+* {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Remove default tap highlights */
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+/* Improve form controls on mobile */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="tel"],
+input[type="url"],
+input[type="search"],
+textarea,
+select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  border-radius: 0; /* Reset iOS rounded corners */
+}
+
+/* iOS specific fixes */
+@supports (-webkit-touch-callout: none) {
+  /* This targets iOS Safari */
+  
+  /* Fix viewport issues */
+  body {
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Prevent zoom on input focus */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  textarea,
+  select {
+    font-size: 16px; /* Prevents zoom */
+  }
+  
+  /* Fix sticky positioning */
+  .nav-container {
+    position: -webkit-sticky;
+    position: sticky;
+  }
+}
+
+/* Android specific fixes */
+@media screen and (-webkit-min-device-pixel-ratio: 0) {
+  /* This targets Android browsers */
+  
+  /* Improve button appearance */
+  button,
+  .btn {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    border-radius: var(--radius-lg);
+  }
+  
+  /* Fix select dropdown appearance */
+  select {
+    background-image: url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 5'%3E%3Cpath fill='%23667eea' d='M2 0L0 2h4zm0 5L0 3h4z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 0.75rem;
+    padding-right: 2.5rem;
+  }
+}
+
+/* Responsive images */
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Responsive tables - scroll horizontally on mobile */
+.table-responsive {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-responsive table {
+  min-width: 100%;
+  white-space: nowrap;
+}
+
+/* Mobile navigation enhancements */
+@media (max-width: 768px) {
+  /* Ensure navigation is accessible */
+  .nav-container {
+    min-height: 60px;
+  }
+  
+  /* Improve button spacing in navigation */
+  .nav-menu button {
+    margin: 0.25rem 0;
+  }
+  
+  /* Better modal sizing */
+  .modal {
+    width: 95vw;
+    max-width: 95vw;
+    margin: 1rem auto;
+  }
+  
+  /* Improve form layouts */
+  .form-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  /* Better card spacing */
+  .card {
+    margin-bottom: 1rem;
+  }
+  
+  /* Improve list item spacing */
+  li {
+    margin-bottom: 0.5rem;
+  }
+  
+  /* Better button groups */
+  .button-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .button-group button {
+    width: 100%;
+  }
+}
+
+/* Small mobile specific */
+@media (max-width: 480px) {
+  /* Reduce margins and padding */
+  .container {
+    padding: 0.75rem;
+  }
+  
+  /* Stack elements vertically */
+  .flex-row {
+    flex-direction: column;
+  }
+  
+  /* Full width elements */
+  .btn,
+  button,
+  input,
+  select,
+  textarea {
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  /* Smaller text for constraints */
+  small,
+  .text-small {
+    font-size: 0.75rem;
+  }
+  
+  /* Better spacing for forms */
+  .form-group + .form-group {
+    margin-top: 1rem;
+  }
+}
+
+/* Extra small mobile */
+@media (max-width: 360px) {
+  /* Even tighter spacing */
+  .container {
+    padding: 0.5rem;
+  }
+  
+  /* Smaller font sizes */
+  body {
+    font-size: 0.875rem;
+  }
+  
+  h1 {
+    font-size: 1.5rem;
+  }
+  
+  h2 {
+    font-size: 1.25rem;
+  }
+  
+  h3 {
+    font-size: 1.125rem;
+  }
+}
+
+/* Landscape orientation adjustments */
+@media (orientation: landscape) and (max-height: 600px) {
+  /* Reduce header size in landscape */
+  .page-header {
+    margin-bottom: 1rem;
+  }
+  
+  .page-title {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  /* Compact navigation */
+  .nav-container {
+    min-height: 50px;
+    padding: 0.5rem 1rem;
+  }
+  
+  /* Reduce modal header */
+  .modal-header {
+    padding: 0.75rem 1rem;
+  }
+  
+  .modal-body {
+    padding: 0.75rem 1rem;
+  }
+}
+
+/* High DPI displays */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  /* Crisp borders */
+  .btn,
+  .card,
+  input,
+  select,
+  textarea {
+    border-width: 0.5px;
+  }
+  
+  /* Better shadows */
+  .card {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+}
+
+/* Dark mode support for mobile */
+@media (prefers-color-scheme: dark) {
+  /* Adjust colors for better mobile visibility */
+  .nav-container {
+    background: rgba(30, 41, 59, 0.95);
+    border-bottom-color: #475569;
+  }
+  
+  .card {
+    background: #1e293b;
+    border-color: #475569;
+  }
+  
+  .modal {
+    background: #1e293b;
+  }
+  
+  input,
+  textarea,
+  select {
+    background: #334155;
+    border-color: #475569;
+    color: #f1f5f9;
+  }
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  /* Increase border widths */
+  .btn,
+  .card,
+  input,
+  select,
+  textarea {
+    border-width: 2px;
+  }
+  
+  /* Stronger shadows */
+  .card {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+  
+  /* More visible focus states */
+  *:focus {
+    outline: 3px solid #0066cc;
+    outline-offset: 2px;
+  }
+}
+
+/* Print styles optimization */
+@media print {
+  /* Hide mobile-specific elements */
+  .mobile-menu-toggle,
+  .mobile-menu-backdrop,
+  .nav-menu.mobile-open {
+    display: none !important;
+  }
+  
+  /* Expand content for print */
+  .nav-menu {
+    position: static !important;
+    width: auto !important;
+    height: auto !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  
+  /* Reset mobile modal styles for print */
+  .modal {
+    position: static !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    box-shadow: none !important;
+    border: 1px solid #000 !important;
+  }
+}

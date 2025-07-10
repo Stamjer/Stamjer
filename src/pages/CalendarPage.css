@@ -787,7 +787,40 @@
   75% { transform: translateX(4px); }
 }
 
-/* Responsive Design */
+/* Enhanced Mobile Responsiveness */
+
+/* Touch-friendly calendar controls */
+.fc-button {
+  min-height: 44px !important;
+  padding: 0.5rem 1rem !important;
+  border-radius: var(--radius-lg) !important;
+  touch-action: manipulation;
+}
+
+.fc-event {
+  cursor: pointer;
+  touch-action: manipulation;
+  min-height: 32px;
+  border-radius: var(--radius-md) !important;
+}
+
+/* Mobile Navigation Improvements */
+@media (max-width: 1024px) {
+  .calendar-container {
+    padding: var(--space-6);
+  }
+  
+  .fc-header-toolbar {
+    padding: var(--space-3) !important;
+  }
+  
+  .fc-button {
+    font-size: 0.875rem !important;
+    padding: 0.625rem 0.875rem !important;
+  }
+}
+
+/* Tablet and Small Desktop */
 @media (max-width: 768px) {
   .calendar-container {
     padding: var(--space-4);
@@ -805,35 +838,223 @@
 
   .fc-toolbar-chunk {
     justify-content: center;
+    width: 100%;
+  }
+
+  .fc-button {
+    min-height: 48px !important;
+    padding: 0.75rem 1rem !important;
+    font-size: 0.875rem !important;
+    border-radius: var(--radius-lg) !important;
+  }
+
+  .fc-button-group {
+    border-radius: var(--radius-lg) !important;
+  }
+
+  /* Enhanced Modal for Mobile */
+  .modal {
+    padding: 0.5rem;
   }
 
   .modal-content {
-    margin: var(--space-2);
-    max-height: calc(100vh - var(--space-4));
+    margin: 0;
+    max-height: calc(100vh - 1rem);
+    border-radius: var(--radius-xl);
+    max-width: 100%;
   }
 
   .modal-header {
-    padding: var(--space-6) var(--space-4) var(--space-4);
+    padding: 1.5rem 1rem 1rem;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   }
 
   .modal-body {
-    padding: var(--space-4);
+    padding: 1rem;
+    max-height: calc(100vh - 8rem);
+    overflow-y: auto;
   }
 
   .modal-footer {
-    padding: var(--space-4);
+    padding: 1rem;
     flex-direction: column;
+    gap: 0.75rem;
+    border-radius: 0 0 var(--radius-xl) var(--radius-xl);
   }
 
+  .modal-footer .btn {
+    width: 100%;
+    min-height: 48px;
+  }
+
+  /* Form Improvements */
   .form-grid {
     grid-template-columns: 1fr;
-    gap: var(--space-3);
+    gap: 1rem;
+  }
+
+  .form-group label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+
+  .form-group input,
+  .form-group textarea,
+  .form-group select {
+    min-height: 48px;
+    padding: 0.875rem;
+    font-size: 1rem;
+    border-radius: var(--radius-lg);
+    border: 2px solid var(--secondary-200);
+  }
+
+  .form-group input:focus,
+  .form-group textarea:focus,
+  .form-group select:focus {
+    border-color: var(--primary-500);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+
+  /* Toast Notifications */
+  .toast {
+    left: 0.75rem;
+    right: 0.75rem;
+    max-width: none;
+    font-size: 0.875rem;
+    padding: 1rem;
+    border-radius: var(--radius-lg);
+  }
+
+  /* Calendar Event Styling */
+  .fc-event-title {
+    font-size: 0.8125rem;
+    line-height: 1.3;
+    padding: 0.25rem 0.5rem;
+  }
+
+  .fc-event-time {
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+}
+
+/* Small Mobile Devices */
+@media (max-width: 480px) {
+  .calendar-container {
+    padding: 0.75rem;
+  }
+
+  .calendar-title {
+    font-size: 1.75rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .calendar-subtitle {
+    font-size: 0.875rem;
+  }
+
+  .fc-header-toolbar {
+    padding: 0.75rem !important;
+    gap: 0.75rem !important;
+  }
+
+  .fc-button {
+    min-height: 44px !important;
+    padding: 0.625rem 0.75rem !important;
+    font-size: 0.8125rem !important;
+  }
+
+  .fc-toolbar-title {
+    font-size: 1.25rem !important;
+  }
+
+  /* Modal adjustments for very small screens */
+  .modal {
+    padding: 0.25rem;
+  }
+
+  .modal-content {
+    border-radius: var(--radius-lg);
+    max-height: calc(100vh - 0.5rem);
+  }
+
+  .modal-header {
+    padding: 1rem 0.75rem 0.75rem;
+  }
+
+  .modal-body {
+    padding: 0.75rem;
+    max-height: calc(100vh - 6rem);
+  }
+
+  .modal-footer {
+    padding: 0.75rem;
+    gap: 0.5rem;
+  }
+
+  .modal-footer .btn {
+    min-height: 44px;
+    font-size: 0.875rem;
+  }
+
+  /* Calendar event optimizations */
+  .fc-event {
+    min-height: 28px;
+    font-size: 0.75rem;
+  }
+
+  .fc-event-title {
+    font-size: 0.75rem;
+    padding: 0.125rem 0.375rem;
+  }
+
+  .fc-event-time {
+    font-size: 0.6875rem;
+  }
+
+  /* Form optimizations */
+  .form-group input,
+  .form-group textarea,
+  .form-group select {
+    min-height: 44px;
+    padding: 0.75rem;
+    font-size: 0.875rem;
   }
 
   .toast {
-    left: var(--space-4);
-    right: var(--space-4);
-    max-width: none;
+    left: 0.5rem;
+    right: 0.5rem;
+    padding: 0.875rem;
+    font-size: 0.8125rem;
+  }
+}
+
+/* Extra Small Mobile Devices */
+@media (max-width: 360px) {
+  .calendar-container {
+    padding: 0.5rem;
+  }
+
+  .fc-header-toolbar {
+    padding: 0.5rem !important;
+  }
+
+  .fc-button {
+    min-height: 40px !important;
+    padding: 0.5rem 0.625rem !important;
+    font-size: 0.75rem !important;
+  }
+
+  .modal-header,
+  .modal-body,
+  .modal-footer {
+    padding: 0.625rem;
+  }
+
+  .modal-footer .btn {
+    min-height: 40px;
+    font-size: 0.8125rem;
   }
 }
 

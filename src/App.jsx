@@ -33,6 +33,15 @@ import ProtectedRoute from './components/ProtectedRoute'
 // Import the improved App CSS
 import './App.css'
 
+// Import mobile utilities CSS
+import './components/MobileUtils.css'
+
+// Import comprehensive mobile enhancements
+import './mobile-enhancements.css'
+
+// Import mobile utilities
+import { useIsMobile, preventZoom } from './components/MobileUtils'
+
 /**
  * Error Boundary Component for handling React errors gracefully
  */
@@ -96,10 +105,33 @@ function App() {
   // This stores the currently logged-in user information
   const [user, setUser] = useState(null)
   const [isInitializing, setIsInitializing] = useState(true)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+
+  // Mobile detection
+  const isMobile = useIsMobile()
 
   // ================================================================
   // EFFECTS AND INITIALIZATION
   // ================================================================
+  
+  /**
+   * Initialize mobile optimizations
+   */
+  useEffect(() => {
+    // Prevent zoom on iOS double-tap
+    preventZoom()
+    
+    // Add mobile class to body for conditional styling
+    if (isMobile) {
+      document.body.classList.add('is-mobile')
+    } else {
+      document.body.classList.remove('is-mobile')
+    }
+    
+    return () => {
+      document.body.classList.remove('is-mobile')
+    }
+  }, [isMobile])
   
   /**
    * Load user from localStorage on component mount
@@ -165,6 +197,46 @@ function App() {
     }
   }, [])
 
+  /**
+   * Toggle mobile menu
+   */
+  const toggleMobileMenu = useCallback(() => {
+    setIsMobileMenuOpen(prev => !prev)
+  }, [])
+
+  /**
+   * Close mobile menu when navigating
+   */
+  const handleMobileNavigation = useCallback((path) => {
+    navigate(path)
+    setIsMobileMenuOpen(false)
+  }, [navigate])
+
+  /**
+   * Close mobile menu when clicking outside or on escape
+   */
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (isMobileMenuOpen && !event.target.closest('.nav-container')) {
+        setIsMobileMenuOpen(false)
+      }
+    }
+
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setIsMobileMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('click', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+
+    return () => {
+      document.removeEventListener('click', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [isMobileMenuOpen])
+
   // ================================================================
   // MEMOIZED VALUES FOR PERFORMANCE
   // ================================================================
@@ -213,26 +285,38 @@ function App() {
               <span className="nav-title">Stamjer</span>
             </div>
 
+            {/* Mobile Menu Toggle */}
+            <button 
+              className="mobile-menu-toggle"
+              onClick={toggleMobileMenu}
+              aria-label={isMobileMenuOpen ? "Sluit menu" : "Open menu"}
+              aria-expanded={isMobileMenuOpen}
+            >
+              <span className={`hamburger-line ${isMobileMenuOpen ? 'active' : ''}`}></span>
+              <span className={`hamburger-line ${isMobileMenuOpen ? 'active' : ''}`}></span>
+              <span className={`hamburger-line ${isMobileMenuOpen ? 'active' : ''}`}></span>
+            </button>
+
             {/* Navigation Menu */}
-            <div className="nav-menu">
+            <div className={`nav-menu ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
               <button 
-                onClick={() => navigate('/calendar')} 
-                className="btn btn-secondary"
+                onClick={() => handleMobileNavigation('/calendar')} 
+                className="btn btn-secondary nav-btn"
                 aria-label="Ga naar kalender"
               >
                 📅 Kalender
               </button>
               <button 
-                onClick={() => navigate('/opkomsten')} 
-                className="btn btn-secondary"
+                onClick={() => handleMobileNavigation('/opkomsten')} 
+                className="btn btn-secondary nav-btn"
                 aria-label="Ga naar opkomsten"
               >
                 🗓️ Opkomsten
               </button>
               {user && user.isAdmin && (
                 <button 
-                  onClick={() => navigate('/strepen')} 
-                  className="btn btn-secondary"
+                  onClick={() => handleMobileNavigation('/strepen')} 
+                  className="btn btn-secondary nav-btn"
                   aria-label="Ga naar strepen"
                 >
                   🎯 Strepen
@@ -243,15 +327,15 @@ function App() {
                 // Authenticated user menu
                 <>
                   <button 
-                    onClick={() => navigate('/account')} 
-                    className="btn btn-secondary"
+                    onClick={() => handleMobileNavigation('/account')} 
+                    className="btn btn-secondary nav-btn"
                     aria-label="Ga naar mijn account"
                   >
                     {user.isAdmin ? '👤 Mijn account' : '👤 Mijn account'}
                   </button>
                   <button 
                     onClick={handleLogout} 
-                    className="btn btn-outline"
+                    className="btn btn-outline nav-btn"
                     aria-label="Uitloggen"
                   >
                     Uitloggen
@@ -260,14 +344,17 @@ function App() {
               ) : (
                 // Non-authenticated user menu
                 <button 
-                  onClick={() => navigate('/login')} 
-                  className="btn btn-primary"
+                  onClick={() => handleMobileNavigation('/login')} 
+                  className="btn btn-primary nav-btn"
                   aria-label="Ga naar inlogpagina"
                 >
                   🔐 Inloggen
                 </button>
               )}
             </div>
+
+            {/* Mobile Menu Backdrop */}
+            {isMobileMenuOpen && <div className="mobile-menu-backdrop" onClick={() => setIsMobileMenuOpen(false)}></div>}
           </nav>
         )}
 

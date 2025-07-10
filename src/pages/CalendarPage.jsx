@@ -27,6 +27,9 @@ import nlLocale from '@fullcalendar/core/locales/nl'
 // Component styling
 import './CalendarPage.css'
 
+// Mobile utilities
+import { useIsMobile, usePullToRefresh, TouchButton } from '../components/MobileUtils'
+
 // ================================================================
 // UTILITY FUNCTIONS
 // ================================================================
@@ -849,6 +852,17 @@ export default function CalendarPage() {
   const [users, setUsers] = useState([]) // Store available users for dropdown
   const [currentUser, setCurrentUser] = useState(null) // Current logged-in user
 
+  // Mobile utilities
+  const isMobile = useIsMobile()
+  
+  // Pull to refresh functionality for mobile
+  const isRefreshing = usePullToRefresh(() => {
+    if (isMobile) {
+      loadEvents()
+      showToast('Agenda wordt vernieuwd...', 'info')
+    }
+  })
+
   // ================================================================
   // USER AUTHENTICATION
   // ================================================================
@@ -882,20 +896,19 @@ export default function CalendarPage() {
   }, [])
 
   // Load events on mount
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        setIsLoading(true)
-        
-        // Load users and events in parallel
-        const [eventsResponse, usersResponse] = await Promise.all([
-          fetch('/api/events'),
-          fetch('/api/users')
-        ])
-        
-        if (!eventsResponse.ok) {
-          throw new Error(`Server fout bij laden events: ${eventsResponse.status}`)
-        }
+  const loadEvents = useCallback(async () => {
+    try {
+      setIsLoading(true)
+      
+      // Load users and events in parallel
+      const [eventsResponse, usersResponse] = await Promise.all([
+        fetch('/api/events'),
+        fetch('/api/users')
+      ])
+      
+      if (!eventsResponse.ok) {
+        throw new Error(`Server fout bij laden events: ${eventsResponse.status}`)
+      }
         
         if (!usersResponse.ok) {
           throw new Error(`Server fout bij laden users: ${usersResponse.status}`)
@@ -933,10 +946,12 @@ export default function CalendarPage() {
       } finally {
         setIsLoading(false)
       }
-    }
+    }, [showToast])
 
-    loadData()
-  }, [showToast])
+  // Load data on mount
+  useEffect(() => {
+    loadEvents()
+  }, [loadEvents])
 
   // Handle event click
   const handleEventClick = useCallback((info) => {

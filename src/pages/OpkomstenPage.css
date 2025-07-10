@@ -498,36 +498,209 @@
  * RESPONSIVE DESIGN
  * ================================================================ */
 
-@media (max-width: 768px) {
+/* Enhanced Mobile Responsiveness for Opkomsten */
+
+/* Tablet Styles */
+@media (max-width: 1024px) {
   .opkomsten-container {
-    padding: 1rem 0.5rem;
-  }
-  
-  .opkomsten-title {
-    font-size: 2rem;
-  }
-  
-  .opkomsten-subtitle {
-    font-size: 1rem;
-  }
-  
-  .opkomsten-table-wrapper {
-    overflow-x: auto;
-  }
-  
-  .opkomsten-table {
-    min-width: 700px;
+    padding: 1.5rem;
   }
   
   .opkomsten-table th,
   .opkomsten-table td {
+    padding: 0.875rem 0.75rem;
+    font-size: 0.875rem;
+  }
+}
+
+/* Mobile Styles */
+@media (max-width: 768px) {
+  .opkomsten-container {
+    padding: 1rem;
+  }
+  
+  .opkomsten-title {
+    font-size: 1.875rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .opkomsten-subtitle {
+    font-size: 0.9375rem;
+  }
+  
+  .opkomsten-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--radius-xl);
+  }
+  
+  /* Card-style table for mobile */
+  .opkomsten-table {
+    min-width: 100%;
+    font-size: 0.875rem;
+  }
+  
+  .opkomsten-table th,
+  .opkomsten-table td {
+    padding: 0.875rem 0.75rem;
+    white-space: nowrap;
+  }
+  
+  .opkomsten-table th {
+    font-size: 0.8125rem;
+    letter-spacing: 0.025em;
+  }
+
+  /* Status badges optimizations */
+  .status-aangemeld,
+  .status-afgemeld,
+  .status-geen-reactie {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: var(--radius-full);
+    min-width: 80px;
+    text-align: center;
+  }
+
+  /* Toast notifications */
+  .toast {
+    left: 0.75rem;
+    right: 0.75rem;
+    min-width: auto;
+    font-size: 0.875rem;
+    padding: 1rem;
+    border-radius: var(--radius-lg);
+  }
+  
+  /* Touch-friendly action buttons */
+  .action-btn {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0.75rem;
+    border-radius: var(--radius-lg);
+    touch-action: manipulation;
+  }
+}
+
+/* Small Mobile Styles */
+@media (max-width: 480px) {
+  .opkomsten-container {
     padding: 0.75rem;
   }
   
+  .opkomsten-header {
+    margin-bottom: 1.5rem;
+  }
+  
+  .opkomsten-title {
+    font-size: 1.625rem;
+    line-height: 1.2;
+  }
+  
+  .opkomsten-subtitle {
+    font-size: 0.875rem;
+  }
+  
+  /* Convert table to stacked cards on very small screens */
+  .opkomsten-table-wrapper {
+    background: transparent;
+    box-shadow: none;
+    border: none;
+  }
+  
+  .opkomsten-table,
+  .opkomsten-table thead,
+  .opkomsten-table tbody,
+  .opkomsten-table th,
+  .opkomsten-table td,
+  .opkomsten-table tr {
+    display: block;
+  }
+  
+  .opkomsten-table thead tr {
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
+  }
+  
+  .opkomsten-table tr {
+    background: white;
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--secondary-200);
+    box-shadow: var(--shadow-md);
+    margin-bottom: 1rem;
+    padding: 1rem;
+    transition: all 0.2s ease;
+  }
+  
+  .opkomsten-table tr:hover {
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-1px);
+  }
+  
+  .opkomsten-table td {
+    border: none;
+    padding: 0.5rem 0;
+    text-align: left;
+    position: relative;
+    padding-left: 35%;
+  }
+  
+  .opkomsten-table td:before {
+    content: attr(data-label);
+    position: absolute;
+    left: 0;
+    width: 30%;
+    padding-right: 0.5rem;
+    white-space: nowrap;
+    font-weight: 600;
+    color: var(--secondary-700);
+    font-size: 0.875rem;
+  }
+  
+  /* Status badges in mobile cards */
+  .status-aangemeld,
+  .status-afgemeld,
+  .status-geen-reactie {
+    display: inline-block;
+    padding: 0.25rem 0.625rem;
+    font-size: 0.75rem;
+    border-radius: var(--radius-full);
+    margin-top: 0.25rem;
+  }
+
   .toast {
-    left: 10px;
-    right: 10px;
-    min-width: auto;
+    left: 0.5rem;
+    right: 0.5rem;
+    padding: 0.875rem;
+    font-size: 0.8125rem;
+  }
+}
+
+/* Extra Small Mobile */
+@media (max-width: 360px) {
+  .opkomsten-container {
+    padding: 0.5rem;
+  }
+  
+  .opkomsten-title {
+    font-size: 1.5rem;
+  }
+  
+  .opkomsten-table tr {
+    padding: 0.875rem;
+    margin-bottom: 0.875rem;
+  }
+  
+  .opkomsten-table td {
+    padding: 0.375rem 0;
+    padding-left: 40%;
+  }
+  
+  .opkomsten-table td:before {
+    width: 35%;
+    font-size: 0.8125rem;
   }
 }
 
