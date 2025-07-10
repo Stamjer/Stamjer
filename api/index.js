@@ -16,7 +16,7 @@
  * - Email sending via Nodemailer
  * 
  * @author Stamjer Development Team
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 import 'dotenv/config'
@@ -215,10 +215,12 @@ apiRouter.get('/debug/reset-codes', (req, res) => {
 // USERS
 apiRouter.get('/users', async (req, res) => {
   try {
+    await loadUsers() 
     if (users.length === 0) await loadUsers()
     const safeUsers = users.map(u => ({
       id: u.id,
-      name: u.name,
+      firstName: u.firstName,
+      lastName: u.lastName,
       email: u.email,
       role: u.role
     }))
