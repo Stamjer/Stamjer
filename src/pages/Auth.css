@@ -140,6 +140,7 @@
   background: white;
   color: var(--secondary-800);
   transition: all var(--duration-normal) var(--ease-out);
+  text-align: left;
 }
 
 .form-input:focus {

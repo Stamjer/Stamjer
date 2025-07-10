@@ -8,30 +8,26 @@
 
 .strepen-header {
   text-align: center;
-  margin-bottom: 30px;
-  padding: 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border-radius: 10px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  margin-bottom: 3rem;
 }
 
 .strepen-header h1 {
-  margin: 0 0 10px 0;
-  font-size: 2.5em;
+  font-size: 2.5rem;
   font-weight: 700;
+  color: #2c3e50;
+  margin-bottom: 0.5rem;
 }
 
 .strepen-header p {
+  font-size: 1.1rem;
+  color: #6c757d;
   margin: 0;
-  font-size: 1.2em;
-  opacity: 0.9;
 }
 
 .event-selector {
   margin-bottom: 30px;
   padding: 20px;
-  background: #f8f9fa;
+  background: #667eea;
   border-radius: 10px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
@@ -40,7 +36,7 @@
   display: block;
   margin-bottom: 10px;
   font-weight: 600;
-  color: #333;
+  color: var(--secondary-100);
   font-size: 1.1em;
 }
 
@@ -314,5 +310,79 @@
   
   .cell.streepjes:before {
     content: "Streepjes: ";
+  }
+}
+
+/* ================================================================
+ * TOAST NOTIFICATIONS
+ * ================================================================ */
+
+.toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  z-index: 1000;
+  min-width: 300px;
+  border-left: 4px solid #6b7280;
+  animation: slideIn 0.3s ease-out;
+}
+
+.toast-success {
+  border-left-color: #10b981;
+}
+
+.toast-error {
+  border-left-color: #ef4444;
+}
+
+.toast-warning {
+  border-left-color: #f59e0b;
+}
+
+.toast-info {
+  border-left-color: #3b82f6;
+}
+
+.toast-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.toast-message {
+  flex: 1;
+  color: #374151;
+  font-weight: 500;
+}
+
+.toast-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.2s ease;
+}
+
+.toast-close:hover {
+  color: #6b7280;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
   }
 }

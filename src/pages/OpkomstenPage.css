@@ -64,6 +64,7 @@
   letter-spacing: 0.5px;
   font-size: 0.875rem;
   border-bottom: 2px solid #5a6acf;
+  color: var(--secondary-100);
 }
 
 .opkomsten-table tbody tr {

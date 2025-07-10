@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import './StrepenPage.css'
 
@@ -13,6 +13,38 @@ function capitalizeWeekday(dateStr) {
   return formatted.charAt(0).toUpperCase() + formatted.slice(1)
 }
 
+// ================================================================
+// TOAST NOTIFICATION COMPONENT
+// ================================================================
+
+function Toast({ message, type = 'info', onClose }) {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 5000)
+    return () => clearTimeout(timer)
+  }, [onClose])
+
+  const icons = {
+    success: '✅',
+    error: '❌',
+    warning: '⚠️',
+    info: 'ℹ️'
+  }
+
+  return (
+    <div className={`toast toast-${type}`} role="alert">
+      <span className="toast-icon">{icons[type]}</span>
+      <span className="toast-message">{message}</span>
+      <button 
+        className="toast-close" 
+        onClick={onClose}
+        aria-label="Notificatie sluiten"
+      >
+        ×
+      </button>
+    </div>
+  )
+}
+
 export default function StrepenPage() {
   const navigate = useNavigate()
   const [user, setUser] = useState(null)
@@ -23,6 +55,18 @@ export default function StrepenPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [toast, setToast] = useState(null)
+
+  // Toast functions
+  const showToast = useCallback((message, type = 'info') => {
+    console.log('Showing toast:', message, type)
+    setToast({ message, type })
+  }, [])
+
+  const hideToast = useCallback(() => {
+    console.log('Hiding toast')
+    setToast(null)
+  }, [])
 
   // Get user from localStorage
   useEffect(() => {
@@ -198,10 +242,12 @@ export default function StrepenPage() {
         setUsers(usersData.users)
       }
 
-      alert('Aanwezigheid opgeslagen!')
+      // Show success toast
+      showToast('Aanwezigheid succesvol opgeslagen!', 'success')
     } catch (err) {
       console.error('Error saving attendance:', err)
-      alert(`Fout bij het opslaan van aanwezigheid: ${err.message}`)
+      // Show error toast
+      showToast(`Fout bij het opslaan van aanwezigheid: ${err.message}`, 'error')
     } finally {
       setIsSaving(false)
     }
@@ -345,6 +391,15 @@ export default function StrepenPage() {
           {isSaving ? 'Opslaan...' : 'Aanwezigheid Opslaan'}
         </button>
       </div>
+
+      {/* Toast notifications */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={hideToast}
+        />
+      )}
     </div>
   )
 }
