@@ -123,3 +123,4 @@ Thumbs.db
 # ================================================================
 # !.env.example        (example environment file)
 # !data/.gitkeep       (to keep data directory in git)
+.vercel

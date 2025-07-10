@@ -1,6 +1,6 @@
 {
   "name": "stamjer",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Een professionele React + Vite kalender applicatie met gebruikersauthenticatie en evenementbeheer",
   "private": true,
   "type": "module",
@@ -17,16 +17,14 @@
     "express",
     "stamjer"
   ],
-  "proxy": "http://localhost:3002",
   "scripts": {
-    "dev": "vite",
+    "dev": "vercel dev",
     "build": "vite build",
+    "vercel-build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint .",
-    "serve-api": "node server.js",
-    "serve-events": "json-server --watch data/events.json --port 4000",
-    "start": "npm run build && npm run serve-api"
+    "lint": "eslint ."
   },
+  "main": "api/index.js",
   "dependencies": {
     "@fullcalendar/daygrid": "^6.1.17",
     "@fullcalendar/interaction": "^6.1.17",
