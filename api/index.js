@@ -442,26 +442,25 @@ apiRouter.post('/change-password', async (req, res) => {
 // mount the API routes
 app.use('/api', apiRouter)
 
-// serve static assets
+// serve static assets (built React)
 app.use(
-  '/',
   expressStaticGzip(
     path.join(__dirname, '..', 'dist'),
-    {
-      enableBrotli: true,
-      orderPreference: ['br', 'gz']
-    }
+    { enableBrotli: true, orderPreference: ['br','gz'] }
   )
 )
 
-// catch-all for SPA routes
-app.use((req, res) => {
+// SPA fallback (any non-API, non-static request -> index.html)
+app.use((req, res, next) => {
+  // if the url starts with /api, skip this
+  if (req.path.startsWith('/api')) return next()
   res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'))
 })
 
-// 404 fallback
-app.use((req, res) => {
-  res.status(404).json({ msg: 'Not found' })
+// (Optional) final 404 for truly unmatched API calls
+app.use('/api', (req, res) => {
+  res.status(404).json({ msg: 'API route not found' })
 })
+
 
 export default app
