@@ -48,6 +48,10 @@ import fs from 'fs/promises'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 
+// Static file serving with gzip compression for performance
+import path from 'path'
+import expressStaticGzip from 'express-static-gzip'
+
 // ================================================================
 // CONFIGURATION AND CONSTANTS
 // ================================================================
@@ -354,6 +358,27 @@ async function startServer() {
       }
       next()
     })
+
+    // ============================================================
+    // STATIC FILE SERVING
+    // ============================================================
+
+    // Serve everything in dist/ as static files
+    app.use(
+      '/', 
+      expressStaticGzip(path.join(__dirname, 'dist'), {
+        enableBrotli: true,
+        orderPreference: ['br', 'gz']
+      })
+    );
+
+    // Fallback: for any route not matching a static file, send index.html
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+    });
+
+
+
 
     // ============================================================
     // API ROUTES AND ENDPOINTS
