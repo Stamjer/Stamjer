@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import react           from '@vitejs/plugin-react'
 
 export default defineConfig({
+  base: '/Stamjer/',
   plugins: [react()],
   server: {
     port: 5173,
@@ -26,5 +27,8 @@ export default defineConfig({
     'process.env': {
       VITE_API_BASE_URL: JSON.stringify('/api')
     }
+  },
+  build: {
+    outDir: 'docs'
   }
 })
