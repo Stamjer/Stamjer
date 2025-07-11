@@ -53,7 +53,8 @@ async function getDb() {
 // Tussenopslag gebruikers en evenementen
 let users = []
 let events = []
-const pendingReset = {}
+// Remove in-memory pendingReset as we'll use MongoDB
+// const pendingReset = {}
 
 // Gegevens inladen
 async function loadUsers() {
@@ -81,6 +82,57 @@ async function saveUser(user) {
     { $set: user },
     { upsert: true }
   )
+}
+
+// Helper functions for reset codes in MongoDB
+async function saveResetCode(email, code, expiresAt) {
+  const db = await getDb()
+  await db.collection('resetCodes').updateOne(
+    { email },
+    { 
+      $set: { 
+        email, 
+        code, 
+        expiresAt,
+        createdAt: new Date()
+      } 
+    },
+    { upsert: true }
+  )
+}
+
+async function getResetCode(email) {
+  const db = await getDb()
+  return await db.collection('resetCodes').findOne({ email })
+}
+
+async function deleteResetCode(email) {
+  const db = await getDb()
+  await db.collection('resetCodes').deleteOne({ email })
+}
+
+// Clean up expired reset codes
+async function cleanupExpiredResetCodes() {
+  const db = await getDb()
+  const now = Date.now()
+  
+  // Create index for automatic cleanup (TTL index)
+  try {
+    await db.collection('resetCodes').createIndex(
+      { "expiresAt": 1 }, 
+      { expireAfterSeconds: 0 }
+    )
+  } catch (err) {
+    // Index might already exist, ignore error
+  }
+  
+  // Manual cleanup of expired codes
+  const result = await db.collection('resetCodes').deleteMany({
+    expiresAt: { $lt: now }
+  })
+  if (result.deletedCount > 0) {
+    console.log(`🧹 Cleaned up ${result.deletedCount} expired reset codes`)
+  }
 }
 
 async function deleteUserById(id) {
@@ -163,6 +215,7 @@ function calculateStreepjes() {
 await loadUsers()
 await loadEvents()
 await initMailer()
+await cleanupExpiredResetCodes() // Clean up old reset codes on startup
 
 // Express-app
 const __filename = fileURLToPath(import.meta.url)
@@ -234,6 +287,48 @@ apiRouter.get('/users/full', (req, res) => {
   })
 })
 
+// Helper function to send active status change notification email
+async function sendActiveStatusChangeEmail(user, newActiveStatus) {
+  try {
+    const statusText = newActiveStatus ? 'actief' : 'inactief'
+    const statusEmoji = newActiveStatus ? '✅' : '❌'
+    
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM || 'noreply@stamjer.nl',
+      to: 'stamjer.mpd@gmail.com',
+      subject: `Stamjer - Status wijziging: ${user.firstName} ${user.lastName}`,
+      html: `
+        <h2>${statusEmoji} Status wijziging</h2>
+        <p><strong>${user.firstName} ${user.lastName}</strong> heeft zijn/haar status gewijzigd.</p>
+        
+        <table style="border-collapse: collapse; width: 100%; max-width: 400px;">
+          <tr>
+            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Naam:</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${user.firstName} ${user.lastName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">E-mail:</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${user.email}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Nieuwe status:</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${statusEmoji} ${statusText}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Datum/tijd:</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${new Date().toLocaleString('nl-NL')}</td>
+          </tr>
+        </table>
+        
+        <p><em>Deze e-mail is automatisch gegenereerd door het Stamjer systeem.</em></p>
+      `
+    })
+    console.log(`📧 Status wijziging e-mail verzonden voor ${user.firstName} ${user.lastName} (${statusText})`)
+  } catch (error) {
+    console.error('❌ Fout bij verzenden status wijziging e-mail:', error)
+  }
+}
+
 // Profiel bijwerken
 apiRouter.put('/user/profile', async (req, res) => {
   try {
@@ -242,9 +337,21 @@ apiRouter.put('/user/profile', async (req, res) => {
     const uid = parseInt(userId, 10)
     const idx = users.findIndex(u => u.id === uid)
     if (idx < 0) return res.status(404).json({ error: 'Gebruiker niet gevonden' })
-    if (typeof active === 'boolean') users[idx].active = active
+    
+    // Store previous active status to check if it changed
+    const previousActiveStatus = users[idx].active
+    
+    if (typeof active === 'boolean') {
+      users[idx].active = active
+      
+      // Send email notification if active status changed
+      if (previousActiveStatus !== active) {
+        await sendActiveStatusChangeEmail(users[idx], active)
+      }
+    }
+    
     await saveUser(users[idx])
-    res.json({ user: users[idx] })
+    res.json({ user: users[idx], msg: 'Profiel succesvol bijgewerkt' })
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Profiel bijwerken mislukt' })
@@ -371,21 +478,49 @@ apiRouter.post('/login', async (req, res) => {
   }
 })
 
+// Debug endpoint to check pending resets (remove in production)
+apiRouter.get('/debug-pending-resets', async (req, res) => {
+  try {
+    const db = await getDb()
+    const resetCodes = await db.collection('resetCodes').find({}).toArray()
+    res.json({
+      resetCodes: resetCodes,
+      count: resetCodes.length
+    })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // Wachtwoord vergeten
 apiRouter.post('/forgot-password', async (req, res) => {
   try {
-    const { email } = req.body
-    if (!email || !validator.isEmail(email))
+    // Normalize email the same way as reset-password
+    const rawEmail = (req.body.email || '').trim().toLowerCase()
+    
+    console.log(`Forgot password request for: ${rawEmail}`) // Debug log
+    
+    if (!rawEmail || !validator.isEmail(rawEmail))
       return res.status(400).json({ msg: 'Ongeldig e-mailadres' })
 
-    const u = users.find(u => u.email === email)
+    const u = users.find(u => u.email.toLowerCase() === rawEmail)
+    console.log(`User found for ${rawEmail}:`, !!u) // Debug log
+    console.log(`Available users:`, users.map(u => u.email)) // Debug log
+    
     const generic = 'Als het e-mailadres bestaat, ontvang je een herstelcode via e-mail.'
     if (u) {
       const code = generateCode()
-      pendingReset[email] = { code, expiresAt: Date.now() + 15 * 60 * 1000 }
+      const expiresAt = Date.now() + 15 * 60 * 1000 // 15 minutes
+      
+      // Store in MongoDB instead of memory
+      await saveResetCode(rawEmail, code, expiresAt)
+      
+      console.log(`Generated reset code for ${rawEmail}: ${code}`) // Debug log
+      console.log(`Code stored in MongoDB with expiry: ${new Date(expiresAt).toISOString()}`) // Debug log
+      
       await transporter.sendMail({
         from: process.env.SMTP_FROM || 'noreply@stamjer.nl',
-        to: email,
+        to: u.email, // Use original email for sending
         subject: 'Stamjer wachtwoordherstelcode',
         html: `<p>Je Stamjer-wachtwoordherstelcode: <strong>${code}</strong></p>`
       })
@@ -400,23 +535,64 @@ apiRouter.post('/forgot-password', async (req, res) => {
 // Wachtwoord herstellen
 apiRouter.post('/reset-password', async (req, res) => {
   try {
-    const { email, code, password } = req.body
-    const rec = pendingReset[email]
-    if (!rec || rec.code !== code || Date.now() > rec.expiresAt)
-      return res.status(400).json({ msg: 'Ongeldige of verlopen herstelcode' })
+    // 1) Normalize & trim email
+    const rawEmail = (req.body.email || '').trim().toLowerCase()
 
-    const idx = users.findIndex(u => u.email === email)
-    if (idx < 0) return res.status(400).json({ msg: 'Gebruiker niet gevonden' })
+    // 2) Grab the code (trim whitespace), support both `code` and `verificationCode`
+    const code = (req.body.code ?? req.body.verificationCode ?? '')
+                   .toString()
+                   .trim()
 
-    users[idx].password = await bcrypt.hash(password, 10)
+    // 3) Grab the new password, support `password` or `newPassword`
+    const newPassword = (req.body.password ?? req.body.newPassword) || ''
+
+    // 4) Basic validations
+    if (!rawEmail || !code || newPassword.length < 6) {
+      return res
+        .status(400)
+        .json({ msg: 'E-mail, code en minimaal 6-karakter wachtwoord zijn vereist' })
+    }
+
+    // 5) Lookup pending code & validate expiry
+    console.log(`Reset password request for: ${rawEmail}`) // Debug log
+    console.log(`Received code: "${code}"`) // Debug log
+    
+    const rec = await getResetCode(rawEmail)
+    console.log(`Reset lookup for ${rawEmail}:`, rec) // Debug log
+    console.log('Received code:', code, 'Expected code:', rec?.code) // Debug log
+    
+    if (!rec) {
+      return res.status(400).json({ msg: 'Geen actieve herstelcode gevonden voor dit e-mailadres' })
+    }
+    
+    if (rec.code !== code) {
+      return res.status(400).json({ msg: 'Ongeldige herstelcode' })
+    }
+    
+    if (Date.now() > rec.expiresAt) {
+      await deleteResetCode(rawEmail) // Clean up expired code
+      return res.status(400).json({ msg: 'Herstelcode is verlopen. Vraag een nieuwe aan.' })
+    }
+
+    // 6) Find user and hash the new password
+    const idx = users.findIndex(u => u.email.toLowerCase() === rawEmail)
+    if (idx < 0) {
+      return res.status(400).json({ msg: 'Gebruiker niet gevonden' })
+    }
+
+    users[idx].password = await bcrypt.hash(newPassword, 10)
     await saveUser(users[idx])
-    delete pendingReset[email]
+    await deleteResetCode(rawEmail) // Clean up used reset code
+
+    // 7) Success response
     res.json({ msg: 'Wachtwoord succesvol gereset' })
+
   } catch (err) {
-    console.error(err)
-    res.status(500).json({ msg: 'Wachtwoordherstel mislukt' })  
+    console.error('Reset-password error:', err)
+    res.status(500).json({ msg: 'Wachtwoordherstel mislukt' })
   }
 })
+
 
 // Wachtwoord wijzigen
 apiRouter.post('/change-password', async (req, res) => {

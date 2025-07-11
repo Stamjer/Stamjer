@@ -4,42 +4,60 @@ import { forgotPassword, resetPassword } from '../services/api'
 import './Auth.css'
 
 export default function ForgotPassword() {
-  const [step, setStep]        = useState('request')
-  const [email, setEmail]      = useState('')
-  const [code, setCode]        = useState('')
-  const [password, setPassword]= useState('')
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError]         = useState(null)
-  const navigate = useNavigate()
+  const [step, setStep]                     = useState('request')
+  const [email, setEmail]                   = useState('')
+  const [code, setCode]                     = useState('')
+  const [password, setPassword]             = useState('')
+  const [showNewPassword, setShowNewPassword] = useState(false) // of wachtwoord tonen of verbergen
+  const [isLoading, setIsLoading]           = useState(false)
+  const [error, setError]                   = useState(null)
+  const [success, setSuccess]               = useState(null)
+  const navigate                            = useNavigate()
 
-  const handleRequest = async e => {
+  // toggle voor wachtwoord zien of verbergen
+  const toggleNewPasswordVisibility = () => {
+    setShowNewPassword(!showNewPassword)
+  }
+
+  // Send initial forgot password request
+  const handleForgotPassword = async (e) => {
     e.preventDefault()
-    if (!email.trim()) {
-      setError('Vul een geldig e-mailadres in.')
+    const normalizedEmail = email.trim().toLowerCase()
+    
+    console.log('Sending forgot password request for:', normalizedEmail) // Debug log
+    
+    if (!normalizedEmail) {
+      setError('Vul je e-mailadres in.')
       return
     }
-    
-    setError(null); setIsLoading(true)
-    console.log('Starting forgot password request for:', email)
-    
+
+    setError(null)
+    setSuccess(null)
+    setIsLoading(true)
     try {
-      const data = await forgotPassword(email)
-      console.log('Success response:', data)
+      await forgotPassword(normalizedEmail)
+      setEmail(normalizedEmail) // Store normalized email for later use
       setStep('reset')
+      setSuccess('Herstelcode verzonden naar je e-mailadres.')
     } catch (err) {
-      console.error('Reset request error:', err)
-      console.error('Error type:', typeof err)
-      console.error('Error message:', err.message)
-      console.error('Error stack:', err.stack)
-      
-      // Show more specific error message
-      if (err.message.includes('404')) {
-        setError('API endpoint niet gevonden. Controleer of de server correct draait.')
-      } else if (err.message.includes('Failed to fetch')) {
-        setError('Kan geen verbinding maken met de server. Controleer je internetverbinding.')
-      } else {
-        setError('Er is een fout opgetreden. Probeer het later opnieuw.')
-      }
+      console.error('Forgot password error:', err) // Debug log
+      setError(err.message || 'Er is een fout opgetreden bij het verzenden van de herstelcode.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // opnieuw code versturen zonder email opnieuw in te voeren
+  const resendCode = async () => {
+    setError(null)
+    setSuccess(null)
+    setIsLoading(true)
+    try {
+      const normalizedEmail = email.trim().toLowerCase()
+      await forgotPassword(normalizedEmail)
+      setSuccess('Verificatiecode opnieuw verzonden.')
+    } catch {
+      setError('Kon de verificatiecode niet opnieuw verzenden.')
     } finally {
       setIsLoading(false)
     }
@@ -51,31 +69,35 @@ export default function ForgotPassword() {
       setError('Vul de verificatiecode in.')
       return
     }
-    if (!password || password.length < 6) {
+    if (password.length < 6) {
       setError('Wachtwoord moet minimaal 6 karakters bevatten.')
       return
     }
-    
-    setError(null); setIsLoading(true)
-    console.log('Starting password reset for:', email)
-    
+
+    setError(null)
+    setSuccess(null)
+    setIsLoading(true)
     try {
-      const data = await resetPassword(email, code, password)
-      console.log('Reset success response:', data)
+      const normalizedEmail = email.trim().toLowerCase()
+      console.log('Sending reset password request:', { email: normalizedEmail, code: code.trim() }) // Debug log
+      await resetPassword(normalizedEmail, code.trim(), password)
+      setSuccess('Wachtwoord succesvol gereset! Je wordt doorgestuurd naar de inlogpagina...')
       setTimeout(() => navigate('/login'), 2000)
     } catch (err) {
-      console.error('Reset password error:', err)
-      console.error('Error type:', typeof err)
-      console.error('Error message:', err.message)
-      console.error('Error stack:', err.stack)
-      
-      // Show more specific error message
-      if (err.message.includes('404')) {
-        setError('API endpoint niet gevonden. Controleer of de server correct draait.')
-      } else if (err.message.includes('Failed to fetch')) {
-        setError('Kan geen verbinding maken met de server. Controleer je internetverbinding.')
+      console.error('Reset password error:', err) // Debug log
+      const msg = err.message.toLowerCase()
+      if (msg.includes('geen actieve herstelcode')) {
+        setError('Geen actieve herstelcode gevonden. Vraag eerst een nieuwe code aan.')
+      } else if (msg.includes('ongeldige herstelcode')) {
+        setError('De ingevoerde code is niet correct. Controleer de code en probeer opnieuw.')
+      } else if (msg.includes('verlopen')) {
+        setError('De herstelcode is verlopen. Vraag een nieuwe code aan.')
+      } else if (msg.includes('404')) {
+        setError('API endpoint niet gevonden. Controleer of de server draait.')
+      } else if (msg.includes('failed to fetch')) {
+        setError('Kan geen verbinding maken met de server. Controleer je internet.')
       } else {
-        setError(err.message || 'Er is een fout opgetreden bij het resetten van het wachtwoord.')
+        setError(err.message || 'Er is een fout opgetreden bij resetten.')
       }
     } finally {
       setIsLoading(false)
@@ -85,154 +107,144 @@ export default function ForgotPassword() {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        {step === 'request' ? (
-          <>
-            <div className="auth-header">
-              <img 
-                src="/stam_H.png" 
-                alt="Stamjer Logo" 
-                className="auth-logo"
-              />
-              <h2 className="auth-title">Wachtwoord vergeten</h2>
-              <p className="auth-subtitle">We sturen je een verificatiecode om je wachtwoord te resetten</p>
-            </div>
-            
-            <div className="auth-body">
-              <form className="auth-form" onSubmit={handleRequest}>
-                <div className="form-group">
-                  <label className="form-label">
-                    E-mailadres
-                  </label>
-                  <input 
-                    type="email" 
-                    value={email} 
-                    onChange={e => setEmail(e.target.value)} 
-                    className="form-input"
-                    placeholder="voorbeeld@email.com"
-                    required 
-                    disabled={isLoading}
-                  />
-                </div>
-                
-                <button type="submit" className="btn-primary" disabled={isLoading}>
-                  {isLoading ? (
-                    <>
-                      <div className="loading-spinner"></div>
-                      Versturen…
-                    </>
-                  ) : (
-                    <>
-                      Verstuur code
-                    </>
-                  )}
-                </button>
-              </form>
-            </div>
-            
-            <div className="auth-footer">
-              <div className="auth-links">
-                <button 
-                  className="btn-link" 
-                  onClick={() => navigate('/login')} 
+        <div className="auth-header">
+          <img 
+            src="/stam_H.png" 
+            alt="Stamjer Logo" 
+            className="auth-logo"
+          />
+          <h1 className="auth-title">Wachtwoord vergeten</h1>
+          <p className="auth-subtitle">
+            {step === 'request' 
+              ? 'Voer je e-mailadres in om een herstelcode te ontvangen'
+              : 'Voer de ontvangen code en je nieuwe wachtwoord in'
+            }
+          </p>
+        </div>
+
+        <div className="auth-body">
+          {step === 'request' ? (
+            <form onSubmit={handleForgotPassword} className="auth-form">
+              {/* Email Field */}
+              <div className="form-group">
+                <label className="form-label" htmlFor="email">
+                  📧 E-mailadres
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value.trim().toLowerCase())}
+                  className="form-input"
+                  placeholder="je@email.com"
+                  required
                   disabled={isLoading}
-                >
-                  Terug naar inloggen
-                </button>
+                  autoComplete="email"
+                />
               </div>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="auth-header">
-              <img 
-                src="/stam_H.png" 
-                alt="Stamjer Logo" 
-                className="auth-logo"
-              />
-              <h2 className="auth-title">Nieuw wachtwoord</h2>
-              <p className="auth-subtitle">Voer de verificatiecode en je nieuwe wachtwoord in</p>
-            </div>
-            
-            <div className="auth-body">
+
+              {/* Submit Button */}
+              <button type="submit" className="btn-primary" disabled={isLoading || !email.trim()}>
+                {isLoading ? 'Verzenden…' : 'Verstuur herstelcode'}
+              </button>
+            </form>
+          ) : (
+            <>
               <div className="auth-info">
-                Controleer je e-mail voor de verificatiecode die naar <strong>{email}</strong> is verstuurd.
+                Code is verstuurd naar <strong>{email}</strong>.
               </div>
-              <p></p>
-              
-              <form className="auth-form" onSubmit={handleReset}>
+              <form onSubmit={handleReset} className="auth-form">
+                {/* Verification code */}
                 <div className="form-group">
-                  <label className="form-label">
-                    Verificatiecode
-                  </label>
-                  <input 
-                    type="text" 
-                    value={code} 
-                    onChange={e => setCode(e.target.value)} 
+                  <label className="form-label">Verificatiecode</label>
+                  <input
+                    type="text"
+                    value={code}
+                    onChange={e => setCode(e.target.value)}
                     className="form-input code-input"
                     placeholder="123456"
-                    required 
+                    required
                     disabled={isLoading}
                     maxLength={6}
                   />
                 </div>
-                
+
+                {/* New password with visibility toggle */}
                 <div className="form-group">
-                  <label className="form-label">
-                    Nieuw wachtwoord
-                  </label>
-                  <input 
-                    type="password" 
-                    value={password} 
-                    onChange={e => setPassword(e.target.value)} 
-                    className="form-input"
-                    placeholder="••••••••"
-                    required 
-                    minLength={6} 
-                    disabled={isLoading}
-                  />
+                  <label className="form-label">Nieuw wachtwoord</label>
+                  <div className="input-wrapper">
+                    <div className="password-field">
+                      <input
+                        type={showNewPassword ? 'text' : 'password'}
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        className="form-input"
+                        placeholder="••••••••"
+                        required
+                        minLength={6}
+                        disabled={isLoading}
+                        autoComplete="new-password"
+                        aria-label="Nieuw wachtwoord"
+                      />
+                      <button
+                        type="button"
+                        className="password-toggle"
+                        onClick={toggleNewPasswordVisibility}
+                        disabled={isLoading}
+                        aria-label={
+                          showNewPassword ? 'Wachtwoord verbergen' : 'Wachtwoord tonen'
+                        }
+                      >
+                        {showNewPassword ? '🔒' : '👁️'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                
+
+                {/* Submit */}
                 <button type="submit" className="btn-primary" disabled={isLoading}>
-                  {isLoading ? (
-                    <>
-                      <div className="loading-spinner"></div>
-                      Resetten…
-                    </>
-                  ) : (
-                    <>
-                      Reset wachtwoord
-                    </>
-                  )}
+                  {isLoading ? 'Resetten…' : 'Reset wachtwoord'}
                 </button>
               </form>
-            </div>
-            
-            <div className="auth-footer">
-              <div className="auth-links">
-                <button 
-                  className="btn-link" 
-                  onClick={() => setStep('request')} 
+
+              {/* Resend code button */}
+              <div style={{ marginTop: 12 }}>
+                <button
+                  type="button"
+                  className="btn-link"
+                  onClick={resendCode}
                   disabled={isLoading}
                 >
-                  Andere e-mail gebruiken
-                </button>
-                <span className="auth-divider">•</span>
-                <button 
-                  className="btn-link" 
-                  onClick={() => navigate('/login')} 
-                  disabled={isLoading}
-                >
-                  Terug naar inloggen
+                  Opnieuw code verzenden
                 </button>
               </div>
+            </>
+          )}
+
+          {/* Success/Error messages */}
+          {success && (
+            <div className="success-message">
+              ✅ {success}
             </div>
-          </>
-        )}
-        {error && (
-          <div className="message error">
-            ⚠️ {error}
+          )}
+          {error && (
+            <div className="error-message">
+              ⚠️ {error}
+            </div>
+          )}
+
+          {/* Back to login link */}
+          <div className="auth-footer">
+            <button
+              type="button"
+              className="btn-link"
+              onClick={() => navigate('/login')}
+              disabled={isLoading}
+            >
+              ← Terug naar inloggen
+            </button>
           </div>
-        )}
+        </div>
       </div>
     </div>
   )

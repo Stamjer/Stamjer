@@ -747,3 +747,105 @@
   background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
   color: #991b1b;
 }
+
+
+
+
+
+/* Toggle switch container */
+.toggle-container {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Verberg de standaard checkbox */
+.toggle-input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+/* De switch-track */
+.toggle-switch {
+  position: relative;
+  width: 3rem;
+  height: 1.5rem;
+  background: var(--secondary-500); /* Inactief */
+  border-radius: 1rem;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+/* De rondje binnenin */
+.switch-ball {
+  position: absolute;
+  top: 0.125rem;
+  left: 0.125rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.3s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+/* Checked-staat */
+.toggle-input:checked + .toggle-switch {
+  background: var(--primary-600); /* Actief */
+}
+
+.toggle-input:checked + .toggle-switch .switch-ball {
+  transform: translateX(1.5rem);
+}
+
+/* Label naast de switch */
+.toggle-label {
+  font-size: 0.95rem;
+  color: var(--secondary-800);
+}
+
+.toggle-label small {
+  font-size: 0.8rem;
+  color: var(--secondary-600);
+}
+
+/* Container met achtergrond en border voor de toggle */
+.toggle-section {
+  background: var(--secondary-50);
+  border: 1px solid var(--secondary-200);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Houd toggle en label netjes op 1 lijn */
+.toggle-container {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Label rechts van de switch */
+.toggle-label {
+  font-weight: 500;
+  color: var(--secondary-800);
+}
+
+/* Beschrijving onder de switch, ingesprongen */
+.toggle-desc {
+  margin-top: 0.5rem;
+  margin-left: 3.75rem; /* past onder de switch */
+  font-size: 0.875rem;
+  color: var(--secondary-600);
+}
+
+/* Success message, ook ingesprongen en groen */
+.toggle-success {
+  margin-top: 0.5rem;
+  margin-left: 3.75rem;
+  font-size: 0.875rem;
+  color: var(--accent-green-700);
+  font-weight: 500;
+}

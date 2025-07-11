@@ -65,7 +65,8 @@ export default function MyAccount() {
   }
 
   const { firstName, lastName, email, active = false, id } = user
-  const streepjes = userWithStreepjes?.streepjes || 0
+  const streepjes = userWithStreepjes?.streepjes ?? 0
+  const isStreepjesLoading = userWithStreepjes === null
   
   // Debug logging
   console.log('MyAccount - User data:', { id, firstName, lastName, email, active })
@@ -162,7 +163,9 @@ export default function MyAccount() {
       const updatedUser = { ...user, active: newActiveStatus }
       localStorage.setItem('user', JSON.stringify(updatedUser))
       
-      setMessage(response.msg || 'Status succesvol bijgewerkt!')
+      // Show success message - includes notification about email being sent
+      const statusText = newActiveStatus ? 'actief' : 'inactief'
+      setMessage(`Status succesvol bijgewerkt naar ${statusText}.`)
     } catch (err) {
       console.error('MyAccount - Error updating active status:', err)
       setError(err.message || 'Er is een fout opgetreden bij het bijwerken van je status.')
@@ -186,13 +189,7 @@ export default function MyAccount() {
         </div>
         
         <div className="auth-body">
-          {/* Success/Error Messages */}
-          {message && (
-            <div className="auth-success">
-              ✅ {message}
-            </div>
-          )}
-          
+          {/* Error Messages */}
           {error && (
             <div className="auth-error">
               ❌ {error}
@@ -223,10 +220,10 @@ export default function MyAccount() {
                 </label>
                 <div style={{ 
                   padding: '0.75rem', 
-                  background: user.isAdmin ? 'var(--accent-blue-50)' : 'var(--secondary-50)', 
-                  border: `1px solid ${user.isAdmin ? 'var(--accent-blue-200)' : 'var(--secondary-200)'}`, 
+                  background: 'var(--secondary-50)', 
+                  border: '1px solid var(--secondary-200)', 
                   borderRadius: 'var(--radius-md)', 
-                  color: user.isAdmin ? 'var(--accent-blue-800)' : 'var(--secondary-800)', 
+                  color: 'var(--secondary-800)', 
                   fontWeight: '500' 
                 }}>
                   {user.isAdmin ? '👑 Administrator' : '👤 Gebruiker'}
@@ -255,51 +252,50 @@ export default function MyAccount() {
                 </label>
                 <div style={{ 
                   padding: '0.75rem', 
-                  background: streepjes > 0 ? 'var(--accent-red-50)' : 'var(--secondary-50)', 
-                  border: `1px solid ${streepjes > 0 ? 'var(--accent-red-200)' : 'var(--secondary-200)'}`, 
+                  background: 'var(--secondary-50)', 
+                  border: '1px solid var(--secondary-200)', 
                   borderRadius: 'var(--radius-md)', 
-                  color: streepjes > 0 ? 'var(--accent-red-800)' : 'var(--secondary-800)', 
+                  color: (isStreepjesLoading ? 'var(--secondary-600)' : (streepjes > 0 ? 'var(--accent-red-800)' : 'var(--secondary-800)')),
                   fontWeight: '500' 
                 }}>
-                  {streepjes}
+                  {isStreepjesLoading ? 'Streepjes worden geteld...' : streepjes}
                 </div>
-                {streepjes > 0 && (
-                  <div style={{ 
-                    fontSize: '0.875rem', 
-                    color: 'var(--accent-red-600)', 
-                    marginTop: '0.25rem'
-                  }}>
-                    Je hebt {streepjes} streepje{streepjes > 1 ? 's' : ''}
-                  </div>
-                )}
               </div>
-              
-              <div className="form-group">
-                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+
+              <label className="form-label">
+                🏃‍♂️ Activiteit
+              </label>
+              <div className="form-group toggle-section">
+
+                <div className="toggle-container">
                   <input
+                    id="active-toggle"
                     type="checkbox"
                     checked={activeStatus}
-                    onChange={(e) => handleActiveStatusChange(e.target.checked)}
+                    onChange={e => handleActiveStatusChange(e.target.checked)}
                     disabled={isUpdatingActive}
-                    style={{
-                      width: '1.25rem',
-                      height: '1.25rem',
-                      cursor: isUpdatingActive ? 'not-allowed' : 'pointer'
-                    }}
+                    className="toggle-input"
                   />
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem'}}>
+                  <label htmlFor="active-toggle" className="toggle-switch">
+                    <span className="switch-ball" />
+                  </label>
+                  <span className="toggle-label">
                     {activeStatus ? 'Actief' : 'Inactief'}
-                    {isUpdatingActive && <span style={{ fontSize: '0.8rem', color: 'var(--secondary-600)' }}>(wordt bijgewerkt...)</span>}
+                    {isUpdatingActive && <small> (wordt bijgewerkt…)</small>}
                   </span>
-                </label>
-                <div style={{ 
-                  fontSize: '0.875rem', 
-                  color: 'var(--secondary-600)', 
-                  marginTop: '0.25rem',
-                  marginLeft: '1rem' 
-                }}>
-                  {activeStatus ? 'Je bent actief en automatisch aangemeld voor opkomsten' : 'Je bent inactief en automatisch afgemeld voor opkomsten'}
                 </div>
+
+                <div className="toggle-desc">
+                  {activeStatus
+                    ? 'Je bent automatisch aangemeld voor nieuwe opkomsten'
+                    : 'Je bent automatisch afgemeld voor nieuwe opkomsten'}
+                </div>
+
+                {message?.startsWith('Status succesvol bijgewerkt') && (
+                  <div className="toggle-success">
+                    ✅ {message}
+                  </div>
+                )}
               </div>
               <p><br></br></p>
               <div className="form-group">

@@ -379,12 +379,17 @@ export async function resetPassword(email, code, newPassword) {
   if (!email || !code || !newPassword) {
     throw new Error('E-mail, code en nieuw wachtwoord zijn verplicht')
   }
-  
+
   return enhancedFetch('/reset-password', {
     method: 'POST',
-    body: { email, code, password: newPassword }
+    body: { 
+      email, 
+      code, 
+      newPassword 
+    }
   })
 }
+
 
 /**
  * Get all events

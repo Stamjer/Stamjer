@@ -32,8 +32,8 @@ out/
 *.local
 
 # Data files (may contain sensitive user information)
-data/users.json
-data/events.json
+data/users-example.json
+data/events-example.json
 
 # Runtime data
 pids
