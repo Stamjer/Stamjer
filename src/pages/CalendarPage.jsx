@@ -1144,7 +1144,6 @@ export default function CalendarPage() {
     <div className="calendar-container">
       <div className="calendar-header">
         <h1 className="calendar-title">Kalender</h1>
-        {/*<p className="calendar-subtitle">Beheer je evenementen en afspraken</p>*/}
       </div>
 
       <div className="calendar-wrapper">

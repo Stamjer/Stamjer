@@ -29,14 +29,6 @@
   line-height: 1.2;
 }
 
-.opkomsten-subtitle {
-  text-align: center;
-  font-size: clamp(1rem, 2vw, 1.25rem);
-  color: var(--secondary-600);
-  font-weight: var(--font-weight-medium);
-  margin: 0;
-}
-
 /* Table Styles */
 .opkomsten-table-wrapper {
   background: white;

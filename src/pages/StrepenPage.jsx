@@ -293,7 +293,6 @@ export default function StrepenPage() {
     <div className="strepen-page">
       <div className="strepen-header">
         <h1>Strepen</h1>
-        <p>Aanwezigheidsbeheer voor opkomsten</p>
       </div>
 
       <div className="event-selector">
@@ -388,7 +387,7 @@ export default function StrepenPage() {
           onClick={handleSaveAttendance}
           disabled={isSaving}
         >
-          {isSaving ? 'Opslaan...' : 'Aanwezigheid Opslaan'}
+          {isSaving ? 'Opslaan...' : 'Opslaan'}
         </button>
       </div>
 

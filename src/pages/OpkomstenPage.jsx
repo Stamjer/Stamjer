@@ -1100,9 +1100,6 @@ export default function OpkomstenPage() {
     <div className="opkomsten-container">
       <div className="opkomsten-header">
         <h1 className="opkomsten-title">Opkomsten</h1>
-        <p className="opkomsten-subtitle">
-          Overzicht van alle geplande stam opkomsten
-        </p>
       </div>
 
       {opkomstEvents.length === 0 ? (
