@@ -1121,7 +1121,7 @@ export default function OpkomstenPage() {
                 <th>Datum</th>
                 <th>Aanwezig</th>
                 <th>Opkomstmakers</th>
-                <th>Aanwezigen ({currentUser && currentUser.isAdmin ? 'Alle gebruikers' : users.length > 0 ? 'Namen' : 'Laden...'})</th>
+                <th>Aanwezigen</th>
                 <th>Beschrijving</th>
                 {currentUser && currentUser.isAdmin && <th>Acties</th>}
               </tr>
