@@ -977,6 +977,88 @@ export default function OpkomstenPage() {
       .sort((a, b) => a.localeCompare(b, 'nl-NL'))
   }, [users])
 
+  // Handle admin clicking on a user name to toggle their participation
+  const handleAdminToggleParticipation = useCallback(async (eventId, userId) => {
+    if (!currentUser || !currentUser.isAdmin) {
+      showToast('Alleen admins kunnen deelname van anderen wijzigen', 'error')
+      return
+    }
+
+    // Find the event
+    const event = opkomstEvents.find(e => e.id === eventId)
+    if (!event) {
+      showToast('Evenement niet gevonden', 'error')
+      return
+    }
+
+    // Admins can always change participation, regardless of date
+    const participants = event.participants || []
+    const isCurrentlyAttending = participants.includes(userId)
+    const newAttendanceState = !isCurrentlyAttending
+
+    try {
+      console.log(`Admin updating attendance for event ${eventId}, user ${userId}, attending: ${newAttendanceState}`)
+      
+      try {
+        const response = await updateAttendance(eventId, userId, newAttendanceState)
+        if (response && response.event) {
+          setOpkomstEvents(prev =>
+            prev.map(event =>
+              event.id === eventId ? { ...event, participants: response.event.participants } : event
+            )
+          )
+        } else {
+          // If no event returned, update locally
+          setOpkomstEvents(prev =>
+            prev.map(event => {
+              if (event.id === eventId) {
+                const participants = event.participants || []
+                if (newAttendanceState && !participants.includes(userId)) {
+                  participants.push(userId)
+                } else if (!newAttendanceState && participants.includes(userId)) {
+                  const index = participants.indexOf(userId)
+                  participants.splice(index, 1)
+                }
+                return { ...event, participants }
+              }
+              return event
+            })
+          )
+        }
+      } catch (apiError) {
+        // If API returns 'Event niet gevonden', update locally
+        if (apiError.message && apiError.message.includes('Event niet gevonden')) {
+          setOpkomstEvents(prev =>
+            prev.map(event => {
+              if (event.id === eventId) {
+                const participants = event.participants || []
+                if (newAttendanceState && !participants.includes(userId)) {
+                  participants.push(userId)
+                } else if (!newAttendanceState && participants.includes(userId)) {
+                  const index = participants.indexOf(userId)
+                  participants.splice(index, 1)
+                }
+                return { ...event, participants }
+              }
+              return event
+            })
+          )
+        } else {
+          throw apiError
+        }
+      }
+
+      const userName = users.find(u => u.id === userId)?.firstName || 'Gebruiker'
+      showToast(
+        newAttendanceState ? `${userName} is aangemeld` : `${userName} is afgemeld`,
+        'success'
+      )
+    } catch (err) {
+      console.error('Error updating attendance:', err)
+      showToast('Kon aanwezigheid niet bijwerken', 'error')
+    }
+  }, [currentUser, showToast, opkomstEvents, users])
+
   // ================================================================
   // RENDER
   // ================================================================
@@ -1039,7 +1121,7 @@ export default function OpkomstenPage() {
                 <th>Datum</th>
                 <th>Aanwezig</th>
                 <th>Opkomstmakers</th>
-                <th>Aanwezigen ({users.length > 0 ? 'Namen' : 'Laden...'})</th>
+                <th>Aanwezigen ({currentUser && currentUser.isAdmin ? 'Alle gebruikers' : users.length > 0 ? 'Namen' : 'Laden...'})</th>
                 <th>Beschrijving</th>
                 {currentUser && currentUser.isAdmin && <th>Acties</th>}
               </tr>
@@ -1105,21 +1187,54 @@ export default function OpkomstenPage() {
                   </td>
                   <td className="participants-cell">
                     <div className="participants-content">
-                      {event.participants && event.participants.length > 0 ? (
-                        <div className="participants-list">
+                      {currentUser && currentUser.isAdmin ? (
+                        // Admin view: Show all users with clickable names
+                        <div className="admin-participants-view">
                           <div className="participants-count">
-                            {event.participants.length} {event.participants.length === 1 ? 'persoon' : 'personen'}
+                            {event.participants ? event.participants.length : 0} {(event.participants ? event.participants.length : 0) === 1 ? 'persoon' : 'personen'} aanwezig
                           </div>
-                          <div className="participants-names">
-                            {getParticipantNames(event.participants).map((name, index) => (
-                              <span key={index} className="participant-name">
-                                {name}
-                              </span>
-                            ))}
+                          <div className="admin-participants-list">
+                            {users.length > 0 ? (
+                              users
+                                .sort((a, b) => a.firstName.localeCompare(b.firstName, 'nl-NL'))
+                                .map(user => {
+                                  const isParticipating = event.participants && event.participants.includes(user.id)
+                                  // Admins can always change participation, regardless of date
+                                  return (
+                                    <button
+                                      key={user.id}
+                                      type="button"
+                                      className={`admin-participant-name ${isParticipating ? 'participating' : 'not-participating'}`}
+                                      onClick={() => handleAdminToggleParticipation(event.id, user.id)}
+                                      title={`Klik om ${isParticipating ? 'af te melden' : 'aan te melden'}: ${user.firstName}`}
+                                    >
+                                      {user.firstName}
+                                    </button>
+                                  )
+                                })
+                            ) : (
+                              <span className="loading-users">Gebruikers laden...</span>
+                            )}
                           </div>
                         </div>
                       ) : (
-                        <span className="no-participants">Geen aanwezigen</span>
+                        // Regular user view: Show only participants
+                        event.participants && event.participants.length > 0 ? (
+                          <div className="participants-list">
+                            <div className="participants-count">
+                              {event.participants.length} {event.participants.length === 1 ? 'persoon' : 'personen'}
+                            </div>
+                            <div className="participants-names">
+                              {getParticipantNames(event.participants).map((name, index) => (
+                                <span key={index} className="participant-name">
+                                  {name}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="no-participants">Geen aanwezigen</span>
+                        )
                       )}
                     </div>
                   </td>
