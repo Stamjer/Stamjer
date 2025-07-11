@@ -1088,20 +1088,11 @@ export default function CalendarPage() {
     dayMaxEvents: 3,
     moreLinkText: 'meer',
     eventDidMount: (info) => {
-      // Add accessibility attributes
+      // only do your accessibility attributes:
       info.el.setAttribute('role', 'button')
       info.el.setAttribute('aria-label', `Evenement: ${info.event.title}`)
-      
-      // Show time more clearly for timed events
-      if (!info.event.allDay && info.event.start) {
-        const timeEl = info.el.querySelector('.fc-event-time')
-        if (timeEl) {
-          const startTime = formatTime(info.event.start)
-          timeEl.textContent = startTime
-        }
-      }
     }
-  }), [events, handleEventClick, isAdmin])
+  }), [events])
 
   // ================================================================
   // RENDER
