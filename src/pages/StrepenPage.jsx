@@ -25,17 +25,17 @@ function Toast({ message, type = 'info', onClose }) {
 
   const icons = {
     success: '✅',
-    error: '❌',
+    error:   '❌',
     warning: '⚠️',
-    info: 'ℹ️'
+    info:    'ℹ️'
   }
 
   return (
     <div className={`toast toast-${type}`} role="alert">
       <span className="toast-icon">{icons[type]}</span>
       <span className="toast-message">{message}</span>
-      <button 
-        className="toast-close" 
+      <button
+        className="toast-close"
         onClick={onClose}
         aria-label="Notificatie sluiten"
       >
@@ -59,12 +59,10 @@ export default function StrepenPage() {
 
   // Toast functions
   const showToast = useCallback((message, type = 'info') => {
-    console.log('Showing toast:', message, type)
     setToast({ message, type })
   }, [])
 
   const hideToast = useCallback(() => {
-    console.log('Hiding toast')
     setToast(null)
   }, [])
 
@@ -86,303 +84,202 @@ export default function StrepenPage() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Load events
-        const eventsResponse = await fetch('/api/events')
-        if (!eventsResponse.ok) throw new Error('Failed to load events')
-        const eventsData = await eventsResponse.json()
-        
-        // Filter only opkomsten and sort by date
-        const opkomsten = eventsData.events
-          .filter(event => event.isOpkomst)
+        const eventsRes = await fetch('/api/events')
+        if (!eventsRes.ok) throw new Error('Failed to load events')
+        const { events: all } = await eventsRes.json()
+
+        const opkomsten = all
+          .filter(ev => ev.isOpkomst)
           .sort((a, b) => new Date(a.start) - new Date(b.start))
-        
         setEvents(opkomsten)
 
-        // Load users
-        const usersResponse = await fetch('/api/users/full')
-        if (!usersResponse.ok) throw new Error('Failed to load users')
-        const usersData = await usersResponse.json()
-        setUsers(usersData.users)
+        const usersRes = await fetch('/api/users/full')
+        if (!usersRes.ok) throw new Error('Failed to load users')
+        const { users: fullUsers } = await usersRes.json()
+        setUsers(fullUsers)
 
-        // Select default event (first upcoming or today's opkomst)
         if (opkomsten.length > 0) {
           const today = new Date()
           today.setHours(0, 0, 0, 0)
-          
-          // Find today's opkomst first
-          let defaultEvent = opkomsten.find(event => {
-            const eventDate = new Date(event.start)
-            eventDate.setHours(0, 0, 0, 0)
-            return eventDate.getTime() === today.getTime()
+
+          let def = opkomsten.find(ev => {
+            const d = new Date(ev.start)
+            d.setHours(0, 0, 0, 0)
+            return d.getTime() === today.getTime()
           })
-          
-          // If no opkomst today, find the next upcoming one
-          if (!defaultEvent) {
-            defaultEvent = opkomsten.find(event => {
-              const eventDate = new Date(event.start)
-              return eventDate >= today
-            })
-          }
-          
-          // If no upcoming opkomst, take the most recent one
-          if (!defaultEvent) {
-            defaultEvent = opkomsten[opkomsten.length - 1]
-          }
-          
-          setSelectedEvent(defaultEvent)
+          if (!def) def = opkomsten.find(ev => new Date(ev.start) >= today)
+          if (!def) def = opkomsten[opkomsten.length - 1]
+          setSelectedEvent(def)
         }
       } catch (err) {
-        console.error('Error loading data:', err)
+        console.error(err)
         setError('Failed to load data')
       } finally {
         setIsLoading(false)
       }
     }
 
-    if (user) {
-      loadData()
-    }
+    if (user) loadData()
   }, [user])
 
   // Initialize attendance state when event changes
   useEffect(() => {
-    if (selectedEvent && users.length > 0) {
-      // Load existing attendance from the event, or initialize with defaults
-      const existingAttendance = selectedEvent.attendance || {}
-      const newAttendance = {}
-      
-      users.forEach(user => {
-        const isParticipant = selectedEvent.participants.includes(user.id)
-        
-        // Use existing attendance if available, otherwise use defaults
-        if (existingAttendance[user.id]) {
-          newAttendance[user.id] = existingAttendance[user.id]
-        } else {
-          newAttendance[user.id] = {
-            present: isParticipant, // Pre-select 'present' if they're a participant
-            absent: !isParticipant  // Pre-select 'absent' if they're not a participant
-          }
-        }
-      })
-      
-      setAttendance(newAttendance)
-    }
-  }, [selectedEvent, users]) // Add users back since we need to check for existing attendance
+    if (!selectedEvent || users.length === 0) return
 
-  const handleAttendanceChange = (userId, type) => {
-    setAttendance(prev => {
-      const currentStatus = prev[userId] || { present: false, absent: false }
-      
-      if (type === 'present') {
-        // If clicking present and it's already selected, deselect it
-        // If clicking present and it's not selected, select it and deselect absent
-        const newPresent = !currentStatus.present
-        return {
-          ...prev,
-          [userId]: {
-            present: newPresent,
-            absent: newPresent ? false : currentStatus.absent
-          }
+    const existing = selectedEvent.attendance || {}
+    const next = {}
+
+    users.forEach(u => {
+      const uid = u.id.toString()
+      const isPart = selectedEvent.participants.includes(u.id)
+
+      if (Object.prototype.hasOwnProperty.call(existing, uid)) {
+        const val = existing[uid]
+        if (typeof val === 'object' && 'present' in val) {
+          next[u.id] = Boolean(val.present)
+        } else {
+          next[u.id] = Boolean(val)
         }
-      } else if (type === 'absent') {
-        // If clicking absent and it's already selected, deselect it
-        // If clicking absent and it's not selected, select it and deselect present
-        const newAbsent = !currentStatus.absent
-        return {
-          ...prev,
-          [userId]: {
-            present: newAbsent ? false : currentStatus.present,
-            absent: newAbsent
-          }
-        }
+      } else {
+        next[u.id] = isPart
       }
-      
-      return prev
     })
+
+    setAttendance(next)
+  }, [selectedEvent, users])
+
+  // Toggle only updates local state
+  const handleAttendanceToggle = (userId) => {
+    setAttendance(prev => ({
+      ...prev,
+      [userId]: !prev[userId]
+    }))
   }
 
+  // Explicit save via button
   const handleSaveAttendance = async () => {
     if (!selectedEvent) return
-    
+
     setIsSaving(true)
     try {
-      console.log('📊 Saving attendance for event:', selectedEvent.id)
-      console.log('📊 Attendance data:', attendance)
-      
-      // Save attendance to the event
-      const response = await fetch(`/api/events/${selectedEvent.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          attendance
-        })
+      const res = await fetch(`/api/events/${selectedEvent.id}`, {
+        method:  'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ attendance })
       })
-      
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error('❌ Failed to save attendance:', errorText)
-        throw new Error(`Failed to save attendance: ${errorText}`)
+      if (!res.ok) {
+        const errText = await res.text()
+        throw new Error(errText || 'Save failed')
       }
-      
-      const result = await response.json()
-      console.log('✅ Successfully saved attendance:', result)
-      
-      // Update the local selected event with the new attendance
-      setSelectedEvent(prev => ({
-        ...prev,
-        attendance
-      }))
-      
-      // Reload users to get updated streepjes count
-      const usersResponse = await fetch('/api/users/full')
-      if (usersResponse.ok) {
-        const usersData = await usersResponse.json()
-        setUsers(usersData.users)
+      const updated = await res.json()
+      setSelectedEvent(ev => ({ ...ev, attendance }))
+      // reload streepjes
+      const usersRes = await fetch('/api/users/full')
+      if (usersRes.ok) {
+        const { users: fresh } = await usersRes.json()
+        setUsers(fresh)
       }
-
-      // Show success toast
       showToast('Aanwezigheid succesvol opgeslagen!', 'success')
     } catch (err) {
-      console.error('Error saving attendance:', err)
-      // Show error toast
-      showToast(`Fout bij het opslaan van aanwezigheid: ${err.message}`, 'error')
+      console.error(err)
+      showToast(`Fout bij opslaan: ${err.message}`, 'error')
     } finally {
       setIsSaving(false)
     }
   }
 
   if (isLoading) {
-    return (
-      <div className="strepen-page">
-        <div className="loading">Laden...</div>
-      </div>
-    )
+    return <div className="strepen-page"><div className="loading">Laden...</div></div>
   }
-
   if (error) {
-    return (
-      <div className="strepen-page">
-        <div className="error">Fout: {error}</div>
-      </div>
-    )
+    return <div className="strepen-page"><div className="error">Fout: {error}</div></div>
   }
-
   if (!selectedEvent) {
-    return (
-      <div className="strepen-page">
-        <div className="no-events">Geen opkomsten gevonden</div>
-      </div>
-    )
+    return <div className="strepen-page"><div className="no-events">Geen opkomsten gevonden</div></div>
   }
 
-  // Sort users: participants first, then non-participants
   const sortedUsers = [...users].sort((a, b) => {
-    const aIsParticipant = selectedEvent.participants.includes(a.id)
-    const bIsParticipant = selectedEvent.participants.includes(b.id)
-    
-    if (aIsParticipant && !bIsParticipant) return -1
-    if (!aIsParticipant && bIsParticipant) return 1
-    
-    // If both are participants or both are not, sort by name
+    const aP = selectedEvent.participants.includes(a.id)
+    const bP = selectedEvent.participants.includes(b.id)
+    if (aP && !bP) return -1
+    if (!aP && bP) return 1
     return `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`)
   })
 
   return (
     <div className="strepen-page">
-      <div className="strepen-header">
+      <header className="strepen-header">
         <h1>Strepen</h1>
-      </div>
+      </header>
 
-      <div className="event-selector">
+      <section className="event-selector">
         <label htmlFor="event-select">Selecteer opkomst:</label>
-        <select 
+        <select
           id="event-select"
-          value={selectedEvent?.id || ''}
-          onChange={(e) => {
-            const event = events.find(ev => ev.id === e.target.value)
-            setSelectedEvent(event)
+          value={selectedEvent.id}
+          onChange={e => {
+            const ev = events.find(x => x.id === e.target.value)
+            setSelectedEvent(ev)
           }}
         >
-          {events.map(event => (
-            <option key={event.id} value={event.id}>
-              {capitalizeWeekday(event.start)} - {event.title}
+          {events.map(ev => (
+            <option key={ev.id} value={ev.id}>
+              {capitalizeWeekday(ev.start)} - {ev.title}
             </option>
           ))}
         </select>
-      </div>
+      </section>
 
-      <div className="event-info">
+      <section className="event-info">
         <h2>{selectedEvent.title}</h2>
-        <p>
-          📅 {capitalizeWeekday(selectedEvent.start)}
-        </p>
+        <p>📅 {capitalizeWeekday(selectedEvent.start)}</p>
         <p>👥 Opkomstmakers: {selectedEvent.opkomstmakers}</p>
-      </div>
+      </section>
 
       <div className="attendance-table">
         <div className="table-header">
           <div className="header-cell name">Naam</div>
           <div className="header-cell status">Aangemeld</div>
-          <div className="header-cell present">Aanwezig</div>
-          <div className="header-cell absent">Afwezig</div>
+          <div className="header-cell toggle">Aanwezigheid</div>
           <div className="header-cell streepjes">Streepjes</div>
         </div>
+        {sortedUsers.map(u => {
+          const isPart = selectedEvent.participants.includes(u.id)
+          const present = attendance[u.id]
+          const defaultState = present === isPart
 
-        {sortedUsers.map(user => {
-          const isParticipant = selectedEvent.participants.includes(user.id)
-          const userAttendance = attendance[user.id] || { present: false, absent: false }
-          
-          // Check if current state matches expected default
-          const expectedPresent = isParticipant
-          const expectedAbsent = !isParticipant
-          const isDefaultState = (userAttendance.present === expectedPresent && userAttendance.absent === expectedAbsent)
-          
           return (
-            <div key={user.id} className={`table-row ${isParticipant ? 'participant' : 'non-participant'} ${isDefaultState ? 'default-state' : 'modified-state'}`}>
+            <div
+              key={u.id}
+              className={`table-row ${isPart ? 'participant' : 'non-participant'} ${
+                defaultState ? 'default-state' : 'modified-state'
+              }`}
+            >
               <div className="cell name">
-                {user.firstName} {user.lastName}
-                {!isDefaultState && <span className="modified-indicator"> *</span>}
+                {u.firstName}{!defaultState && <span className="modified-indicator"> *</span>}
               </div>
-              <div className="cell status">
-                {isParticipant ? '✅ Ja' : '❌ Nee'}
-              </div>
-              <div className="cell present">
+              <div className="cell status">{isPart ? '✅' : '❌'}</div>
+              <div className="cell toggle">
                 <input
                   type="checkbox"
-                  checked={userAttendance.present}
-                  onChange={() => handleAttendanceChange(user.id, 'present')}
+                  id={`toggle-${u.id}`}
+                  checked={present}
+                  onChange={() => handleAttendanceToggle(u.id)}
+                  disabled={isSaving}
+                  className="toggle-input"
                 />
+                <label htmlFor={`toggle-${u.id}`} className="toggle-switch">
+                  <div className="switch-ball"></div>
+                </label>
               </div>
-              <div className="cell absent">
-                <input
-                  type="checkbox"
-                  checked={userAttendance.absent}
-                  onChange={() => handleAttendanceChange(user.id, 'absent')}
-                />
-              </div>
-              <div className="cell streepjes">
-                {user.streepjes || 0}
-              </div>
+              <div className="cell streepjes">{u.streepjes || 0}</div>
             </div>
           )
         })}
       </div>
 
-      <div className="strepen-info">
-        <h3>ℹ️ Informatie</h3>
-        <p>
-          <strong>Een streepje wordt toegekend wanneer het af- of aanmelden niet correct gebeurt:</strong>
-        </p>
-        <ul>
-          <li>Iemand die zich heeft aangemeld (✅) maar niet aanwezig is (afwezig aanvinken)</li>
-          <li>Iemand die zich niet heeft aangemeld (❌) maar wel aanwezig is (aanwezig aanvinken)</li>
-        </ul>
-      </div>
-
       <div className="save-section">
-        <button 
+        <button
           className="save-button"
           onClick={handleSaveAttendance}
           disabled={isSaving}
@@ -391,14 +288,7 @@ export default function StrepenPage() {
         </button>
       </div>
 
-      {/* Toast notifications */}
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={hideToast}
-        />
-      )}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
     </div>
   )
 }

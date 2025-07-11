@@ -195,19 +195,29 @@ function isUserAdmin(userId) {
   return u && u.isAdmin
 }
 
+// Replace your old calculateStreepjes with:
 function calculateStreepjes() {
   const counts = {}
   users.forEach(u => { counts[u.id] = 0 })
+
   events.forEach(ev => {
-    if (ev.isOpkomst && ev.attendance) {
-      Object.entries(ev.attendance).forEach(([uid, a]) => {
-        const idNum = parseInt(uid, 10)
-        const isPart = ev.participants?.includes(idNum)
-        const wrong = (isPart && a.absent) || (!isPart && a.present)
-        if (wrong) counts[idNum]++
-      })
-    }
+    if (!ev.isOpkomst || !ev.attendance) return
+
+    Object.entries(ev.attendance).forEach(([uid, a]) => {
+      const idNum = parseInt(uid, 10)
+      // normalize to boolean present/absent
+      const present = (typeof a === 'object' && 'present' in a)
+        ? Boolean(a.present)
+        : Boolean(a)
+
+      const isPart = ev.participants?.includes(idNum)
+      // wrong attendance = signed-up but absent OR not-signed-up but present
+      if ((isPart && !present) || (!isPart && present)) {
+        counts[idNum]++
+      }
+    })
   })
+
   return counts
 }
 
