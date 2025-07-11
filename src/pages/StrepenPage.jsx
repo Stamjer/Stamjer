@@ -210,13 +210,13 @@ export default function StrepenPage() {
       console.log('📊 Attendance data:', attendance)
       
       // Save attendance to the event
-      const response = await fetch(`/api/events/${selectedEvent.id}/attendance/bulk`, {
+      const response = await fetch(`/api/events/${selectedEvent.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          attendance: attendance
+          attendance
         })
       })
       
@@ -232,7 +232,7 @@ export default function StrepenPage() {
       // Update the local selected event with the new attendance
       setSelectedEvent(prev => ({
         ...prev,
-        attendance: attendance
+        attendance
       }))
       
       // Reload users to get updated streepjes count
