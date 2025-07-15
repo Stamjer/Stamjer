@@ -1297,3 +1297,53 @@
     justify-content: center;
   }
 }
+
+/* Force light mode for OpkomstenPage on mobile */
+@media (max-width: 768px) {
+  .opkomsten-container {
+    background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%) !important;
+    color: #1e293b !important;
+  }
+  
+  .opkomsten-header {
+    color: #1e293b !important;
+  }
+  
+  .opkomsten-card {
+    background: white !important;
+    border: 1px solid #e2e8f0 !important;
+    color: #1e293b !important;
+  }
+  
+  .event-card {
+    background: white !important;
+    border: 1px solid #e2e8f0 !important;
+    color: #1e293b !important;
+  }
+  
+  /* Improve touch targets */
+  .btn {
+    min-height: 44px !important;
+    touch-action: manipulation !important;
+  }
+  
+  /* Better input handling */
+  input,
+  select,
+  textarea {
+    min-height: 44px !important;
+    font-size: 16px !important; /* Prevents zoom on iOS */
+    background: white !important;
+    color: #1e293b !important;
+    border: 2px solid #e2e8f0 !important;
+    touch-action: manipulation !important;
+  }
+  
+  input:focus,
+  select:focus,
+  textarea:focus {
+    border-color: #3b82f6 !important;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+    outline: none !important;
+  }
+}

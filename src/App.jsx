@@ -40,7 +40,7 @@ import './components/MobileUtils.css'
 import './mobile-enhancements.css'
 
 // Import mobile utilities
-import { useIsMobile, preventZoom } from './components/MobileUtils'
+import { useIsMobile, useForceLightMode, preventZoom } from './components/MobileUtils'
 
 /**
  * Error Boundary Component for handling React errors gracefully
@@ -107,8 +107,11 @@ function App() {
   const [isInitializing, setIsInitializing] = useState(true)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
-  // Mobile detection
+  // Mobile detection and utilities
   const isMobile = useIsMobile()
+  
+  // Force light mode on mobile
+  useForceLightMode()
 
   // ================================================================
   // EFFECTS AND INITIALIZATION

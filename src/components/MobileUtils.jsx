@@ -6,22 +6,66 @@
 import { useEffect, useState, useCallback } from 'react'
 
 /**
- * Hook to detect if user is on a mobile device
+ * Enhanced hook to detect if user is on a mobile device
  */
 export const useIsMobile = () => {
   const [isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
     const checkIsMobile = () => {
-      setIsMobile(window.innerWidth <= 768)
+      const width = window.innerWidth
+      const userAgent = navigator.userAgent
+      const isMobileWidth = width <= 768
+      const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent)
+      setIsMobile(isMobileWidth || isMobileDevice)
+      
+      // Add mobile class to body for CSS targeting
+      if (isMobileWidth || isMobileDevice) {
+        document.body.classList.add('is-mobile')
+      } else {
+        document.body.classList.remove('is-mobile')
+      }
     }
 
     checkIsMobile()
     window.addEventListener('resize', checkIsMobile)
-    return () => window.removeEventListener('resize', checkIsMobile)
+    return () => {
+      window.removeEventListener('resize', checkIsMobile)
+      document.body.classList.remove('is-mobile')
+    }
   }, [])
 
   return isMobile
+}
+
+/**
+ * Force light mode on mobile devices
+ */
+export const useForceLightMode = () => {
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 768px)')
+    
+    const updateColorScheme = (e) => {
+      if (e.matches) {
+        // Force light mode on mobile
+        document.documentElement.style.setProperty('color-scheme', 'light')
+        document.body.setAttribute('data-theme', 'light')
+      } else {
+        // Allow normal color scheme on desktop
+        document.documentElement.style.removeProperty('color-scheme')
+        document.body.removeAttribute('data-theme')
+      }
+    }
+
+    updateColorScheme(mediaQuery)
+    mediaQuery.addEventListener('change', updateColorScheme)
+
+    return () => {
+      mediaQuery.removeEventListener('change', updateColorScheme)
+      document.documentElement.style.removeProperty('color-scheme')
+      document.body.removeAttribute('data-theme')
+    }
+  }, [])
 }
 
 /**
@@ -309,6 +353,7 @@ export const hapticFeedback = (type = 'light') => {
 
 export default {
   useIsMobile,
+  useForceLightMode,
   usePullToRefresh,
   useSwipeGesture,
   useOrientation,
