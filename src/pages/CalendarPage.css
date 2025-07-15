@@ -1132,65 +1132,6 @@
   }
 
   .modal-footer .btn {
-    min-height: 44px;
-    font-size: 0.875rem;
-  }
-
-  /* Calendar event optimizations */
-  .fc-event {
-    min-height: 28px;
-    font-size: 0.75rem;
-  }
-
-  .fc-event-title {
-    font-size: 0.75rem;
-    padding: 0.125rem 0.375rem;
-  }
-
-  .fc-event-time {
-    font-size: 0.6875rem;
-  }
-
-  /* Form optimizations */
-  .form-group input,
-  .form-group textarea,
-  .form-group select {
-    min-height: 44px;
-    padding: 0.75rem;
-    font-size: 0.875rem;
-  }
-
-  .toast {
-    left: 0.5rem;
-    right: 0.5rem;
-    padding: 0.875rem;
-    font-size: 0.8125rem;
-  }
-}
-
-/* Extra Small Mobile Devices */
-@media (max-width: 360px) {
-  .calendar-container {
-    padding: 0.5rem;
-  }
-
-  .fc-header-toolbar {
-    padding: 0.5rem !important;
-  }
-
-  .fc-button {
-    min-height: 40px !important;
-    padding: 0.5rem 0.625rem !important;
-    font-size: 0.75rem !important;
-  }
-
-  .modal-header,
-  .modal-body,
-  .modal-footer {
-    padding: 0.625rem;
-  }
-
-  .modal-footer .btn {
     min-height: 40px;
     font-size: 0.8125rem;
   }
@@ -1447,226 +1388,118 @@ input[type="time"]::placeholder {
   transform: scale(1);
 }
 
-/* Custom scrollbar styles for modal content */
-.modal-content::-webkit-scrollbar {
-  width: 8px;
-  background: transparent;
+/* Comprehensive FullCalendar mobile fixes */
+.fc {
+  font-family: system-ui, -apple-system, sans-serif !important;
+  color: #1e293b !important;
 }
 
-.modal-content::-webkit-scrollbar-track {
-  background: transparent;
-  border-radius: 0;
-  margin: calc(var(--radius-2xl) - 2px) 0; /* Add margin to match modal border radius */
+.fc-theme-standard th,
+.fc-theme-standard td {
+  border-color: #e2e8f0 !important;
 }
 
-.modal-content::-webkit-scrollbar-thumb {
-  background: var(--secondary-300);
-  border-radius: var(--radius-full);
-  border: 2px solid transparent;
-  background-clip: padding-box;
-  margin: calc(var(--radius-2xl) - 2px) 0; /* Add margin to match modal border radius */
-  transition: background-color var(--duration-fast) var(--ease-out);
+.fc-scrollgrid {
+  border-color: #e2e8f0 !important;
 }
 
-.modal-content::-webkit-scrollbar-thumb:hover {
-  background: var(--secondary-400);
-  background-clip: padding-box;
+.fc-scrollgrid-sync-table {
+  overflow: visible !important;
 }
 
-.modal-content::-webkit-scrollbar-corner {
-  background: transparent;
+.fc-daygrid-body {
+  overflow: visible !important;
 }
 
-.modal-content-large::-webkit-scrollbar {
-  width: 8px;
-  background: transparent;
+.fc-daygrid-day-frame {
+  min-height: 60px !important;
+  padding: 4px !important;
 }
 
-.modal-content-large::-webkit-scrollbar-track {
-  background: transparent;
-  border-radius: 0;
-  margin: calc(var(--radius-2xl) - 2px) 0; /* Add margin to match modal border radius */
+.fc-daygrid-day-top {
+  flex-direction: row !important;
+  justify-content: flex-start !important;
 }
 
-.modal-content-large::-webkit-scrollbar-thumb {
-  background: var(--secondary-300);
-  border-radius: var(--radius-full);
-  border: 2px solid transparent;
-  background-clip: padding-box;
-  margin: calc(var(--radius-2xl) - 2px) 0; /* Add margin to match modal border radius */
-  transition: background-color var(--duration-fast) var(--ease-out);
+.fc-daygrid-day-number {
+  padding: 8px !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  color: #374151 !important;
+  min-width: 28px !important;
+  text-align: center !important;
 }
 
-.modal-content-large::-webkit-scrollbar-thumb:hover {
-  background: var(--secondary-400);
-  background-clip: padding-box;
+.fc-day-today .fc-daygrid-day-number {
+  background: #3b82f6 !important;
+  color: white !important;
+  border-radius: 50% !important;
 }
 
-.modal-content-large::-webkit-scrollbar-corner {
-  background: transparent;
+.fc-daygrid-event {
+  margin: 1px 2px !important;
+  padding: 2px 4px !important;
+  font-size: 0.75rem !important;
+  border-radius: 4px !important;
+  border: none !important;
+  background: #3b82f6 !important;
+  color: white !important;
+  cursor: pointer !important;
 }
 
-/* Missing styles for checkbox elements */
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  cursor: pointer;
-  user-select: none;
-  font-weight: var(--font-weight-medium);
-  color: var(--secondary-700);
-  transition: all var(--duration-fast) var(--ease-out);
+.fc-daygrid-event:hover {
+  background: #2563eb !important;
 }
 
-.checkbox-label:hover {
-  color: var(--secondary-800);
+.fc-daygrid-event-harness {
+  margin: 1px 0 !important;
 }
 
-.checkbox-input {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-  pointer-events: none;
+.fc-event-main {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
 }
 
-.checkbox-custom {
-  position: relative;
-  width: 20px;
-  height: 20px;
-  border: 2px solid var(--secondary-300);
-  border-radius: var(--radius-sm);
-  background: white;
-  transition: all var(--duration-fast) var(--ease-out);
-  flex-shrink: 0;
+.fc-event-title {
+  font-size: 0.75rem !important;
+  line-height: 1.2 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
 }
 
-.checkbox-custom::after {
-  content: '✓';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) scale(0);
-  color: white;
-  font-size: 12px;
-  font-weight: var(--font-weight-bold);
-  opacity: 0;
-  transition: all var(--duration-fast) var(--ease-out);
+.fc-event-time {
+  font-size: 0.625rem !important;
+  font-weight: 600 !important;
+  opacity: 0.9 !important;
 }
 
-.checkbox-input:checked + .checkbox-custom {
-  background: var(--primary-600);
-  border-color: var(--primary-600);
+/* More events link */
+.fc-daygrid-more-link {
+  font-size: 0.75rem !important;
+  color: #3b82f6 !important;
+  text-decoration: none !important;
+  padding: 2px 4px !important;
+  background: #eff6ff !important;
+  border-radius: 3px !important;
+  margin: 1px !important;
 }
 
-.checkbox-input:checked + .checkbox-custom::after {
-  opacity: 1;
-  transform: translate(-50%, -50%) scale(1);
+.fc-popover {
+  border: 1px solid #e2e8f0 !important;
+  background: white !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
 }
 
-.checkbox-input:focus + .checkbox-custom {
-  box-shadow: 0 0 0 3px var(--primary-100);
+.fc-popover-header {
+  background: #f8fafc !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  padding: 0.75rem !important;
+  font-weight: 600 !important;
 }
 
-.checkbox-input:disabled + .checkbox-custom {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.checkbox-label:has(.checkbox-input:disabled) {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-/* Loading spinner */
-.loading-spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid var(--secondary-200);
-  border-top: 2px solid var(--primary-600);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  display: inline-block;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-/* Error message styles */
-.error-message {
-  color: var(--accent-red);
-  font-size: 0.875rem;
-  font-weight: var(--font-weight-medium);
-  padding: var(--space-3);
-  background: rgba(220, 38, 38, 0.1);
-  border-radius: var(--radius-lg);
-  border: 1px solid rgba(220, 38, 38, 0.2);
-  margin-top: var(--space-4);
-  animation: shake var(--duration-normal) var(--ease-out);
-}
-
-/* Basic button styles */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-6);
-  font-size: 0.9375rem;
-  font-weight: var(--font-weight-semibold);
-  text-decoration: none;
-  border: 2px solid transparent;
-  border-radius: var(--radius-lg);
-  cursor: pointer;
-  transition: all var(--duration-normal) var(--ease-out);
-  outline: none;
-  position: relative;
-  overflow: hidden;
-  min-height: 44px;
-}
-
-.btn:focus-visible {
-  outline: 2px solid var(--primary-500);
-  outline-offset: 2px;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none !important;
-}
-
-.btn-primary {
-  background: var(--gradient-primary);
-  color: white;
-  box-shadow: var(--shadow-sm);
-}
-
-.btn-primary:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-}
-
-.btn-primary:active {
-  transform: translateY(0);
-  box-shadow: var(--shadow-sm);
-}
-
-.btn-secondary {
-  background: var(--secondary-100);
-  color: var(--secondary-700);
-  border: 2px solid var(--secondary-300);
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: var(--secondary-200);
-  border-color: var(--secondary-400);
-  transform: translateY(-1px);
-}
-
-.btn-secondary:active {
-  background: var(--secondary-300);
-  transform: translateY(0);
+.fc-popover-body {
+  padding: 0.5rem !important;
 }

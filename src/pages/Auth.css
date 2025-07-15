@@ -206,14 +206,18 @@
   cursor: not-allowed;
 }
 
-/* Mobile-specific password field fixes */
+/* Mobile-specific password field fixes - COMPLETE OVERHAUL */
 @media (max-width: 768px) {
+  /* Reset and fix password field container */
   .password-field {
-    position: relative;
-    width: 100%;
+    position: relative !important;
+    width: 100% !important;
+    display: block !important;
   }
   
-  .password-field .form-input {
+  /* Fix the password input specifically */
+  .password-field input[type="password"],
+  .password-field input[type="text"] {
     width: 100% !important;
     min-height: 48px !important;
     padding: 0.875rem 3.5rem 0.875rem 1rem !important;
@@ -223,74 +227,105 @@
     box-sizing: border-box !important;
     background: white !important;
     color: #1e293b !important;
-    /* Remove any transforms that might affect hitbox */
+    /* Remove any problematic properties */
     transform: none !important;
-    /* Ensure proper positioning */
-    position: relative !important;
-    /* Fix touch targets */
+    position: static !important;
+    margin: 0 !important;
     touch-action: manipulation !important;
-    /* Prevent iOS zoom */
     -webkit-user-select: text !important;
     user-select: text !important;
+    display: block !important;
   }
   
-  .password-field .form-input:focus {
-    border-color: var(--primary-500) !important;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
-    outline: none !important;
-  }
-  
+  /* Fix the password toggle button positioning */
   .password-toggle {
     position: absolute !important;
-    right: 0.75rem !important;
+    right: 8px !important;
     top: 50% !important;
     transform: translateY(-50%) !important;
     background: transparent !important;
     border: none !important;
     cursor: pointer !important;
-    padding: 0.75rem !important;
+    padding: 8px !important;
     color: var(--secondary-500) !important;
     font-size: 1.125rem !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    min-width: 2.5rem !important;
-    min-height: 2.5rem !important;
+    width: 40px !important;
+    height: 40px !important;
     border-radius: var(--radius-md) !important;
     z-index: 10 !important;
     pointer-events: auto !important;
-    /* Improve touch targets */
     touch-action: manipulation !important;
+    /* Ensure it doesn't overlap the input */
+    margin: 0 !important;
   }
   
-  .password-toggle:active {
-    background: var(--secondary-200) !important;
-  }
-}
-
-/* Small mobile specific input fixes */
-@media (max-width: 480px) {
-  .form-input {
-    min-height: 44px !important;
-    padding: 0.75rem 0.875rem !important;
-    font-size: 16px !important; /* Prevents zoom */
-    border: 2px solid var(--secondary-200) !important;
-    border-radius: var(--radius-lg) !important;
-    background: white !important;
-    color: #1e293b !important;
-    touch-action: manipulation !important;
-    -webkit-user-select: text !important;
-    user-select: text !important;
-  }
-  
-  .password-field .form-input {
-    padding-right: 3rem !important;
-  }
-  
-  .form-input:focus {
+  .password-field input:focus {
     border-color: var(--primary-500) !important;
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
     outline: none !important;
+  }
+  
+  .password-toggle:active {
+    background: var(--secondary-100) !important;
+    transform: translateY(-50%) scale(0.95) !important;
+  }
+}
+
+/* Mobile checkbox fixes */
+@media (max-width: 768px) {
+  .checkbox-label {
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.75rem !important;
+    cursor: pointer !important;
+    font-size: 0.9375rem !important;
+    font-weight: var(--font-weight-medium) !important;
+    color: #374151 !important;
+    padding: 0.5rem 0 !important;
+    min-height: 44px !important;
+  }
+
+  .checkbox-input {
+    position: absolute !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+
+  .checkbox-custom {
+    width: 20px !important;
+    height: 20px !important;
+    border: 2px solid #d1d5db !important;
+    border-radius: 4px !important;
+    background: white !important;
+    position: relative !important;
+    transition: all 0.2s ease !important;
+    flex-shrink: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .checkbox-input:checked + .checkbox-custom {
+    background: #3b82f6 !important;
+    border-color: #3b82f6 !important;
+  }
+
+  .checkbox-input:checked + .checkbox-custom::after {
+    content: '✓' !important;
+    color: white !important;
+    font-size: 12px !important;
+    font-weight: bold !important;
+    line-height: 1 !important;
+  }
+
+  .checkbox-input:focus-visible + .checkbox-custom {
+    outline: 2px solid #3b82f6 !important;
+    outline-offset: 2px !important;
   }
 }
 

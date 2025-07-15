@@ -39,6 +39,9 @@ import './components/MobileUtils.css'
 // Import comprehensive mobile enhancements
 import './mobile-enhancements.css'
 
+// Import emergency mobile fixes (highest priority)
+import './emergency-mobile-fixes.css'
+
 // Import mobile utilities
 import { useIsMobile, useForceLightMode, preventZoom } from './components/MobileUtils'
 
