@@ -16,7 +16,7 @@
  */
 
 // React core imports
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 
 // Page components
@@ -97,11 +97,6 @@ function App() {
   const [user, setUser] = useState(null)
   const [isInitializing, setIsInitializing] = useState(true)
 
-  // Pinch zoom state
-  const [scale, setScale] = useState(1)
-  const [lastDistance, setLastDistance] = useState(0)
-  const appRef = useRef(null)
-
   // ================================================================
   // EFFECTS AND INITIALIZATION
   // ================================================================
@@ -133,24 +128,6 @@ function App() {
 
     initializeUser()
   }, [])
-
-  // Touch event handlers for pinch zoom
-  const handleTouchStart = useCallback((e) => {
-    if (e.touches.length === 2) {
-      const distance = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY)
-      setLastDistance(distance)
-    }
-  }, [])
-
-  const handleTouchMove = useCallback((e) => {
-    if (e.touches.length === 2) {
-      e.preventDefault()
-      const distance = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY)
-      const newScale = scale * (distance / lastDistance)
-      setScale(Math.min(Math.max(0.5, newScale), 3))
-      setLastDistance(distance)
-    }
-  }, [scale, lastDistance])
 
   // ================================================================
   // EVENT HANDLERS (MEMOIZED FOR PERFORMANCE)
@@ -222,13 +199,7 @@ function App() {
   
   return (
     <ErrorBoundary>
-      <div 
-        className="app-container" 
-        ref={appRef}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        style={{ transform: `scale(${scale})`, transformOrigin: 'center center' }}
-      >
+      <div className="app-container">
         {/* Conditional Navigation Bar */}
         {!shouldHideNavigation && (
           <nav className="nav-container" role="navigation" aria-label="Hoofdnavigatie">
