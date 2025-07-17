@@ -190,25 +190,26 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: -0.025em;
 }
 
-h1 { 
-  font-size: clamp(2rem, 5vw, 3rem);
+h1 {
+  font-size: 3rem !important;
   font-weight: var(--font-weight-bold);
 }
-h2 { 
-  font-size: clamp(1.75rem, 4vw, 2.25rem);
+h2 {
+  font-size: 2.25rem !important;
 }
-h3 { 
-  font-size: clamp(1.5rem, 3vw, 1.875rem);
+h3 {
+  font-size: 1.875rem !important;
 }
-h4 { 
-  font-size: clamp(1.25rem, 2.5vw, 1.5rem);
+h4 {
+  font-size: 1.5rem !important;
 }
-h5 { 
-  font-size: clamp(1.125rem, 2vw, 1.25rem);
+h5 {
+  font-size: 1.25rem !important;
 }
-h6 { 
-  font-size: clamp(1rem, 1.5vw, 1.125rem);
+h6 {
+  font-size: 1.125rem !important;
 }
+
 
 /* Paragraph and text styles */
 p {

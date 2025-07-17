@@ -96,6 +96,9 @@ function App() {
   // This stores the currently logged-in user information
   const [user, setUser] = useState(null)
   const [isInitializing, setIsInitializing] = useState(true)
+  
+  // Mobile navigation state
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   // ================================================================
   // EFFECTS AND INITIALIZATION
@@ -129,6 +132,38 @@ function App() {
     initializeUser()
   }, [])
 
+  /**
+   * Close mobile menu when clicking outside or pressing escape
+   */
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (isMobileMenuOpen && !event.target.closest('.nav-container')) {
+        setIsMobileMenuOpen(false)
+      }
+    }
+
+    const handleEscapeKey = (event) => {
+      if (event.key === 'Escape' && isMobileMenuOpen) {
+        setIsMobileMenuOpen(false)
+      }
+    }
+
+    if (isMobileMenuOpen) {
+      document.addEventListener('click', handleClickOutside)
+      document.addEventListener('keydown', handleEscapeKey)
+      // Prevent body scroll when mobile menu is open
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+
+    return () => {
+      document.removeEventListener('click', handleClickOutside)
+      document.removeEventListener('keydown', handleEscapeKey)
+      document.body.style.overflow = ''
+    }
+  }, [isMobileMenuOpen])
+
   // ================================================================
   // EVENT HANDLERS (MEMOIZED FOR PERFORMANCE)
   // ================================================================
@@ -142,11 +177,13 @@ function App() {
       localStorage.removeItem('user')
       setUser(null)
       navigate('/login')
+      setIsMobileMenuOpen(false) // Close mobile menu on logout
     } catch (error) {
       console.error('Error during logout:', error)
       // Force logout even if there's an error
       setUser(null)
       navigate('/login')
+      setIsMobileMenuOpen(false)
     }
   }, [navigate])
 
@@ -164,6 +201,21 @@ function App() {
       setUser(userData)
     }
   }, [])
+
+  /**
+   * Toggle mobile menu visibility
+   */
+  const toggleMobileMenu = useCallback(() => {
+    setIsMobileMenuOpen(prev => !prev)
+  }, [])
+
+  /**
+   * Close mobile menu when navigating
+   */
+  const handleNavigation = useCallback((path) => {
+    navigate(path)
+    setIsMobileMenuOpen(false)
+  }, [navigate])
 
   // ================================================================
   // MEMOIZED VALUES FOR PERFORMANCE
@@ -213,17 +265,31 @@ function App() {
               <span className="nav-title">Stamjer</span>
             </div>
 
+            {/* Mobile Menu Toggle Button */}
+            <button 
+              className="mobile-menu-toggle"
+              onClick={toggleMobileMenu}
+              aria-label="Menu openen/sluiten"
+              aria-expanded={isMobileMenuOpen}
+            >
+              <span className={`hamburger ${isMobileMenuOpen ? 'open' : ''}`}>
+                <span></span>
+                <span></span>
+                <span></span>
+              </span>
+            </button>
+
             {/* Navigation Menu */}
-            <div className="nav-menu">
+            <div className={`nav-menu ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
               <button 
-                onClick={() => navigate('/kalender')} 
+                onClick={() => handleNavigation('/kalender')} 
                 className="btn btn-secondary nav-btn"
                 aria-label="Ga naar kalender"
               >
                 📅 Kalender
               </button>
               <button 
-                onClick={() => navigate('/opkomsten')} 
+                onClick={() => handleNavigation('/opkomsten')} 
                 className="btn btn-secondary nav-btn"
                 aria-label="Ga naar opkomsten"
               >
@@ -231,7 +297,7 @@ function App() {
               </button>
               {user && user.isAdmin && (
                 <button 
-                  onClick={() => navigate('/strepen')} 
+                  onClick={() => handleNavigation('/strepen')} 
                   className="btn btn-secondary nav-btn"
                   aria-label="Ga naar strepen"
                 >
@@ -243,7 +309,7 @@ function App() {
                 // Authenticated user menu
                 <>
                   <button 
-                    onClick={() => navigate('/account')} 
+                    onClick={() => handleNavigation('/account')} 
                     className="btn btn-secondary nav-btn"
                     aria-label="Ga naar mijn account"
                   >
@@ -260,7 +326,7 @@ function App() {
               ) : (
                 // Non-authenticated user menu
                 <button 
-                  onClick={() => navigate('/login')} 
+                  onClick={() => handleNavigation('/login')} 
                   className="btn btn-primary nav-btn"
                   aria-label="Ga naar inlogpagina"
                 >

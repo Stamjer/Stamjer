@@ -187,9 +187,20 @@ export default function StrepenPage() {
       setIsSaving(false)
     }
   }
-
   if (isLoading) {
-    return <div className="strepen-page-wrapper"><div className="strepen-page"><div className="loading">Laden...</div></div></div>
+    return (
+      <div className="strepen-page-wrapper">
+        <div className="strepen-page">
+          <div className="loading-state">
+            <div className="loading-content">
+              <div className="loading-spinner"></div>
+              <h2>Streeplijst laden...</h2>
+              <p>Even geduld terwijl we de streeplijst ophalen.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
   if (error) {
     return <div className="strepen-page-wrapper"><div className="strepen-page"><div className="error">Fout: {error}</div></div></div>

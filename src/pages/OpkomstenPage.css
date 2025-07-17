@@ -9,8 +9,9 @@
 
 /* Container and Layout */
 .opkomsten-container {
-  width: 1200px;
-  min-width: 1200px;
+  width: auto;
+  min-width: min-content;
+  max-width: 1200px;
   margin: 0 auto;
   padding: var(--space-8);
   min-height: 100vh;
@@ -27,7 +28,7 @@
 }
 
 .opkomsten-title {
-  font-size: clamp(2rem, 5vw, 3rem);
+  font-size: 3rem;
   font-weight: var(--font-weight-bold);
   background: var(--gradient-primary);
   -webkit-background-clip: text;
@@ -46,8 +47,9 @@
   overflow: hidden;
   animation: slideInUp var(--duration-slow) var(--ease-out) 0.2s both;
   transition: all var(--duration-normal) var(--ease-out);
-  width: 100%;
-  min-width: 1000px;
+  width: auto;
+  min-width: min-content;
+  max-width: 100%;
 }
 
 .opkomsten-table-wrapper:hover {
@@ -69,30 +71,14 @@
 
 .opkomsten-table th {
   padding: var(--space-4);
-  text-align: left;
+  text-align: center;
   font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   font-size: 0.875rem;
-  /* border-bottom: 2px solid var(--primary-800); */
   color: white;
   position: relative;
   overflow: hidden;
-}
-
-.opkomsten-table th::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
-  transition: left var(--duration-slower);
-}
-
-.opkomsten-table th:hover::before {
-  left: 100%;
 }
 
 .opkomsten-table tbody tr {
@@ -111,6 +97,7 @@
 
 .opkomsten-table td {
   padding: var(--space-4);
+  text-align: center;
   vertical-align: top;
 }
 
@@ -144,6 +131,7 @@
 
 .attendance-checkbox {
   display: inline-flex;
+  justify-content: center;
   align-items: center;
   cursor: pointer;
   position: relative;
@@ -241,13 +229,14 @@
 
 .opkomstmakers-content {
   display: flex;
+  justify-content: center;
   flex-wrap: wrap;
   gap: 0.5rem;
 }
 
 .opkomstmaker-name {
   display: inline-block;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--gradient-primary);
   color: white;
   padding: 0.25rem 0.75rem;
   border-radius: 20px;
@@ -264,7 +253,7 @@
 
 /* Description Cell */
 .description-cell {
-  width: 45%;
+  width: 40%;
 }
 
 .description-content {
@@ -283,6 +272,7 @@
   font-size: 0.875rem;
   color: #6b7280;
   display: flex;
+  justify-content: center;
   align-items: center;
   gap: 0.25rem;
 }
@@ -293,18 +283,21 @@
 
 /* Participants Cell */
 .participants-cell {
-  width: 25%;
+  /* width: fit-content; */
   min-width: 200px;
+  max-width: 300px;
 }
 
 .participants-content {
   display: flex;
+  justify-content: center;
   flex-direction: column;
   gap: 0.5rem;
 }
 
 .participants-list {
   display: flex;
+  justify-content: center;
   flex-direction: column;
   gap: 0.5rem;
 }
@@ -322,6 +315,7 @@
 
 .participants-names {
   display: flex;
+  justify-content: center;
   flex-wrap: wrap;
   gap: 0.25rem;
 }
@@ -346,12 +340,14 @@
 /* Admin Participants List */
 .admin-participants-view {
   display: flex;
+  justify-content: center;
   flex-direction: column;
   gap: 0.5rem;
 }
 
 .admin-participants-list {
   display: flex;
+  justify-content: center;
   flex-wrap: wrap;
   gap: 0.25rem;
 }
@@ -498,6 +494,7 @@
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
   padding: 1rem;
   display: flex;
+  justify-content: center;
   align-items: center;
   gap: 0.75rem;
   z-index: 1000;
@@ -596,7 +593,7 @@
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  background: var(--gradient-primary);
   color: white;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
@@ -683,7 +680,8 @@
 }
 
 .edit-btn {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  /* background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); */
+  background: var(--gradient-primary);
   color: white;
   border: none;
   padding: 0.5rem 1rem;

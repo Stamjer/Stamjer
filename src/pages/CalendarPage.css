@@ -9,8 +9,9 @@
 
 /* Calendar Container */
 .calendar-container {
-  width: 1400px;
-  min-width: 1400px;
+  width: auto;
+  min-width: min-content;
+  max-width: 1400px;
   margin: 0 auto;
   padding: var(--space-8);
   background: linear-gradient(135deg, var(--secondary-50) 0%, var(--primary-50) 100%);
@@ -25,7 +26,7 @@
 }
 
 .calendar-title {
-  font-size: clamp(2rem, 5vw, 3rem);
+  font-size: 3rem;
   font-weight: var(--font-weight-bold);
   background: var(--gradient-primary);
   -webkit-background-clip: text;
@@ -37,7 +38,7 @@
 
 .calendar-subtitle {
   color: var(--secondary-600);
-  font-size: clamp(1rem, 2vw, 1.25rem);
+  font-size: 1.25rem;
   font-weight: var(--font-weight-medium);
 }
 
@@ -50,8 +51,9 @@
   overflow: hidden;
   animation: slideInUp var(--duration-slow) var(--ease-out) 0.2s both;
   transition: all var(--duration-normal) var(--ease-out);
-  width: 100%;
-  min-width: 1200px;
+  width: auto;               
+  max-width: 100%;           
+  min-width: min-content;
 }
 
 .calendar-wrapper:hover {
@@ -293,22 +295,11 @@
   font-size: 0.9375rem !important;
   position: relative !important;
   overflow: hidden !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
 }
 
-.fc-button::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-  transition: left 0.5s;
-}
-
-.fc-button:hover::before {
-  left: 100%;
-}
 
 .fc-button:hover {
   transform: translateY(-2px) !important;
@@ -329,7 +320,7 @@
 }
 
 .fc-toolbar-title {
-  font-size: clamp(1.25rem, 3vw, 1.75rem) !important;
+  font-size: 1.75rem !important;
   font-weight: var(--font-weight-bold) !important;
   color: var(--secondary-900) !important;
   text-align: center !important;
@@ -408,6 +399,7 @@
   font-weight: var(--font-weight-semibold) !important;
   font-size: 0.8125rem !important;
   color: white !important;
+  white-space: normal !important;
 }
 
 .fc-event-time {
