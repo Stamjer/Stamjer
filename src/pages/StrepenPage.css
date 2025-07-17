@@ -142,7 +142,7 @@
 
 .table-header {
   display: grid;
-  grid-template-columns: 2fr 1fr 1.5fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
   gap: 1px;
   background: var(--primary-600);
   color: white;
@@ -182,7 +182,7 @@
 
 .table-row {
   display: grid;
-  grid-template-columns: 2fr 1fr 1.5fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
   gap: 1px;
   background: var(--secondary-100);
   transition: all var(--duration-fast) var(--ease-out);
