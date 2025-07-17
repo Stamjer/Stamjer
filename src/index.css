@@ -128,7 +128,8 @@
   --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
 }
 
-@media (prefers-color-scheme: light) {
+/* Dark mode support
+@media (prefers-color-scheme: dark) {
   :root {
     --primary-50: #0f172a;
     --primary-100: #1e293b;
@@ -137,7 +138,7 @@
     --secondary-900: #f8fafc;
     --secondary-800: #f1f5f9;
   }
-}
+} */
 
 /* Global Reset and Base Styles */
 *, *::before, *::after {
