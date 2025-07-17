@@ -371,7 +371,7 @@
   }
 }
 
-/* Mobile Styles */
+/* Mobile Styles - maintain desktop appearance */
 @media (max-width: 768px) {
   .strepen-page {
     padding: 1rem;
@@ -414,8 +414,8 @@
     border: 1px solid var(--secondary-200);
     border-radius: var(--radius-xl);
     padding: 0;
-    /* Set minimum width for better table usability */
-    min-width: 600px !important;
+    /* Set much wider minimum width for better table usability */
+    min-width: 900px !important;
     /* Allow horizontal scrolling within wrapper */
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch !important;
@@ -432,9 +432,9 @@
     border: none;
     box-shadow: none;
     margin-bottom: 0;
-    padding: 0.75rem;
+    padding: 0.875rem; /* Increased padding */
     border-radius: 0;
-    min-width: 580px !important; /* Ensure rows don't get squished */
+    min-width: 880px !important; /* Much wider minimum width */
   }
   
   .table-header {
@@ -442,6 +442,13 @@
     color: white !important;
     font-weight: var(--font-weight-semibold) !important;
     font-size: 0.875rem !important;
+  }
+  
+  /* Ensure adequate column spacing */
+  .table-header > *,
+  .table-row > * {
+    min-width: 150px; /* Ensure adequate column width */
+    padding: 0.5rem;
   }
   
   .table-header {
@@ -826,7 +833,7 @@
   padding: var(--space-3);
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
 }
 
 .toggle-container {

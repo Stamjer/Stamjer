@@ -568,7 +568,7 @@
   }
 }
 
-/* Mobile Styles */
+/* Mobile Styles - maintain desktop appearance */
 @media (max-width: 768px) {
   .opkomsten-container {
     padding: 1rem;
@@ -590,8 +590,8 @@
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     border-radius: var(--radius-xl);
-    /* Set minimum width for better table usability */
-    min-width: 800px !important;
+    /* Set much wider minimum width for better table usability */
+    min-width: 1100px !important;
     /* Allow horizontal scrolling within wrapper */
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch !important;
@@ -599,9 +599,9 @@
     position: relative !important;
   }
   
-  /* Card-style table for mobile */
+  /* Maintain table layout for mobile */
   .opkomsten-table {
-    min-width: 780px !important; /* Ensure table doesn't get squished */
+    min-width: 1080px !important; /* Much wider to match desktop experience */
     font-size: 0.875rem;
   }
   
@@ -609,6 +609,7 @@
   .opkomsten-table td {
     padding: 0.875rem 0.75rem;
     white-space: nowrap;
+    min-width: 120px; /* Ensure adequate column width */
   }
   
   .opkomsten-table th {
@@ -662,15 +663,21 @@
   }
   
   .opkomsten-table-wrapper {
-    /* Increase minimum width for very small screens */
-    min-width: 600px !important;
+    /* Increase minimum width significantly for very small screens */
+    min-width: 900px !important;
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch !important;
   }
   
   .opkomsten-table {
-    /* Ensure table maintains usable width */
-    min-width: 580px !important;
+    /* Ensure table maintains very usable width */
+    min-width: 880px !important;
+  }
+  
+  .opkomsten-table th,
+  .opkomsten-table td {
+    min-width: 100px; /* Ensure adequate column width on small screens */
+    padding: 0.75rem 0.5rem;
   }
   
   .opkomsten-title {

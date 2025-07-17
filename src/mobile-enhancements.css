@@ -272,66 +272,12 @@ img {
   }
 }
 
-/* Force light mode on mobile - no dark mode support */
-@media (max-width: 768px) {
-  /* Override any dark mode styles and force light mode */
-  * {
-    color-scheme: light !important;
-  }
-  
-  body {
-    background: white !important;
-    color: #1e293b !important;
-  }
-  
-  .nav-container {
-    background: rgba(255, 255, 255, 0.95) !important;
-    border-bottom-color: #e2e8f0 !important;
-    color: #1e293b !important;
-  }
-  
-  .card {
-    background: white !important;
-    border-color: #e2e8f0 !important;
-    color: #1e293b !important;
-  }
-  
-  .modal {
-    background: white !important;
-    color: #1e293b !important;
-  }
-  
-  input,
-  textarea,
-  select {
-    background: white !important;
-    border-color: #e2e8f0 !important;
-    color: #1e293b !important;
-  }
-  
-  /* Force light mode for any other elements */
-  .auth-container,
-  .calendar-container,
-  .page-container {
-    background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%) !important;
-    color: #1e293b !important;
-  }
-}
-
 /* Comprehensive mobile optimizations */
+/* Comprehensive mobile optimizations - maintain desktop appearance */
 @media (max-width: 768px) {
-  /* Global light mode enforcement */
-  *,
-  *::before,
-  *::after {
-    color-scheme: light !important;
-  }
-  
   /* Prevent horizontal scrolling */
   body {
     overflow-x: hidden !important;
-    background: white !important;
-    color: #1e293b !important;
   }
   
   /* Improve viewport handling */
