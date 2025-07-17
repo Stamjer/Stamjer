@@ -74,7 +74,7 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
   font-size: 0.875rem;
-  border-bottom: 2px solid var(--primary-800);
+  /* border-bottom: 2px solid var(--primary-800); */
   color: white;
   position: relative;
   overflow: hidden;

@@ -12,11 +12,11 @@
  * - Error boundaries and performance optimization
  * 
  * @author Stamjer Development Team
- * @version 1.1.0
+ * @version 1.2.0
  */
 
 // React core imports
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 
 // Page components
@@ -97,6 +97,11 @@ function App() {
   const [user, setUser] = useState(null)
   const [isInitializing, setIsInitializing] = useState(true)
 
+  // Pinch zoom state
+  const [scale, setScale] = useState(1)
+  const [lastDistance, setLastDistance] = useState(0)
+  const appRef = useRef(null)
+
   // ================================================================
   // EFFECTS AND INITIALIZATION
   // ================================================================
@@ -128,6 +133,24 @@ function App() {
 
     initializeUser()
   }, [])
+
+  // Touch event handlers for pinch zoom
+  const handleTouchStart = useCallback((e) => {
+    if (e.touches.length === 2) {
+      const distance = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY)
+      setLastDistance(distance)
+    }
+  }, [])
+
+  const handleTouchMove = useCallback((e) => {
+    if (e.touches.length === 2) {
+      e.preventDefault()
+      const distance = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY)
+      const newScale = scale * (distance / lastDistance)
+      setScale(Math.min(Math.max(0.5, newScale), 3))
+      setLastDistance(distance)
+    }
+  }, [scale, lastDistance])
 
   // ================================================================
   // EVENT HANDLERS (MEMOIZED FOR PERFORMANCE)
@@ -199,7 +222,13 @@ function App() {
   
   return (
     <ErrorBoundary>
-      <div className="app-container">
+      <div 
+        className="app-container" 
+        ref={appRef}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        style={{ transform: `scale(${scale})`, transformOrigin: 'center center' }}
+      >
         {/* Conditional Navigation Bar */}
         {!shouldHideNavigation && (
           <nav className="nav-container" role="navigation" aria-label="Hoofdnavigatie">
@@ -216,7 +245,7 @@ function App() {
             {/* Navigation Menu */}
             <div className="nav-menu">
               <button 
-                onClick={() => navigate('/calendar')} 
+                onClick={() => navigate('/kalender')} 
                 className="btn btn-secondary nav-btn"
                 aria-label="Ga naar kalender"
               >
@@ -280,7 +309,7 @@ function App() {
             <Route path="/forgot-password" element={<ForgotPassword />} />
             
             {/* Protected Routes - Require authentication */}
-            <Route path="/calendar" element={
+            <Route path="/kalender" element={
               <ProtectedRoute user={user}>
                 <CalendarPage />
               </ProtectedRoute>
@@ -292,7 +321,7 @@ function App() {
             }/>
             <Route path="/strepen" element={
               <ProtectedRoute user={user}>
-                {user && user.isAdmin ? <StrepenPage /> : <div>Alleen toegankelijk voor admins</div>}
+                {user && user.isAdmin ? <StrepenPage /> : <div>Alleen toegankelijk voor admins. Dus niet voor plebs zoals jij...</div>}
               </ProtectedRoute>
             }/>
             <Route path="/account" element={

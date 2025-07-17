@@ -623,7 +623,7 @@
 /* Beschrijving onder de switch, ingesprongen */
 .toggle-desc {
   margin-top: 0.5rem;
-  margin-left: 3.75rem; /* past onder de switch */
+  margin-left: 0.5rem; /* past onder de switch */
   font-size: 0.875rem;
   color: var(--secondary-600);
 }

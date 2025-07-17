@@ -30,7 +30,7 @@
       "name": "Kalender",
       "short_name": "Kalender",
       "description": "Bekijk de verenigingskalender",
-      "url": "/calendar",
+      "url": "/kalender",
       "icons": [
         {
           "src": "/stam_H.png",

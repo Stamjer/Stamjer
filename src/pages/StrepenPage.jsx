@@ -225,7 +225,7 @@ export default function StrepenPage() {
         >
           {events.map(ev => (
             <option key={ev.id} value={ev.id}>
-              {capitalizeWeekday(ev.start)} - {ev.title}
+              {capitalizeWeekday(ev.start)}
             </option>
           ))}
         </select>

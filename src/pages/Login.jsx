@@ -98,7 +98,7 @@ export default function Login({ setUser }) {
       
       // Add success animation delay
       setTimeout(() => {
-        navigate('/calendar')
+        navigate('/kalender')
       }, 300)
       
     } catch (err) {
