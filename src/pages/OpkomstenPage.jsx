@@ -1065,12 +1065,14 @@ export default function OpkomstenPage() {
 
   if (isLoading) {
     return (
-      <div className="opkomsten-container">
-        <div className="loading-state">
-          <div className="loading-content">
-            <div className="loading-spinner"></div>
-            <h2>Opkomsten laden...</h2>
-            <p>Even geduld terwijl we de opkomsten ophalen.</p>
+      <div className="opkomsten-page-wrapper">
+        <div className="opkomsten-container">
+          <div className="loading-state">
+            <div className="loading-content">
+              <div className="loading-spinner"></div>
+              <h2>Opkomsten laden...</h2>
+              <p>Even geduld terwijl we de opkomsten ophalen.</p>
+            </div>
           </div>
         </div>
       </div>
@@ -1079,17 +1081,19 @@ export default function OpkomstenPage() {
 
   if (error) {
     return (
-      <div className="opkomsten-container">
-        <div className="error-state">
-          <div className="error-content">
-            <h2>⚠️ Er is iets misgegaan</h2>
-            <p>{error}</p>
-            <button 
-              onClick={() => window.location.reload()} 
-              className="btn btn-primary"
-            >
-              Probeer opnieuw
-            </button>
+      <div className="opkomsten-page-wrapper">
+        <div className="opkomsten-container">
+          <div className="error-state">
+            <div className="error-content">
+              <h2>⚠️ Er is iets misgegaan</h2>
+              <p>{error}</p>
+              <button 
+                onClick={() => window.location.reload()} 
+                className="btn btn-primary"
+              >
+                Probeer opnieuw
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1097,10 +1101,11 @@ export default function OpkomstenPage() {
   }
 
   return (
-    <div className="opkomsten-container">
-      <div className="opkomsten-header">
-        <h1 className="opkomsten-title">Opkomsten</h1>
-      </div>
+    <div className="opkomsten-page-wrapper">
+      <div className="opkomsten-container">
+        <div className="opkomsten-header">
+          <h1 className="opkomsten-title">Opkomsten</h1>
+        </div>
 
       {opkomstEvents.length === 0 ? (
         <div className="empty-state">
@@ -1285,6 +1290,7 @@ export default function OpkomstenPage() {
           currentUser={currentUser}
         />
       )}
+      </div>
     </div>
   )
 }

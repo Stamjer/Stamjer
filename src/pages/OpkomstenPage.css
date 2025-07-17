@@ -1,8 +1,16 @@
 /* Opkomsten Page Styles - Unified Design System */
 
+/* Main page wrapper for horizontal scrolling */
+.opkomsten-page-wrapper {
+  width: 100vw;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
 /* Container and Layout */
 .opkomsten-container {
-  max-width: 1200px;
+  width: 1200px;
+  min-width: 1200px;
   margin: 0 auto;
   padding: var(--space-8);
   min-height: 100vh;
@@ -38,6 +46,8 @@
   overflow: hidden;
   animation: slideInUp var(--duration-slow) var(--ease-out) 0.2s both;
   transition: all var(--duration-normal) var(--ease-out);
+  width: 100%;
+  min-width: 1000px;
 }
 
 .opkomsten-table-wrapper:hover {

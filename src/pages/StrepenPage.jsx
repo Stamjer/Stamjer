@@ -189,13 +189,13 @@ export default function StrepenPage() {
   }
 
   if (isLoading) {
-    return <div className="strepen-page"><div className="loading">Laden...</div></div>
+    return <div className="strepen-page-wrapper"><div className="strepen-page"><div className="loading">Laden...</div></div></div>
   }
   if (error) {
-    return <div className="strepen-page"><div className="error">Fout: {error}</div></div>
+    return <div className="strepen-page-wrapper"><div className="strepen-page"><div className="error">Fout: {error}</div></div></div>
   }
   if (!selectedEvent) {
-    return <div className="strepen-page"><div className="no-events">Geen opkomsten gevonden</div></div>
+    return <div className="strepen-page-wrapper"><div className="strepen-page"><div className="no-events">Geen opkomsten gevonden</div></div></div>
   }
 
   const sortedUsers = [...users].sort((a, b) => {
@@ -207,10 +207,11 @@ export default function StrepenPage() {
   })
 
   return (
-    <div className="strepen-page">
-      <header className="strepen-header">
-        <h1>Strepen</h1>
-      </header>
+    <div className="strepen-page-wrapper">
+      <div className="strepen-page">
+        <header className="strepen-header">
+          <h1>Strepen</h1>
+        </header>
 
       <section className="event-selector">
         <label htmlFor="event-select">Selecteer opkomst:</label>
@@ -289,6 +290,7 @@ export default function StrepenPage() {
       </div>
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
+      </div>
     </div>
   )
 }

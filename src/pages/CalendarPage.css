@@ -1,12 +1,21 @@
 /* Calendar Page Styling - Unified Design System */
 
+/* Main page wrapper for horizontal scrolling */
+.calendar-page-wrapper {
+  width: 100vw;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
 /* Calendar Container */
 .calendar-container {
-  max-width: 1400px;
+  width: 1400px;
+  min-width: 1400px;
   margin: 0 auto;
   padding: var(--space-8);
   background: linear-gradient(135deg, var(--secondary-50) 0%, var(--primary-50) 100%);
   min-height: 100vh;
+  overflow-x: auto;
 }
 
 .calendar-header {
@@ -41,6 +50,8 @@
   overflow: hidden;
   animation: slideInUp var(--duration-slow) var(--ease-out) 0.2s both;
   transition: all var(--duration-normal) var(--ease-out);
+  width: 100%;
+  min-width: 1200px;
 }
 
 .calendar-wrapper:hover {

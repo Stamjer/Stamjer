@@ -1,6 +1,15 @@
 /* Strepen Page Styles - Unified Design System */
+
+/* Main page wrapper for horizontal scrolling */
+.strepen-page-wrapper {
+  width: 100vw;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
 .strepen-page {
-  max-width: 1200px;
+  width: 1200px;
+  min-width: 1200px;
   margin: 0 auto;
   padding: var(--space-8);
   font-family: var(--font-primary);

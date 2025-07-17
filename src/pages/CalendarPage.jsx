@@ -1089,12 +1089,14 @@ export default function CalendarPage() {
 
   if (isLoading) {
     return (
-      <div className="calendar-container">
-        <div className="loading-state">
-          <div className="loading-content">
-            <div className="loading-spinner"></div>
-            <h2>Kalender laden...</h2>
-            <p>Even geduld terwijl we je evenementen ophalen.</p>
+      <div className="calendar-page-wrapper">
+        <div className="calendar-container">
+          <div className="loading-state">
+            <div className="loading-content">
+              <div className="loading-spinner"></div>
+              <h2>Kalender laden...</h2>
+              <p>Even geduld terwijl we je evenementen ophalen.</p>
+            </div>
           </div>
         </div>
       </div>
@@ -1103,17 +1105,19 @@ export default function CalendarPage() {
 
   if (error) {
     return (
-      <div className="calendar-container">
-        <div className="error-state">
-          <div className="error-content">
-            <h2>⚠️ Er is iets misgegaan</h2>
-            <p>{error}</p>
-            <button 
-              onClick={() => window.location.reload()} 
-              className="btn btn-primary"
-            >
-              🔄 Probeer opnieuw
-            </button>
+      <div className="calendar-page-wrapper">
+        <div className="calendar-container">
+          <div className="error-state">
+            <div className="error-content">
+              <h2>⚠️ Er is iets misgegaan</h2>
+              <p>{error}</p>
+              <button 
+                onClick={() => window.location.reload()} 
+                className="btn btn-primary"
+              >
+                🔄 Probeer opnieuw
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1121,54 +1125,56 @@ export default function CalendarPage() {
   }
 
   return (
-    <div className="calendar-container">
-      <div className="calendar-header">
-        <h1 className="calendar-title">Kalender</h1>
+    <div className="calendar-page-wrapper">
+      <div className="calendar-container">
+        <div className="calendar-header">
+          <h1 className="calendar-title">Kalender</h1>
+        </div>
+
+        <div className="calendar-wrapper" ref={calendarWrapperRef}>
+          <FullCalendar {...calendarConfig} />
+        </div>
+
+        {/* Modals */}
+        {selectedEvent && (
+          <EventModal
+            event={selectedEvent}
+            onClose={() => setSelectedEvent(null)}
+            onDelete={handleDelete}
+            onEdit={handleEdit}
+            isAdmin={isAdmin}
+          />
+        )}
+
+        {showNewForm && isAdmin && (
+          <NewEventForm
+            onClose={() => setShowNewForm(false)}
+            onAdd={handleAdd}
+            users={users}
+            currentUser={currentUser}
+          />
+        )}
+
+        {editingEvent && isAdmin && (
+          <NewEventForm
+            event={editingEvent}
+            isEdit
+            onClose={() => setEditingEvent(null)}
+            onAdd={handleAdd}
+            users={users}
+            currentUser={currentUser}
+          />
+        )}
+
+        {/* Toast notifications */}
+        {toast && (
+          <Toast
+            message={toast.message}
+            type={toast.type}
+            onClose={hideToast}
+          />
+        )}
       </div>
-
-      <div className="calendar-wrapper" ref={calendarWrapperRef}>
-        <FullCalendar {...calendarConfig} />
-      </div>
-
-      {/* Modals */}
-      {selectedEvent && (
-        <EventModal
-          event={selectedEvent}
-          onClose={() => setSelectedEvent(null)}
-          onDelete={handleDelete}
-          onEdit={handleEdit}
-          isAdmin={isAdmin}
-        />
-      )}
-
-      {showNewForm && isAdmin && (
-        <NewEventForm
-          onClose={() => setShowNewForm(false)}
-          onAdd={handleAdd}
-          users={users}
-          currentUser={currentUser}
-        />
-      )}
-
-      {editingEvent && isAdmin && (
-        <NewEventForm
-          event={editingEvent}
-          isEdit
-          onClose={() => setEditingEvent(null)}
-          onAdd={handleAdd}
-          users={users}
-          currentUser={currentUser}
-        />
-      )}
-
-      {/* Toast notifications */}
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={hideToast}
-        />
-      )}
     </div>
   )
 }
