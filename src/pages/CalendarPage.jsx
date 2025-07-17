@@ -27,9 +27,6 @@ import nlLocale from '@fullcalendar/core/locales/nl'
 // Component styling
 import './CalendarPage.css'
 
-// Mobile utilities
-import { useIsMobile, usePullToRefresh, TouchButton } from '../components/MobileUtils'
-
 // ================================================================
 // UTILITY FUNCTIONS
 // ================================================================
@@ -855,17 +852,6 @@ export default function CalendarPage() {
   // Ref for calendar wrapper to handle scroll detection
   const calendarWrapperRef = useRef(null)
 
-  // Mobile utilities
-  const isMobile = useIsMobile()
-  
-  // Pull to refresh functionality for mobile
-  const isRefreshing = usePullToRefresh(() => {
-    if (isMobile) {
-      loadEvents()
-      showToast('Agenda wordt vernieuwd...', 'info')
-    }
-  })
-
   // ================================================================
   // USER AUTHENTICATION
   // ================================================================
@@ -955,37 +941,6 @@ export default function CalendarPage() {
   useEffect(() => {
     loadEvents()
   }, [loadEvents])
-
-  // Mobile calendar horizontal scroll detection
-  useEffect(() => {
-    if (isMobile && calendarWrapperRef.current) {
-      const calendarWrapper = calendarWrapperRef.current
-      let scrollTimeout
-      
-      const handleScroll = () => {
-        // Add scrolled class to hide the scroll indicator
-        calendarWrapper.classList.add('scrolled')
-        
-        // Clear previous timeout
-        clearTimeout(scrollTimeout)
-        
-        // Remove the scrolled class after a delay if not scrolling
-        scrollTimeout = setTimeout(() => {
-          if (calendarWrapper.scrollLeft === 0) {
-            calendarWrapper.classList.remove('scrolled')
-          }
-        }, 3000)
-      }
-
-      calendarWrapper.addEventListener('scroll', handleScroll, { passive: true })
-      
-      // Cleanup
-      return () => {
-        calendarWrapper.removeEventListener('scroll', handleScroll)
-        clearTimeout(scrollTimeout)
-      }
-    }
-  }, [isMobile, events]) // Re-run when events change to ensure DOM is ready
 
   // Handle event click
   const handleEventClick = useCallback((info) => {
