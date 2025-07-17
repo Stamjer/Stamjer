@@ -572,6 +572,9 @@
 @media (max-width: 768px) {
   .opkomsten-container {
     padding: 1rem;
+    /* Allow horizontal scrolling */
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
   }
   
   .opkomsten-title {
@@ -587,11 +590,18 @@
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     border-radius: var(--radius-xl);
+    /* Set minimum width for better table usability */
+    min-width: 800px !important;
+    /* Allow horizontal scrolling within wrapper */
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    /* Add relative positioning for scroll indicator */
+    position: relative !important;
   }
   
   /* Card-style table for mobile */
   .opkomsten-table {
-    min-width: 100%;
+    min-width: 780px !important; /* Ensure table doesn't get squished */
     font-size: 0.875rem;
   }
   
@@ -642,10 +652,25 @@
 @media (max-width: 480px) {
   .opkomsten-container {
     padding: 0.75rem;
+    /* Enable horizontal scrolling for very small screens */
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
   }
   
   .opkomsten-header {
     margin-bottom: 1.5rem;
+  }
+  
+  .opkomsten-table-wrapper {
+    /* Increase minimum width for very small screens */
+    min-width: 600px !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  
+  .opkomsten-table {
+    /* Ensure table maintains usable width */
+    min-width: 580px !important;
   }
   
   .opkomsten-title {

@@ -16,7 +16,7 @@
  */
 
 // React core imports
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 
 // FullCalendar imports for calendar functionality
 import FullCalendar from '@fullcalendar/react'
@@ -852,6 +852,9 @@ export default function CalendarPage() {
   const [users, setUsers] = useState([]) // Store available users for dropdown
   const [currentUser, setCurrentUser] = useState(null) // Current logged-in user
 
+  // Ref for calendar wrapper to handle scroll detection
+  const calendarWrapperRef = useRef(null)
+
   // Mobile utilities
   const isMobile = useIsMobile()
   
@@ -952,6 +955,37 @@ export default function CalendarPage() {
   useEffect(() => {
     loadEvents()
   }, [loadEvents])
+
+  // Mobile calendar horizontal scroll detection
+  useEffect(() => {
+    if (isMobile && calendarWrapperRef.current) {
+      const calendarWrapper = calendarWrapperRef.current
+      let scrollTimeout
+      
+      const handleScroll = () => {
+        // Add scrolled class to hide the scroll indicator
+        calendarWrapper.classList.add('scrolled')
+        
+        // Clear previous timeout
+        clearTimeout(scrollTimeout)
+        
+        // Remove the scrolled class after a delay if not scrolling
+        scrollTimeout = setTimeout(() => {
+          if (calendarWrapper.scrollLeft === 0) {
+            calendarWrapper.classList.remove('scrolled')
+          }
+        }, 3000)
+      }
+
+      calendarWrapper.addEventListener('scroll', handleScroll, { passive: true })
+      
+      // Cleanup
+      return () => {
+        calendarWrapper.removeEventListener('scroll', handleScroll)
+        clearTimeout(scrollTimeout)
+      }
+    }
+  }, [isMobile, events]) // Re-run when events change to ensure DOM is ready
 
   // Handle event click
   const handleEventClick = useCallback((info) => {
@@ -1137,7 +1171,7 @@ export default function CalendarPage() {
         <h1 className="calendar-title">Kalender</h1>
       </div>
 
-      <div className="calendar-wrapper">
+      <div className="calendar-wrapper" ref={calendarWrapperRef}>
         <FullCalendar {...calendarConfig} />
       </div>
 

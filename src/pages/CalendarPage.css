@@ -797,12 +797,54 @@
   touch-action: manipulation;
 }
 
-.fc-event {
-  cursor: pointer;
-  touch-action: manipulation;
-  min-height: 32px;
-  border-radius: var(--radius-md) !important;
+/* ── Event Styling (forced mobile style) ── */
+.calendar-wrapper .fc-daygrid-event,
+.calendar-wrapper .fc-event {
+  position: relative !important;
+  background: var(--gradient-primary) !important;
+  border-radius: var(--radius-lg) !important;
+  padding: var(--space-2) var(--space-3) !important;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.12) !important;
+  transition: transform 0.15s var(--ease-out), box-shadow 0.15s var(--ease-out) !important;
+  overflow: hidden !important;
 }
+
+.calendar-wrapper .fc-daygrid-event:hover,
+.calendar-wrapper .fc-event:hover {
+  transform: translateY(-2px) scale(1.02) !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.18) !important;
+}
+
+.calendar-wrapper .fc-event-title,
+.calendar-wrapper .fc-daygrid-event .fc-event-title {
+  margin-left: var(--space-1) !important;
+  font-size: 0.875rem !important;
+  font-weight: var(--font-weight-semibold) !important;
+  color: #fff !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* Make the time’s leading dot more visible */
+.calendar-wrapper .fc-event-time {
+  font-size: 0.8rem !important;
+  font-weight: var(--font-weight-medium) !important;
+  color: #fff !important;
+  opacity: 1 !important;
+  margin-right: var(--space-1) !important;
+}
+
+.calendar-wrapper .fc-event-time::before {
+  display: inline-block !important;
+  margin-right: 0.25rem !important;
+  font-size: 0.6rem !important;
+  color: rgba(255,255,255,0.85) !important;
+}
+
+
+
+
 
 /* Mobile Navigation Improvements */
 @media (max-width: 1024px) {
@@ -826,6 +868,9 @@
     padding: var(--space-4);
     background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%) !important;
     color: #1e293b !important;
+    /* Allow horizontal scrolling */
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
   }
 
   .calendar-header {
@@ -836,15 +881,24 @@
     background: white !important;
     border: 1px solid #e2e8f0 !important;
     color: #1e293b !important;
+    /* Set minimum width for better usability */
+    min-width: 600px !important;
+    /* Allow horizontal scrolling within wrapper */
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
   }
 
   /* Fix FullCalendar mobile layout issues */
   .fc {
     min-height: auto !important;
+    /* Set minimum width to prevent squishing */
+    min-width: 580px !important;
   }
   
   .fc-view-harness {
     min-height: 400px !important;
+    /* Ensure proper width for calendar grid */
+    min-width: 580px !important;
   }
 
   .fc-header-toolbar {
@@ -1055,6 +1109,9 @@
   .calendar-container {
     padding: 0.75rem;
     background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%) !important;
+    /* Enable horizontal scrolling for very small screens */
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
   }
 
   .calendar-title {
@@ -1068,6 +1125,10 @@
   
   .calendar-wrapper {
     border-radius: var(--radius-lg) !important;
+    /* Increase minimum width for very small screens */
+    min-width: 480px !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
   }
 
   .fc-header-toolbar {
@@ -1087,9 +1148,19 @@
     color: #1e293b !important;
   }
   
+  /* Ensure calendar maintains usable width */
+  .fc {
+    min-width: 460px !important;
+  }
+  
+  .fc-view-harness {
+    min-width: 460px !important;
+  }
+  
   /* Improve calendar grid for small screens */
   .fc-daygrid-day {
     min-height: 50px !important;
+    min-width: 60px !important; /* Ensure days don't get too narrow */
   }
   
   .fc-daygrid-day-number {
@@ -1502,4 +1573,59 @@ input[type="time"]::placeholder {
 
 .fc-popover-body {
   padding: 0.5rem !important;
+}
+
+/* ================================================================
+ * MOBILE HORIZONTAL SCROLL AND ZOOM ENHANCEMENTS
+ * ================================================================ */
+
+/* Enable pinch-to-zoom on mobile for better calendar usability */
+@media (max-width: 768px) {
+  .calendar-wrapper {
+    /* Allow pinch-to-zoom */
+    touch-action: pan-x pan-y pinch-zoom !important;
+    /* Set transform origin for better zoom experience */
+    transform-origin: top left !important;
+    /* Smooth transitions for zoom */
+    transition: transform 0.3s ease-out !important;
+  }
+  
+  /* Improve calendar table scaling */
+  .fc-scrollgrid {
+    /* Ensure proper scaling */
+    transform-origin: top left !important;
+  }
+  
+  /* Add visual feedback for horizontal scroll */
+  .calendar-wrapper::-webkit-scrollbar {
+    height: 6px !important;
+    background: rgba(0, 0, 0, 0.1) !important;
+  }
+  
+  .calendar-wrapper::-webkit-scrollbar-thumb {
+    background: rgba(59, 130, 246, 0.6) !important;
+    border-radius: 3px !important;
+  }
+  
+  .calendar-wrapper::-webkit-scrollbar-thumb:active {
+    background: rgba(59, 130, 246, 0.8) !important;
+  }
+  
+  /* Improve event visibility when zoomed */
+  .fc-event {
+    min-height: 20px !important;
+    font-size: clamp(0.625rem, 2vw, 0.875rem) !important;
+  }
+  
+  /* Better touch targets for navigation buttons */
+  .fc-button {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    touch-action: manipulation !important;
+  }
+  
+  /* Ensure calendar title remains readable */
+  .fc-toolbar-title {
+    font-size: clamp(1rem, 4vw, 1.5rem) !important;
+  }
 }

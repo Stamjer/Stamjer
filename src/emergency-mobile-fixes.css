@@ -309,4 +309,66 @@
     -webkit-appearance: none !important;
     appearance: none !important;
   }
+  
+  /* ================================================================
+   * CALENDAR HORIZONTAL SCROLL EMERGENCY FIXES
+   * ================================================================ */
+  
+  /* Ensure calendar container allows horizontal scroll */
+  .calendar-container {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    /* Prevent vertical scroll within calendar container when swiping horizontally */
+    overscroll-behavior-x: contain !important;
+  }
+  
+  /* ================================================================
+   * TABLE HORIZONTAL SCROLL EMERGENCY FIXES
+   * ================================================================ */
+  
+  /* Ensure table containers allow horizontal scroll */
+  .opkomsten-container,
+  .strepen-page {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    /* Prevent vertical scroll within containers when swiping horizontally */
+    overscroll-behavior-x: contain !important;
+  }
+  
+  /* Ensure table wrappers have proper scrolling */
+  .opkomsten-table-wrapper,
+  .attendance-table {
+    /* Enable smooth horizontal scrolling */
+    scroll-behavior: smooth !important;
+    /* Prevent momentum scrolling conflicts */
+    -webkit-overflow-scrolling: touch !important;
+    /* Allow touch pan horizontally */
+    touch-action: pan-x pan-y !important;
+  }
+  
+  /* Ensure body doesn't interfere with table scrolling */
+  body {
+    overflow-x: hidden !important;
+    /* But allow tables to scroll horizontally */
+    overscroll-behavior-x: none !important;
+  }
+  
+  /* Fix for calendar wrapper */
+  .calendar-wrapper {
+    /* Enable smooth horizontal scrolling */
+    scroll-behavior: smooth !important;
+    /* Prevent momentum scrolling conflicts */
+    -webkit-overflow-scrolling: touch !important;
+    /* Allow touch pan horizontally */
+    touch-action: pan-x pan-y !important;
+  }
+  
+  /* Ensure FullCalendar doesn't break on mobile */
+  .fc {
+    touch-action: pan-x pan-y !important;
+  }
+  
+  .fc-view-harness {
+    touch-action: pan-x pan-y !important;
+  }
 }

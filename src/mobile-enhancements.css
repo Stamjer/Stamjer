@@ -832,4 +832,125 @@ img {
   .help-text {
     color: #6b7280 !important;
   }
+  
+  /* ================================================================
+   * CALENDAR MOBILE HORIZONTAL SCROLL ENHANCEMENTS
+   * ================================================================ */
+  
+  /* Add scroll indicator for calendar on mobile */
+  .calendar-wrapper {
+    position: relative !important;
+  }
+  
+  .calendar-wrapper::after {
+    content: "← Swipe to view more →" !important;
+    position: absolute !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    background: linear-gradient(to right, rgba(59, 130, 246, 0.9), rgba(59, 130, 246, 0.7), rgba(59, 130, 246, 0.9)) !important;
+    color: white !important;
+    padding: 8px 12px !important;
+    text-align: center !important;
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+    border-radius: 8px 8px 0 0 !important;
+    z-index: 1000 !important;
+    animation: slideUpFade 0.8s ease-out !important;
+    pointer-events: none !important;
+    backdrop-filter: blur(2px) !important;
+  }
+  
+  /* ================================================================
+   * TABLE MOBILE HORIZONTAL SCROLL ENHANCEMENTS
+   * ================================================================ */
+  
+  /* Add scroll indicators for tables on mobile */
+  .opkomsten-table-wrapper,
+  .attendance-table {
+    position: relative !important;
+  }
+  
+  .opkomsten-table-wrapper::after,
+  .attendance-table::after {
+    content: "← Swipe to view more →" !important;
+    position: absolute !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    background: linear-gradient(to right, rgba(34, 197, 94, 0.9), rgba(34, 197, 94, 0.7), rgba(34, 197, 94, 0.9)) !important;
+    color: white !important;
+    padding: 8px 12px !important;
+    text-align: center !important;
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+    border-radius: 8px 8px 0 0 !important;
+    z-index: 1000 !important;
+    animation: slideUpFade 0.8s ease-out !important;
+    pointer-events: none !important;
+    backdrop-filter: blur(2px) !important;
+  }
+  
+  /* Hide scroll indicator after user scrolls */
+  .calendar-wrapper.scrolled::after,
+  .opkomsten-table-wrapper.scrolled::after,
+  .attendance-table.scrolled::after {
+    animation: slideDownFade 0.5s ease-in forwards !important;
+  }
+  
+  /* Improve scrollbar visibility on mobile */
+  .calendar-wrapper,
+  .opkomsten-table-wrapper,
+  .attendance-table {
+    scrollbar-width: thin !important;
+    scrollbar-color: #cbd5e1 #f1f5f9 !important;
+  }
+  
+  .calendar-wrapper::-webkit-scrollbar,
+  .opkomsten-table-wrapper::-webkit-scrollbar,
+  .attendance-table::-webkit-scrollbar {
+    height: 8px !important;
+  }
+  
+  .calendar-wrapper::-webkit-scrollbar-track,
+  .opkomsten-table-wrapper::-webkit-scrollbar-track,
+  .attendance-table::-webkit-scrollbar-track {
+    background: #f1f5f9 !important;
+    border-radius: 4px !important;
+  }
+  
+  .calendar-wrapper::-webkit-scrollbar-thumb,
+  .opkomsten-table-wrapper::-webkit-scrollbar-thumb,
+  .attendance-table::-webkit-scrollbar-thumb {
+    background: #cbd5e1 !important;
+    border-radius: 4px !important;
+  }
+  
+  .calendar-wrapper::-webkit-scrollbar-thumb:hover,
+  .opkomsten-table-wrapper::-webkit-scrollbar-thumb:hover,
+  .attendance-table::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8 !important;
+  }
+}
+
+@keyframes slideUpFade {
+  0% {
+    opacity: 0 !important;
+    transform: translateY(100%) !important;
+  }
+  100% {
+    opacity: 1 !important;
+    transform: translateY(0) !important;
+  }
+}
+
+@keyframes slideDownFade {
+  0% {
+    opacity: 1 !important;
+    transform: translateY(0) !important;
+  }
+  100% {
+    opacity: 0 !important;
+    transform: translateY(100%) !important;
+  }
 }
