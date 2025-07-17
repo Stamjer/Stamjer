@@ -30,9 +30,6 @@ import StrepenPage from './pages/StrepenPage'
 // Component imports
 import ProtectedRoute from './components/ProtectedRoute'
 
-// Hook imports
-import { useZoom } from './hooks/useZoom'
-
 // Import the improved App CSS
 import './App.css'
 
@@ -99,9 +96,6 @@ function App() {
   // This stores the currently logged-in user information
   const [user, setUser] = useState(null)
   const [isInitializing, setIsInitializing] = useState(true)
-
-  // Zoom functionality
-  const { zoom, zoomIn, zoomOut, resetZoom, isZooming } = useZoom()
 
   // ================================================================
   // EFFECTS AND INITIALIZATION
@@ -205,28 +199,7 @@ function App() {
   
   return (
     <ErrorBoundary>
-      <div className={`app-container ${isZooming ? 'zooming' : ''}`} style={{ 
-        transform: `scale(${zoom})`, 
-        transformOrigin: 'center top',
-        transition: isZooming ? 'none' : 'transform 0.1s ease-out'
-      }}>
-        {/* Zoom Controls - Hidden by default, can be shown for accessibility */}
-        <div className="zoom-controls" style={{ 
-          position: 'fixed', 
-          top: '10px', 
-          right: '10px', 
-          zIndex: 1000,
-          background: 'rgba(255, 255, 255, 0.9)',
-          borderRadius: '8px',
-          padding: '8px',
-          boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)',
-          display: 'none' // Hidden by default, can be shown with CSS media query or toggle
-        }}>
-          <button onClick={zoomOut} className="zoom-btn" title="Zoom uit">-</button>
-          <span className="zoom-level">{Math.round(zoom * 100)}%</span>
-          <button onClick={zoomIn} className="zoom-btn" title="Zoom in">+</button>
-          <button onClick={resetZoom} className="zoom-btn zoom-reset" title="Reset zoom">⌂</button>
-        </div>
+      <div className="app-container">
         {/* Conditional Navigation Bar */}
         {!shouldHideNavigation && (
           <nav className="nav-container" role="navigation" aria-label="Hoofdnavigatie">
