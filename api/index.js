@@ -45,6 +45,34 @@ if (!global._mongoClientPromise) {
 }
 clientPromise = global._mongoClientPromise
 
+const isProduction = process.env.NODE_ENV === 'production'
+const debugLog = (...args) => {
+  if (!isProduction) {
+    console.debug('[debug]', ...args)
+  }
+}
+const infoLog = (...args) => console.info(...args)
+const warnLog = (...args) => console.warn(...args)
+
+function maskEmail(email = '') {
+  if (typeof email !== 'string') return ''
+  const trimmed = email.trim()
+  if (!trimmed) return ''
+  if (!trimmed.includes('@')) {
+    if (trimmed.length <= 2) {
+      return `${trimmed.charAt(0) || '*'}***`
+    }
+    return `${trimmed.charAt(0)}***${trimmed.charAt(trimmed.length - 1)}`
+  }
+  const [local, domain] = trimmed.split('@')
+  if (!local) {
+    return `***@${domain}`
+  }
+  const start = local.charAt(0)
+  const end = local.length > 1 ? local.charAt(local.length - 1) : ''
+  return `${start}***${end}@${domain}`
+}
+
 let indexesEnsured = false
 
 async function getDb() {
@@ -82,7 +110,7 @@ async function ensureIndexes(db) {
   ])
 
   if (eventsCreated || usersCreated || resetCodesCreated) {
-    console.log('[indexes] Created or verified MongoDB indexes')
+    infoLog('[indexes] Created or verified MongoDB indexes')
   }
 }
 
@@ -97,11 +125,11 @@ async function ensureCollectionIndexes(collection, definitions) {
       const expectedTtl = options.expireAfterSeconds
       if (typeof expectedTtl === 'number' && existing.expireAfterSeconds !== expectedTtl) {
         const currentTtl = typeof existing.expireAfterSeconds === 'number' ? existing.expireAfterSeconds : 'none'
-        console.warn(`[indexes] TTL mismatch on ${collection.collectionName}.${existing.name || 'unknown'} (expected ${expectedTtl}, found ${currentTtl})`)
+        warnLog(`[indexes] TTL mismatch on ${collection.collectionName}.${existing.name || 'unknown'} (expected ${expectedTtl}, found ${currentTtl})`)
       }
 
       if (options.unique && !existing.unique) {
-        console.warn(`[indexes] Unique index expected on ${collection.collectionName} for keys ${JSON.stringify(keys)} but existing index is not unique`)
+        warnLog(`[indexes] Unique index expected on ${collection.collectionName} for keys ${JSON.stringify(keys)} but existing index is not unique`)
       }
 
       continue
@@ -111,16 +139,16 @@ async function ensureCollectionIndexes(collection, definitions) {
       await collection.createIndex(keys, options)
       createdAny = true
       if (description) {
-        console.log(`[indexes] Created ${collection.collectionName} index for ${description}`)
+        infoLog(`[indexes] Created ${collection.collectionName} index for ${description}`)
       } else {
-        console.log(`[indexes] Created index on ${collection.collectionName}`)
+        infoLog(`[indexes] Created index on ${collection.collectionName}`)
       }
     } catch (error) {
       const message = error && error.message ? error.message : ''
       if (message.includes('already exists')) {
-        console.log(`[indexes] Index already exists on ${collection.collectionName}, skipping (${JSON.stringify(keys)})`)
+        infoLog(`[indexes] Index already exists on ${collection.collectionName}, skipping (${JSON.stringify(keys)})`)
       } else {
-        console.warn(`[indexes] Failed to create index on ${collection.collectionName}: ${message}`)
+        warnLog(`[indexes] Failed to create index on ${collection.collectionName}: ${message}`)
       }
     }
   }
@@ -145,7 +173,7 @@ async function loadUsers() {
     .find({})
     .project({ _id: 0 })
     .toArray()
-  console.log(`📂 ${users.length} gebruikers geladen vanuit MongoDB`)
+  infoLog(`Loaded ${users.length} users from MongoDB`)
 }
 
 async function loadEvents() {
@@ -154,7 +182,7 @@ async function loadEvents() {
     .find({})
     .project({ _id: 0 })
     .toArray()
-  console.log(`📂 ${events.length} evenementen geladen vanuit MongoDB`)
+  infoLog(`Loaded ${events.length} events from MongoDB`)
 }
 
 async function saveUser(user) {
@@ -204,10 +232,10 @@ async function cleanupExpiredResetCodes() {
     })
     
     if (result.deletedCount > 0) {
-      console.log(`🧹 Cleaned up ${result.deletedCount} expired reset codes`)
+      infoLog(`🧹 Cleaned up ${result.deletedCount} expired reset codes`)
     }
   } catch (error) {
-    console.warn('⚠️  Warning: Could not clean up expired reset codes:', error.message)
+    warnLog('⚠️  Warning: Could not clean up expired reset codes:', error.message)
   }
 }
 
@@ -255,7 +283,7 @@ async function initMailer() {
         }
       })
     }
-    console.log('✅ E-mailtransporter is gestart')
+    infoLog('Mail transporter initialised')
   } catch (err) {
     console.error('❌ Initialisatie mailer mislukt:', err)
   }
@@ -308,27 +336,48 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
 const app = express()
-app.use(cors())
-app.use(express.json())
 
-// Request-logging
+const allowedOriginEnv = process.env.CLIENT_ORIGIN || ''
+const configuredOrigins = allowedOriginEnv.split(',').map(origin => origin.trim()).filter(Boolean)
+const fallbackOrigins = ['http://localhost:5173', 'http://localhost:4173']
+if (process.env.VERCEL_URL) {
+  fallbackOrigins.push(`https://${process.env.VERCEL_URL}`)
+}
+const corsAllowedOrigins = configuredOrigins.length > 0 ? configuredOrigins : fallbackOrigins
+const allowAllLocalOrigins = !isProduction && configuredOrigins.length === 0
+
+const corsOptions = {
+  origin(origin, callback) {
+    if (!origin) {
+      return callback(null, true)
+    }
+    if (corsAllowedOrigins.includes(origin) || allowAllLocalOrigins) {
+      return callback(null, true)
+    }
+    debugLog('Blocked request from origin', origin)
+    return callback(new Error('Not allowed by CORS'))
+  },
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+}
+
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} ${req.method} ${req.path}`)
-  if (req.body && Object.keys(req.body).length) {
-    console.log('Body:', req.body)
-  }
-  next()
+  cors(corsOptions)(req, res, (err) => {
+    if (err) {
+      warnLog(`Blocked CORS request from ${req.headers.origin || 'unknown origin'}`)
+      return res.status(403).json({ msg: 'Origin not allowed' })
+    }
+    return next()
+  })
 })
 
-// CORS voor reset-endpoints
-;['/forgot-password', '/reset-password'].forEach(route => {
-  app.use(route, (req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*')
-    res.header('Access-Control-Allow-Methods', 'POST,OPTIONS')
-    res.header('Access-Control-Allow-Headers', 'Content-Type')
-    if (req.method === 'OPTIONS') return res.sendStatus(200)
-    next()
-  })
+app.use(express.json({ limit: '1mb' }))
+
+// Request logging (no sensitive payloads)
+app.use((req, res, next) => {
+  infoLog(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`)
+  return next()
 })
 
 // API-router
@@ -409,9 +458,9 @@ async function sendActiveStatusChangeEmail(user, newActiveStatus) {
         <p><em>Deze e-mail is automatisch gegenereerd door het Stamjer systeem.</em></p>
       `
     })
-    console.log(`📧 Status wijziging e-mail verzonden voor ${user.firstName} ${user.lastName} (${statusText})`)
+    debugLog('Status change notification email sent', { userId: user.id, active: newActiveStatus })
   } catch (error) {
-    console.error('❌ Fout bij verzenden status wijziging e-mail:', error)
+    console.error('Error sending status change email:', error)
   }
 }
 
@@ -567,34 +616,20 @@ apiRouter.post('/login', async (req, res) => {
   }
 })
 
-// Debug endpoint to check pending resets (remove in production)
-apiRouter.get('/debug-pending-resets', async (req, res) => {
-  try {
-    const db = await getDb()
-    const resetCodes = await db.collection('resetCodes').find({}).toArray()
-    res.json({
-      resetCodes: resetCodes,
-      count: resetCodes.length
-    })
-  } catch (err) {
-    res.status(500).json({ error: err.message })
-  }
-})
-
 // Wachtwoord vergeten
 apiRouter.post('/forgot-password', async (req, res) => {
   try {
     // Normalize email the same way as reset-password
     const rawEmail = (req.body.email || '').trim().toLowerCase()
     
-    console.log(`Forgot password request for: ${rawEmail}`) // Debug log
+    debugLog('Forgot password request received', { email: maskEmail(rawEmail) })
     
     if (!rawEmail || !validator.isEmail(rawEmail))
       return res.status(400).json({ msg: 'Ongeldig e-mailadres' })
 
     const u = users.find(u => u.email.toLowerCase() === rawEmail)
-    console.log(`User found for ${rawEmail}:`, !!u) // Debug log
-    console.log(`Available users:`, users.map(u => u.email)) // Debug log
+    debugLog('Forgot password lookup result', { email: maskEmail(rawEmail), userFound: Boolean(u) })
+    debugLog('Known user accounts for debugging', { count: users.length })
     
     const generic = 'Als het e-mailadres bestaat, ontvang je een herstelcode via e-mail.'
     if (u) {
@@ -604,8 +639,8 @@ apiRouter.post('/forgot-password', async (req, res) => {
       // Store in MongoDB instead of memory
       await saveResetCode(rawEmail, code, expiresAt)
       
-      console.log(`Generated reset code for ${rawEmail}: ${code}`) // Debug log
-      console.log(`Code stored in MongoDB with expiry: ${new Date(expiresAt).toISOString()}`) // Debug log
+      debugLog('Issued password reset code', { email: maskEmail(rawEmail) })
+      debugLog('Stored password reset code with expiry', { email: maskEmail(rawEmail), expiresAt })
       
       await transporter.sendMail({
         from: process.env.SMTP_FROM || 'noreply@stamjer.nl',
@@ -643,12 +678,10 @@ apiRouter.post('/reset-password', async (req, res) => {
     }
 
     // 5) Lookup pending code & validate expiry
-    console.log(`Reset password request for: ${rawEmail}`) // Debug log
-    console.log(`Received code: "${code}"`) // Debug log
+    debugLog('Reset password request received', { email: maskEmail(rawEmail) })
     
     const rec = await getResetCode(rawEmail)
-    console.log(`Reset lookup for ${rawEmail}:`, rec) // Debug log
-    console.log('Received code:', code, 'Expected code:', rec?.code) // Debug log
+    debugLog('Reset code lookup result', { email: maskEmail(rawEmail), recordFound: Boolean(rec) })
     
     if (!rec) {
       return res.status(400).json({ msg: 'Geen actieve herstelcode gevonden voor dit e-mailadres' })
@@ -726,5 +759,13 @@ app.use((req, res, next) => {
 app.use('/api', (req, res) => {
   res.status(404).json({ msg: 'API-route niet gevonden' })
 })
+
+const port = Number(process.env.PORT) || 3002
+
+if (!process.env.VERCEL) {
+  app.listen(port, () => {
+    infoLog(`API server listening on port ${port}`)
+  })
+}
 
 export default app
