@@ -18,6 +18,8 @@
 // React core imports
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 
 // Page components
 import Login from './pages/Login'
@@ -29,14 +31,22 @@ import StrepenPage from './pages/StrepenPage'
 
 // Component imports
 import ProtectedRoute from './components/ProtectedRoute'
+import { AppErrorBoundary, PageErrorBoundary, setupGlobalErrorHandling } from './components/ErrorBoundary'
+import { ToastProvider } from './hooks/useToast'
+
+// Query client configuration
+import { queryClient } from './lib/queryClient'
 
 // Import the improved App CSS
 import './App.css'
+import './components/ErrorBoundary.css'
 
 /**
  * Error Boundary Component for handling React errors gracefully
+ * Note: This is now replaced by our professional error boundary system
+ * but kept for backward compatibility during migration
  */
-class ErrorBoundary extends React.Component {
+class LegacyErrorBoundary extends React.Component {
   constructor(props) {
     super(props)
     this.state = { hasError: false, error: null }
@@ -47,7 +57,7 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('App Error Boundary caught an error:', error, errorInfo)
+    console.error('Legacy Error Boundary caught an error:', error, errorInfo)
   }
 
   render() {
@@ -103,6 +113,13 @@ function App() {
   // ================================================================
   // EFFECTS AND INITIALIZATION
   // ================================================================
+  
+  /**
+   * Setup global error handling on app mount
+   */
+  React.useEffect(() => {
+    setupGlobalErrorHandling()
+  }, [])
   
   /**
    * Load user from localStorage on component mount
@@ -250,126 +267,163 @@ function App() {
   // ================================================================
   
   return (
-    <ErrorBoundary>
-      <div className="app-container">
-        {/* Conditional Navigation Bar */}
-        {!shouldHideNavigation && (
-          <nav className="nav-container" role="navigation" aria-label="Hoofdnavigatie">
-            {/* Brand Section */}
-            <div className="nav-brand">
-              <img 
-                src="/stam_H.png" 
-                alt="Stamjer Logo" 
-                className="nav-logo"
-              />
-              <span className="nav-title">Stamjer</span>
-            </div>
+    <QueryClientProvider client={queryClient}>
+      <ToastProvider position="top-right">
+        <AppErrorBoundary 
+          onError={(errorReport) => {
+            console.error('Application Error:', errorReport)
+            // Here you could send to monitoring service
+          }}
+        >
+        <div className="app-container">
+          {/* Conditional Navigation Bar */}
+          {!shouldHideNavigation && (
+            <nav className="nav-container" role="navigation" aria-label="Hoofdnavigatie">
+              {/* Brand Section */}
+              <div className="nav-brand">
+                <img 
+                  src="/stam_H.png" 
+                  alt="Stamjer Logo" 
+                  className="nav-logo"
+                />
+                <span className="nav-title">Stamjer</span>
+              </div>
 
-            {/* Mobile Menu Toggle Button */}
-            <button 
-              className="mobile-menu-toggle"
-              onClick={toggleMobileMenu}
-              aria-label="Menu openen/sluiten"
-              aria-expanded={isMobileMenuOpen}
-            >
-              <span className={`hamburger ${isMobileMenuOpen ? 'open' : ''}`}>
-                <span></span>
-                <span></span>
-                <span></span>
-              </span>
-            </button>
+              {/* Mobile Menu Toggle Button */}
+              <button 
+                className="mobile-menu-toggle"
+                onClick={toggleMobileMenu}
+                aria-label="Menu openen/sluiten"
+                aria-expanded={isMobileMenuOpen}
+              >
+                <span className={`hamburger ${isMobileMenuOpen ? 'open' : ''}`}>
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </span>
+              </button>
 
-            {/* Navigation Menu */}
-            <div className={`nav-menu ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
-              <button 
-                onClick={() => handleNavigation('/kalender')} 
-                className="btn btn-secondary nav-btn"
-                aria-label="Ga naar kalender"
-              >
-                📅 Kalender
-              </button>
-              <button 
-                onClick={() => handleNavigation('/opkomsten')} 
-                className="btn btn-secondary nav-btn"
-                aria-label="Ga naar opkomsten"
-              >
-                🗓️ Opkomsten
-              </button>
-              {user && user.isAdmin && (
+              {/* Navigation Menu */}
+              <div className={`nav-menu ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
                 <button 
-                  onClick={() => handleNavigation('/strepen')} 
+                  onClick={() => handleNavigation('/kalender')} 
                   className="btn btn-secondary nav-btn"
-                  aria-label="Ga naar strepen"
+                  aria-label="Ga naar kalender"
                 >
-                  🎯 Strepen
+                  📅 Kalender
                 </button>
-              )}
-
-              {user ? (
-                // Authenticated user menu
-                <>
-                  <button 
-                    onClick={() => handleNavigation('/account')} 
-                    className="btn btn-secondary nav-btn"
-                    aria-label="Ga naar mijn account"
-                  >
-                    {user.isAdmin ? '👤 Mijn account' : '👤 Mijn account'}
-                  </button>
-                  <button 
-                    onClick={handleLogout} 
-                    className="btn btn-outline nav-btn"
-                    aria-label="Uitloggen"
-                  >
-                    Uitloggen
-                  </button>
-                </>
-              ) : (
-                // Non-authenticated user menu
                 <button 
-                  onClick={() => handleNavigation('/login')} 
-                  className="btn btn-primary nav-btn"
-                  aria-label="Ga naar inlogpagina"
+                  onClick={() => handleNavigation('/opkomsten')} 
+                  className="btn btn-secondary nav-btn"
+                  aria-label="Ga naar opkomsten"
                 >
-                  🔐 Inloggen
+                  🗓️ Opkomsten
                 </button>
-              )}
-            </div>
-          </nav>
-        )}
+                {user && user.isAdmin && (
+                  <button 
+                    onClick={() => handleNavigation('/strepen')} 
+                    className="btn btn-secondary nav-btn"
+                    aria-label="Ga naar strepen"
+                  >
+                    🎯 Strepen
+                  </button>
+                )}
 
-        {/* Application Routes */}
-        <main role="main">
-          <Routes>
-            {/* Public Routes - Available to all users */}
-            <Route path="/" element={<Login setUser={handleLogin} />} />
-            <Route path="/login" element={<Login setUser={handleLogin} />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            
-            {/* Protected Routes - Require authentication */}
-            <Route path="/kalender" element={
-              <ProtectedRoute user={user}>
-                <CalendarPage />
-              </ProtectedRoute>
-            }/>
-            <Route path="/opkomsten" element={
-              <ProtectedRoute user={user}>
-                <OpkomstenPage />
-              </ProtectedRoute>
-            }/>
-            <Route path="/strepen" element={
-              <ProtectedRoute user={user}>
-                {user && user.isAdmin ? <StrepenPage /> : <div>Alleen toegankelijk voor admins. Dus niet voor plebs zoals jij...</div>}
-              </ProtectedRoute>
-            }/>
-            <Route path="/account" element={
-              <ProtectedRoute user={user}>
-                <MyAccount />
-              </ProtectedRoute>
-            }/>
-          </Routes>
-        </main>
-      </div>
-    </ErrorBoundary>
+                {user ? (
+                  // Authenticated user menu
+                  <>
+                    <button 
+                      onClick={() => handleNavigation('/account')} 
+                      className="btn btn-secondary nav-btn"
+                      aria-label="Ga naar mijn account"
+                    >
+                      {user.isAdmin ? '👤 Mijn account' : '👤 Mijn account'}
+                    </button>
+                    <button 
+                      onClick={handleLogout} 
+                      className="btn btn-outline nav-btn"
+                      aria-label="Uitloggen"
+                    >
+                      Uitloggen
+                    </button>
+                  </>
+                ) : (
+                  // Non-authenticated user menu
+                  <button 
+                    onClick={() => handleNavigation('/login')} 
+                    className="btn btn-primary nav-btn"
+                    aria-label="Ga naar inlogpagina"
+                  >
+                    🔐 Inloggen
+                  </button>
+                )}
+              </div>
+            </nav>
+          )}
+
+          {/* Application Routes */}
+          <main role="main">
+            <Routes>
+              {/* Public Routes - Available to all users */}
+              <Route path="/" element={
+                <PageErrorBoundary pageName="Login">
+                  <Login setUser={handleLogin} />
+                </PageErrorBoundary>
+              } />
+              <Route path="/login" element={
+                <PageErrorBoundary pageName="Login">
+                  <Login setUser={handleLogin} />
+                </PageErrorBoundary>
+              } />
+              <Route path="/forgot-password" element={
+                <PageErrorBoundary pageName="Forgot Password">
+                  <ForgotPassword />
+                </PageErrorBoundary>
+              } />
+              
+              {/* Protected Routes - Require authentication */}
+              <Route path="/kalender" element={
+                <ProtectedRoute user={user}>
+                  <PageErrorBoundary pageName="Calendar">
+                    <CalendarPage />
+                  </PageErrorBoundary>
+                </ProtectedRoute>
+              }/>
+              <Route path="/opkomsten" element={
+                <ProtectedRoute user={user}>
+                  <PageErrorBoundary pageName="Opkomsten">
+                    <OpkomstenPage />
+                  </PageErrorBoundary>
+                </ProtectedRoute>
+              }/>
+              <Route path="/strepen" element={
+                <ProtectedRoute user={user}>
+                  <PageErrorBoundary pageName="Strepen">
+                    {user && user.isAdmin ? <StrepenPage /> : <div>Alleen toegankelijk voor admins. Dus niet voor plebs zoals jij...</div>}
+                  </PageErrorBoundary>
+                </ProtectedRoute>
+              }/>
+              <Route path="/account" element={
+                <ProtectedRoute user={user}>
+                  <PageErrorBoundary pageName="My Account">
+                    <MyAccount />
+                  </PageErrorBoundary>
+                </ProtectedRoute>
+              }/>
+            </Routes>
+          </main>
+        </div>
+
+        {/* Development Query Devtools */}
+        {import.meta.env.DEV && (
+          <ReactQueryDevtools 
+            initialIsOpen={false}
+            position="bottom-right"
+          />
+        )}
+      </AppErrorBoundary>
+      </ToastProvider>
+    </QueryClientProvider>
   )
 }
 

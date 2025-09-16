@@ -16,13 +16,28 @@
  */
 
 // React core imports
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import React, { useState, useCallback, useMemo, useRef } from 'react'
 
 // FullCalendar imports for calendar functionality
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import nlLocale from '@fullcalendar/core/locales/nl'
+
+// TanStack Query hooks
+import { 
+  useEvents, 
+  useUsers, 
+  useCreateEvent, 
+  useUpdateEvent, 
+  useDeleteEvent 
+} from '../hooks/useQueries'
+
+// Error boundaries
+import { CalendarErrorBoundary, FormErrorBoundary } from '../components/ErrorBoundary'
+
+// Toast hook
+import { useToast } from '../hooks/useToast'
 
 // Component styling
 import './CalendarPage.css'
@@ -68,40 +83,6 @@ function formatTime(date) {
     minute: '2-digit',
     hour12: false
   })
-}
-
-// ================================================================
-// TOAST NOTIFICATION COMPONENT
-// ================================================================
-
-function Toast({ message, type = 'info', onClose }) {
-  useEffect(() => {
-    const timer = setTimeout(onClose, 5000)
-    return () => clearTimeout(timer)
-  }, [onClose])
-
-  const icons = {
-    success: '✅',
-    error: '❌',
-    warning: '⚠️',
-    info: 'ℹ️'
-  }
-
-  return (
-    <div className={`toast toast-${type}`} role="alert">
-      <div className="toast-content">
-        <span className="toast-icon">{icons[type]}</span>
-        <span className="toast-message">{message}</span>
-      </div>
-      <button 
-        className="toast-close" 
-        onClick={onClose}
-        aria-label="Notificatie sluiten"
-      >
-        ×
-      </button>
-    </div>
-  )
 }
 
 // ================================================================
@@ -462,7 +443,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
         .filter(name => name !== null)
         .join(', ')
 
-      const payload = {
+      const eventData = {
         title: title.trim(),
         start,
         end,
@@ -471,46 +452,17 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
         description: description.trim(),
         isOpkomst: formData.isOpkomst,
         opkomstmakers: opkomstmakersString,
-        userId: currentUser?.id
       }
 
-      if (!payload.userId) {
-        throw new Error('Gebruiker ID is verplicht voor het opslaan van evenementen')
+      if (isEdit) {
+        eventData.id = event.id
       }
 
-      const url = isEdit ? `/api/events/${event.id}` : '/api/events'
-      const method = isEdit ? 'PUT' : 'POST'
-
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-
-      if (!response.ok) {
-        throw new Error(`Server reageerde met ${response.status}: ${response.statusText}`)
-      }
-
-      const saved = await response.json()
-
-      const fcEvt = {
-        id: saved.id,
-        title: saved.title,
-        start: saved.start,
-        end: saved.end,
-        allDay: saved.allDay,
-        extendedProps: {
-          location: saved.location,
-          description: saved.description,
-          isOpkomst: saved.isOpkomst,
-          opkomstmakers: saved.opkomstmakers,
-        },
-      }
-
-      onAdd(fcEvt)
+      // Call the parent handler - this will use TanStack Query mutations
+      onAdd(eventData)
       onClose()
     } catch (err) {
-      console.error('Error saving event:', err)
+      console.error('Error preparing event data:', err)
       setErrors({ submit: `${isEdit ? 'Bijwerken' : 'Opslaan'} mislukt: ${err.message}` })
     } finally {
       setIsSubmitting(false)
@@ -840,25 +792,82 @@ function TimeInput24({ value, onChange, disabled, error }) {
 // ================================================================
 
 export default function CalendarPage() {
-  const [events, setEvents] = useState([])
+  // ================================================================
+  // STATE MANAGEMENT
+  // ================================================================
+  
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [showNewForm, setShowNewForm] = useState(false)
   const [editingEvent, setEditingEvent] = useState(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [toast, setToast] = useState(null)
-  const [users, setUsers] = useState([]) // Store available users for dropdown
-  const [currentUser, setCurrentUser] = useState(null) // Current logged-in user
+  const [currentUser, setCurrentUser] = useState(null)
 
   // Ref for calendar wrapper to handle scroll detection
   const calendarWrapperRef = useRef(null)
+
+  // ================================================================
+  // QUERY HOOKS - TANSTACK QUERY
+  // ================================================================
+  
+  // Fetch events with automatic caching and background refetching
+  const { 
+    data: events = [], 
+    isLoading: eventsLoading, 
+    error: eventsError,
+    refetch: refetchEvents 
+  } = useEvents({
+    refetchOnWindowFocus: true,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  })
+
+  // Fetch users for dropdown selections
+  const { 
+    data: users = [], 
+    isLoading: usersLoading 
+  } = useUsers()
+
+  // ================================================================
+  // MUTATION HOOKS - OPTIMISTIC UPDATES
+  // ================================================================
+  
+  const createEventMutation = useCreateEvent({
+    onSuccess: () => {
+      showSuccess('Evenement succesvol toegevoegd')
+    },
+    onError: (error) => {
+      showError(`Kon evenement niet aanmaken: ${error.message}`)
+    }
+  })
+
+  const updateEventMutation = useUpdateEvent({
+    onSuccess: () => {
+      showSuccess('Evenement succesvol bijgewerkt')
+    },
+    onError: (error) => {
+      showError(`Kon evenement niet bijwerken: ${error.message}`)
+    }
+  })
+
+  const deleteEventMutation = useDeleteEvent({
+    onSuccess: () => {
+      showSuccess('Evenement succesvol verwijderd')
+    },
+    onError: (error) => {
+      showError(`Kon evenement niet verwijderen: ${error.message}`)
+    }
+  })
+
+  // ================================================================
+  // TOAST NOTIFICATIONS
+  // ================================================================
+  
+  const { success: showSuccess, error: showError, warning: showWarning, info: showInfo } = useToast()
 
   // ================================================================
   // USER AUTHENTICATION
   // ================================================================
 
   // Load current user from localStorage
-  useEffect(() => {
+  React.useEffect(() => {
     try {
       const userData = localStorage.getItem('user')
       if (userData) {
@@ -877,126 +886,51 @@ export default function CalendarPage() {
   // EVENT HANDLERS
   // ================================================================
 
-  const showToast = useCallback((message, type = 'info') => {
-    setToast({ message, type })
-  }, [])
-
-  const hideToast = useCallback(() => {
-    setToast(null)
-  }, [])
-
-  // Load events on mount
-  const loadEvents = useCallback(async () => {
-    try {
-      setIsLoading(true)
-      
-      // Load users and events in parallel
-      const [eventsResponse, usersResponse] = await Promise.all([
-        fetch('/api/events'),
-        fetch('/api/users')
-      ])
-      
-      if (!eventsResponse.ok) {
-        throw new Error(`Server fout bij laden events: ${eventsResponse.status}`)
-      }
-        
-        if (!usersResponse.ok) {
-          throw new Error(`Server fout bij laden users: ${usersResponse.status}`)
-        }
-
-        const eventsData = await eventsResponse.json()
-        const usersData = await usersResponse.json()
-        
-        // Process events
-        const raw = Array.isArray(eventsData) ? eventsData : eventsData.events || []
-        const fcEvents = raw.map(evt => ({
-          id: evt.id,
-          title: evt.title,
-          start: evt.start,
-          end: evt.end,
-          allDay: evt.allDay,
-          extendedProps: {
-            location: evt.location,
-            description: evt.description,
-            isOpkomst: evt.isOpkomst,
-            opkomstmakers: evt.opkomstmakers,
-          },
-        }))
-        
-        // Process users
-        const usersList = Array.isArray(usersData) ? usersData : usersData.users || []
-        
-        setEvents(fcEvents)
-        setUsers(usersList)
-        setError(null)
-      } catch (err) {
-        console.error('Error loading data:', err)
-        setError('Kon de kalender niet laden. Probeer de pagina te vernieuwen.')
-        showToast('Kon gegevens niet laden', 'error')
-      } finally {
-        setIsLoading(false)
-      }
-    }, [showToast])
-
-  // Load data on mount
-  useEffect(() => {
-    loadEvents()
-  }, [loadEvents])
-
   // Handle event click
   const handleEventClick = useCallback((info) => {
     setSelectedEvent(info.event)
   }, [])
 
-  // Handle event deletion
+  // Handle event deletion with optimistic updates
   const handleDelete = useCallback(async (ev) => {
     if (!currentUser || !currentUser.isAdmin) {
-      showToast('Alleen admins kunnen evenementen verwijderen', 'error')
+      showError('Alleen admins kunnen evenementen verwijderen')
       return
     }
 
-    try {
-      const response = await fetch(`/api/events/${ev.id}`, { 
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ userId: currentUser.id })
-      })
-      
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.msg || `Server fout: ${response.status}`)
-      }
-
-      setEvents(prev => prev.filter(e => e.id !== ev.id))
-      setSelectedEvent(null)
-      showToast('Evenement succesvol verwijderd', 'success')
-    } catch (error) {
-      console.error('Error deleting event:', error)
-      showToast('Kon evenement niet verwijderen', 'error')
-      throw error
-    }
-  }, [showToast, currentUser])
-
-  // Handle event addition/update
-  const handleAdd = useCallback((evt) => {
-    setEvents(prev => {
-      const exists = prev.find(e => e.id === evt.id)
-      if (exists) {
-        showToast('Evenement succesvol bijgewerkt', 'success')
-        return prev.map(e => (e.id === evt.id ? evt : e))
-      } else {
-        showToast('Evenement succesvol toegevoegd', 'success')
-        return [...prev, evt]
-      }
+    deleteEventMutation.mutate({
+      eventId: ev.id,
+      userId: currentUser.id
     })
-  }, [showToast])
+    
+    setSelectedEvent(null)
+  }, [deleteEventMutation, currentUser, showError])
+
+  // Handle event addition/update with optimistic updates
+  const handleAdd = useCallback((eventData, isEdit = false) => {
+    if (!currentUser) {
+      showError('Je moet ingelogd zijn om evenementen aan te maken')
+      return
+    }
+
+    if (isEdit) {
+      updateEventMutation.mutate({
+        eventId: eventData.id,
+        eventData: eventData,
+        userId: currentUser.id
+      })
+    } else {
+      createEventMutation.mutate({
+        eventData: eventData,
+        userId: currentUser.id
+      })
+    }
+  }, [createEventMutation, updateEventMutation, currentUser, showError])
 
   // Handle edit button click
   const handleEdit = useCallback((ev) => {
     if (!currentUser || !currentUser.isAdmin) {
-      showToast('Alleen admins kunnen evenementen bewerken', 'error')
+      showError('Alleen admins kunnen evenementen bewerken')
       return
     }
 
@@ -1040,10 +974,14 @@ export default function CalendarPage() {
       opkomstmakers: opkomstmakersArray,
     })
     setSelectedEvent(null)
-  }, [users, currentUser, showToast])
+  }, [users, currentUser, showError])
 
-  // Memoized calendar configuration
-  const calendarConfig = useMemo(() => ({
+  // ================================================================
+  // CALENDAR CONFIGURATION (OPTIMIZED)
+  // ================================================================
+  
+  // Static calendar configuration (doesn't change often)
+  const staticCalendarConfig = useMemo(() => ({
     plugins: [dayGridPlugin, interactionPlugin],
     locale: nlLocale,
     firstDay: 1,
@@ -1072,23 +1010,30 @@ export default function CalendarPage() {
         click: () => setShowNewForm(true),
       },
     } : {},
-    events,
-    eventClick: handleEventClick,
     height: 'auto',
     dayMaxEvents: 3,
     moreLinkText: 'meer',
     eventDidMount: (info) => {
-      // only do your accessibility attributes:
+      // Accessibility attributes:
       info.el.setAttribute('role', 'button')
       info.el.setAttribute('aria-label', `Evenement: ${info.event.title}`)
     }
-  }), [events])
+  }), [isAdmin])
+
+  // Dynamic calendar configuration (changes with data)
+  const dynamicCalendarConfig = useMemo(() => ({
+    events,
+    eventClick: handleEventClick,
+  }), [events, handleEventClick])
+
+  // Final calendar configuration
+  const calendarConfig = { ...staticCalendarConfig, ...dynamicCalendarConfig }
 
   // ================================================================
-  // RENDER
+  // LOADING AND ERROR STATES
   // ================================================================
 
-  if (isLoading) {
+  if (eventsLoading || usersLoading) {
     return (
       <div className="calendar-page-wrapper">
         <div className="calendar-container">
@@ -1104,16 +1049,16 @@ export default function CalendarPage() {
     )
   }
 
-  if (error) {
+  if (eventsError) {
     return (
       <div className="calendar-page-wrapper">
         <div className="calendar-container">
           <div className="error-state">
             <div className="error-content">
               <h2>⚠️ Er is iets misgegaan</h2>
-              <p>{error}</p>
+              <p>Kon de kalender niet laden: {eventsError.message}</p>
               <button 
-                onClick={() => window.location.reload()} 
+                onClick={() => refetchEvents()} 
                 className="btn btn-primary"
               >
                 🔄 Probeer opnieuw
@@ -1125,15 +1070,32 @@ export default function CalendarPage() {
     )
   }
 
+  // ================================================================
+  // RENDER
+  // ================================================================
+
   return (
     <div className="calendar-page-wrapper">
       <div className="calendar-container">
         <div className="calendar-header">
           <h1 className="calendar-title">Kalender</h1>
+          {(createEventMutation.isPending || updateEventMutation.isPending || deleteEventMutation.isPending) && (
+            <div className="calendar-loading-indicator">
+              <div className="loading-spinner small"></div>
+              <span>Bezig met opslaan...</span>
+            </div>
+          )}
         </div>
 
         <div className="calendar-wrapper" ref={calendarWrapperRef}>
-          <FullCalendar {...calendarConfig} />
+          <CalendarErrorBoundary 
+            onError={(errorReport) => {
+              console.error('Calendar Error:', errorReport)
+              showError('Er is een fout opgetreden in de kalender')
+            }}
+          >
+            <FullCalendar {...calendarConfig} />
+          </CalendarErrorBoundary>
         </div>
 
         {/* Modals */}
@@ -1148,33 +1110,29 @@ export default function CalendarPage() {
         )}
 
         {showNewForm && isAdmin && (
-          <NewEventForm
-            onClose={() => setShowNewForm(false)}
-            onAdd={handleAdd}
-            users={users}
-            currentUser={currentUser}
-          />
+          <FormErrorBoundary formName="Nieuw Evenement">
+            <NewEventForm
+              onClose={() => setShowNewForm(false)}
+              onAdd={(eventData) => handleAdd(eventData, false)}
+              users={users}
+              currentUser={currentUser}
+            />
+          </FormErrorBoundary>
         )}
 
         {editingEvent && isAdmin && (
-          <NewEventForm
-            event={editingEvent}
-            isEdit
-            onClose={() => setEditingEvent(null)}
-            onAdd={handleAdd}
-            users={users}
-            currentUser={currentUser}
-          />
+          <FormErrorBoundary formName="Evenement Bewerken">
+            <NewEventForm
+              event={editingEvent}
+              isEdit
+              onClose={() => setEditingEvent(null)}
+              onAdd={(eventData) => handleAdd(eventData, true)}
+              users={users}
+              currentUser={currentUser}
+            />
+          </FormErrorBoundary>
         )}
 
-        {/* Toast notifications */}
-        {toast && (
-          <Toast
-            message={toast.message}
-            type={toast.type}
-            onClose={hideToast}
-          />
-        )}
       </div>
     </div>
   )

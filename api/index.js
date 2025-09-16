@@ -45,9 +45,91 @@ if (!global._mongoClientPromise) {
 }
 clientPromise = global._mongoClientPromise
 
+let indexesEnsured = false
+
 async function getDb() {
   const client = await clientPromise
-  return client.db('Stamjer')
+  const db = client.db('Stamjer')
+
+  if (!indexesEnsured) {
+    await ensureIndexes(db)
+    indexesEnsured = true
+  }
+
+  return db
+}
+
+/**
+ * Create database indexes for optimal query performance.
+ * This function only runs once per process to limit overhead.
+ */
+async function ensureIndexes(db) {
+  const eventsCreated = await ensureCollectionIndexes(db.collection('events'), [
+    { keys: { start: 1 }, options: { background: true, name: 'events_start_idx' }, description: 'events.start' },
+    { keys: { isOpkomst: 1 }, options: { background: true, name: 'events_isOpkomst_idx' }, description: 'events.isOpkomst' },
+    { keys: { start: 1, isOpkomst: 1 }, options: { background: true, name: 'events_start_isOpkomst_idx' }, description: 'events start + isOpkomst' }
+  ])
+
+  const usersCreated = await ensureCollectionIndexes(db.collection('users'), [
+    { keys: { email: 1 }, options: { unique: true, background: true, name: 'users_email_unique_idx' }, description: 'users.email unique' },
+    { keys: { id: 1 }, options: { unique: true, background: true, name: 'users_id_unique_idx' }, description: 'users.id unique' },
+    { keys: { active: 1 }, options: { background: true, name: 'users_active_idx' }, description: 'users.active flag' }
+  ])
+
+  const resetCodesCreated = await ensureCollectionIndexes(db.collection('resetCodes'), [
+    { keys: { email: 1 }, options: { unique: true, background: true, name: 'resetCodes_email_unique_idx' }, description: 'resetCodes.email unique' },
+    { keys: { expiresAt: 1 }, options: { expireAfterSeconds: 0, background: true, name: 'resetCodes_ttl_idx' }, description: 'resetCodes TTL' }
+  ])
+
+  if (eventsCreated || usersCreated || resetCodesCreated) {
+    console.log('[indexes] Created or verified MongoDB indexes')
+  }
+}
+
+async function ensureCollectionIndexes(collection, definitions) {
+  const existingIndexes = await collection.indexes()
+  let createdAny = false
+
+  for (const { keys, options = {}, description } of definitions) {
+    const existing = existingIndexes.find((idx) => isSameIndexKey(idx.key, keys))
+
+    if (existing) {
+      const expectedTtl = options.expireAfterSeconds
+      if (typeof expectedTtl === 'number' && existing.expireAfterSeconds !== expectedTtl) {
+        const currentTtl = typeof existing.expireAfterSeconds === 'number' ? existing.expireAfterSeconds : 'none'
+        console.warn(`[indexes] TTL mismatch on ${collection.collectionName}.${existing.name || 'unknown'} (expected ${expectedTtl}, found ${currentTtl})`)
+      }
+
+      if (options.unique && !existing.unique) {
+        console.warn(`[indexes] Unique index expected on ${collection.collectionName} for keys ${JSON.stringify(keys)} but existing index is not unique`)
+      }
+
+      continue
+    }
+
+    try {
+      await collection.createIndex(keys, options)
+      createdAny = true
+      if (description) {
+        console.log(`[indexes] Created ${collection.collectionName} index for ${description}`)
+      } else {
+        console.log(`[indexes] Created index on ${collection.collectionName}`)
+      }
+    } catch (error) {
+      const message = error && error.message ? error.message : ''
+      if (message.includes('already exists')) {
+        console.log(`[indexes] Index already exists on ${collection.collectionName}, skipping (${JSON.stringify(keys)})`)
+      } else {
+        console.warn(`[indexes] Failed to create index on ${collection.collectionName}: ${message}`)
+      }
+    }
+  }
+
+  return createdAny
+}
+
+function isSameIndexKey(a, b) {
+  return JSON.stringify(a) === JSON.stringify(b)
 }
 
 // Tussenopslag gebruikers en evenementen
@@ -113,25 +195,19 @@ async function deleteResetCode(email) {
 
 // Clean up expired reset codes
 async function cleanupExpiredResetCodes() {
-  const db = await getDb()
-  const now = Date.now()
-  
-  // Create index for automatic cleanup (TTL index)
   try {
-    await db.collection('resetCodes').createIndex(
-      { "expiresAt": 1 }, 
-      { expireAfterSeconds: 0 }
-    )
-  } catch (err) {
-    // Index might already exist, ignore error
-  }
-  
-  // Manual cleanup of expired codes
-  const result = await db.collection('resetCodes').deleteMany({
-    expiresAt: { $lt: now }
-  })
-  if (result.deletedCount > 0) {
-    console.log(`🧹 Cleaned up ${result.deletedCount} expired reset codes`)
+    const db = await getDb()
+    
+    // Manual cleanup of expired codes (TTL index should handle this automatically)
+    const result = await db.collection('resetCodes').deleteMany({
+      expiresAt: { $lt: Date.now() }
+    })
+    
+    if (result.deletedCount > 0) {
+      console.log(`🧹 Cleaned up ${result.deletedCount} expired reset codes`)
+    }
+  } catch (error) {
+    console.warn('⚠️  Warning: Could not clean up expired reset codes:', error.message)
   }
 }
 

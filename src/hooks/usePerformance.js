@@ -16,7 +16,7 @@
  * - User experience metrics
  * 
  * @author Stamjer Development Team
- * @version 1.0.0
+ * @version 1.3.0
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'

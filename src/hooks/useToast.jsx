@@ -13,7 +13,7 @@
  * - Configurable positioning and styling
  * 
  * @author Stamjer Development Team
- * @version 1.0.0
+ * @version 1.3.0
  */
 
 import { useState, useCallback, useEffect } from 'react'
@@ -35,6 +35,14 @@ export function useToast(options = {}) {
   } = options
 
   const [toasts, setToasts] = useState([])
+
+  /**
+   * Remove a specific toast by ID
+   * @param {string} id - Toast ID to remove
+   */
+  const removeToast = useCallback((id) => {
+    setToasts(current => current.filter(toast => toast.id !== id))
+  }, [])
 
   /**
    * Add a new toast notification
@@ -70,14 +78,6 @@ export function useToast(options = {}) {
 
     return id
   }, [duration, maxToasts, removeToast])
-
-  /**
-   * Remove a specific toast by ID
-   * @param {string} id - Toast ID to remove
-   */
-  const removeToast = useCallback((id) => {
-    setToasts(current => current.filter(toast => toast.id !== id))
-  }, [])
 
   /**
    * Remove all toasts
