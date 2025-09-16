@@ -184,7 +184,7 @@ export default function Login({ setUser }) {
                   id="email"
                   type="email" 
                   value={email} 
-                  onChange={e => setEmail(e.target.value.trim())} 
+                  onChange={e => setEmail(e.target.value.trim().toLowerCase())} 
                   onKeyDown={handleKeyDown}
                   className={`form-input ${fieldErrors.email ? 'error' : ''}`}
                   placeholder="je@email.com"

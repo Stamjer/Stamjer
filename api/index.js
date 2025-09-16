@@ -470,7 +470,10 @@ apiRouter.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body
     if (!email || !password) return res.status(400).json({ msg: 'Inloggegevens ontbreken' })
-    const u = users.find(u => u.email === email)
+    
+    // Normalize email to lowercase for consistent comparison
+    const normalizedEmail = email.trim().toLowerCase()
+    const u = users.find(u => u.email.toLowerCase() === normalizedEmail)
     if (!u) return res.status(400).json({ msg: 'Gebruiker niet gevonden' })
 
     const match = u.password.startsWith('$2b$')
@@ -608,7 +611,10 @@ apiRouter.post('/reset-password', async (req, res) => {
 apiRouter.post('/change-password', async (req, res) => {
   try {
     const { email, currentPassword, newPassword } = req.body
-    const u = users.find(u => u.email === email)
+    
+    // Normalize email to lowercase for consistent comparison
+    const normalizedEmail = email.trim().toLowerCase()
+    const u = users.find(u => u.email.toLowerCase() === normalizedEmail)
     if (!u) return res.status(404).json({ msg: 'Gebruiker niet gevonden' })
 
     const valid = await bcrypt.compare(currentPassword, u.password)

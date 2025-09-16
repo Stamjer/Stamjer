@@ -137,7 +137,7 @@ function EventModal({ event, onClose, onDelete, onEdit, isAdmin = false }) {
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose} onKeyDown={handleKeyDown}>
+    <div className="modal-overlay" onKeyDown={handleKeyDown}>
       <div className="modal-content" onClick={e => e.stopPropagation()}>
         <button 
           className="close-btn" 
@@ -342,6 +342,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
           newData.title = 'Stam opkomst'
           newData.startTime = '20:30'
           newData.endTime = '22:30'
+          newData.location = 'Clubhuis Scouting Marco Polo Delft'
         } else {
           newData.title = ''
           newData.opkomstmakers = []
@@ -523,7 +524,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose} onKeyDown={handleKeyDown}>
+    <div className="modal-overlay" onKeyDown={handleKeyDown}>
       <div className="modal-content modal-content-large" onClick={e => e.stopPropagation()}>
         <button 
           className="close-btn" 

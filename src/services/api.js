@@ -346,9 +346,12 @@ export async function login(email, password) {
     throw new Error('E-mail en wachtwoord zijn verplicht')
   }
   
+  // Normalize email to lowercase
+  const normalizedEmail = email.trim().toLowerCase()
+  
   return enhancedFetch('/login', {
     method: 'POST',
-    body: { email, password }
+    body: { email: normalizedEmail, password }
   })
 }
 
@@ -362,9 +365,12 @@ export async function forgotPassword(email) {
     throw new Error('E-mail is verplicht')
   }
   
+  // Normalize email to lowercase
+  const normalizedEmail = email.trim().toLowerCase()
+  
   return enhancedFetch('/forgot-password', {
     method: 'POST',
-    body: { email }
+    body: { email: normalizedEmail }
   })
 }
 
@@ -380,10 +386,13 @@ export async function resetPassword(email, code, newPassword) {
     throw new Error('E-mail, code en nieuw wachtwoord zijn verplicht')
   }
 
+  // Normalize email to lowercase
+  const normalizedEmail = email.trim().toLowerCase()
+
   return enhancedFetch('/reset-password', {
     method: 'POST',
     body: { 
-      email, 
+      email: normalizedEmail, 
       code, 
       newPassword 
     }
@@ -499,9 +508,12 @@ export async function changePassword(email, currentPassword, newPassword) {
     throw new Error('E-mail, huidig wachtwoord en nieuw wachtwoord zijn verplicht')
   }
   
+  // Normalize email to lowercase
+  const normalizedEmail = email.trim().toLowerCase()
+  
   return enhancedFetch('/change-password', {
     method: 'POST',
-    body: { email, currentPassword, newPassword }
+    body: { email: normalizedEmail, currentPassword, newPassword }
   })
 }
 
