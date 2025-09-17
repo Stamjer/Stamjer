@@ -38,6 +38,7 @@ import { CalendarErrorBoundary, FormErrorBoundary } from '../components/ErrorBou
 
 // Toast hook
 import { useToast } from '../hooks/useToast'
+import { withSupportContact } from '../config/appInfo'
 
 // Component styling
 import './CalendarPage.css'
@@ -279,7 +280,7 @@ function EventModal({ event, onClose, onDelete, onEdit, isAdmin = false }) {
 // NEW/EDIT EVENT FORM COMPONENT
 // ================================================================
 
-function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = [], currentUser = null }) {
+function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = [] }) {
   // Initialize opkomstmakers as an array of selected user IDs
   const initializeOpkomstmakers = () => {
     if (event?.opkomstmakers) {
@@ -860,7 +861,7 @@ export default function CalendarPage() {
   // TOAST NOTIFICATIONS
   // ================================================================
   
-  const { success: showSuccess, error: showError, warning: showWarning, info: showInfo } = useToast()
+  const { success: showSuccess, error: showError } = useToast()
 
   // ================================================================
   // USER AUTHENTICATION
@@ -1056,7 +1057,7 @@ export default function CalendarPage() {
           <div className="error-state">
             <div className="error-content">
               <h2>⚠️ Er is iets misgegaan</h2>
-              <p>Kon de kalender niet laden: {eventsError.message}</p>
+              <p>{withSupportContact(`Kon de kalender niet laden: ${eventsError.message}`)}</p>
               <button 
                 onClick={() => refetchEvents()} 
                 className="btn btn-primary"
@@ -1115,7 +1116,6 @@ export default function CalendarPage() {
               onClose={() => setShowNewForm(false)}
               onAdd={(eventData) => handleAdd(eventData, false)}
               users={users}
-              currentUser={currentUser}
             />
           </FormErrorBoundary>
         )}
@@ -1128,7 +1128,6 @@ export default function CalendarPage() {
               onClose={() => setEditingEvent(null)}
               onAdd={(eventData) => handleAdd(eventData, true)}
               users={users}
-              currentUser={currentUser}
             />
           </FormErrorBoundary>
         )}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { withSupportContact } from '../config/appInfo'
 import './StrepenPage.css'
 
 function capitalizeWeekday(dateStr) {
@@ -59,7 +60,11 @@ export default function StrepenPage() {
 
   // Toast functions
   const showToast = useCallback((message, type = 'info') => {
-    setToast({ message, type })
+    const normalizedMessage = typeof message === 'string' ? message.trim() : ''
+    const finalMessage = type === 'error'
+      ? withSupportContact(normalizedMessage)
+      : (normalizedMessage || 'Er is een melding beschikbaar')
+    setToast({ message: finalMessage, type })
   }, [])
 
   const hideToast = useCallback(() => {
@@ -85,7 +90,7 @@ export default function StrepenPage() {
     const loadData = async () => {
       try {
         const eventsRes = await fetch('/api/events')
-        if (!eventsRes.ok) throw new Error('Failed to load events')
+        if (!eventsRes.ok) throw new Error('Kon opkomsten niet laden')
         const { events: all } = await eventsRes.json()
 
         const opkomsten = all
@@ -94,7 +99,7 @@ export default function StrepenPage() {
         setEvents(opkomsten)
 
         const usersRes = await fetch('/api/users/full')
-        if (!usersRes.ok) throw new Error('Failed to load users')
+        if (!usersRes.ok) throw new Error('Kon gebruikers niet laden')
         const { users: fullUsers } = await usersRes.json()
         setUsers(fullUsers)
 
@@ -113,7 +118,7 @@ export default function StrepenPage() {
         }
       } catch (err) {
         console.error(err)
-        setError('Failed to load data')
+        setError(withSupportContact('Kon gegevens niet laden'))
       } finally {
         setIsLoading(false)
       }
@@ -171,7 +176,7 @@ export default function StrepenPage() {
         const errText = await res.text()
         throw new Error(errText || 'Save failed')
       }
-      const updated = await res.json()
+      await res.json()
       setSelectedEvent(ev => ({ ...ev, attendance }))
       // reload streepjes
       const usersRes = await fetch('/api/users/full')
@@ -182,7 +187,8 @@ export default function StrepenPage() {
       showToast('Aanwezigheid succesvol opgeslagen!', 'success')
     } catch (err) {
       console.error(err)
-      showToast(`Fout bij opslaan: ${err.message}`, 'error')
+      const baseMessage = err?.message ? `Opslaan van aanwezigheid is mislukt: ${err.message}` : 'Opslaan van aanwezigheid is mislukt'
+      showToast(baseMessage, 'error')
     } finally {
       setIsSaving(false)
     }

@@ -16,6 +16,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { withSupportContact } from '../config/appInfo'
 import { login } from '../services/api'
 import './Auth.css'
 
@@ -110,7 +111,7 @@ export default function Login({ setUser }) {
       } else if (err.message.includes('password')) {
         setFieldErrors({ password: 'Incorrect wachtwoord' })
       } else {
-        setError(err.message || 'Er is een fout opgetreden. Probeer het opnieuw.')
+        setError(withSupportContact(err.message || 'Er is een fout opgetreden. Probeer het opnieuw.'))
       }
     } finally {
       setIsLoading(false)

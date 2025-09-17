@@ -17,6 +17,7 @@
  */
 
 import { useState, useCallback, useEffect } from 'react'
+import { withSupportContact } from '../config/appInfo'
 
 let toastId = 0
 
@@ -53,9 +54,12 @@ export function useToast(options = {}) {
    */
   const addToast = useCallback((message, type = 'info', toastOptions = {}) => {
     const id = ++toastId
+    const normalizedMessage = typeof message === 'string' ? message.trim() : ''
+    const fallbackMessage = type === 'error' ? withSupportContact() : 'Er is een melding beschikbaar'
+    const finalMessage = normalizedMessage || fallbackMessage
     const newToast = {
       id,
-      message,
+      message: finalMessage,
       type,
       timestamp: Date.now(),
       duration: toastOptions.duration ?? duration,
@@ -103,8 +107,9 @@ export function useToast(options = {}) {
    * @returns {string} Toast ID
    */
   const error = useCallback((message, options = {}) => {
-    return addToast(message, 'error', { 
-      duration: 8000, // Errors should stay longer
+    const messageWithSupport = withSupportContact(message)
+    return addToast(messageWithSupport, 'error', { 
+      duration: 8000, // Fouten moeten langer zichtbaar blijven
       ...options 
     })
   }, [addToast])

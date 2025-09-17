@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { withSupportContact } from '../config/appInfo'
 import { changePassword, updateUserProfile } from '../services/api'
 import './Auth.css'
 
@@ -108,7 +109,7 @@ export default function MyAccount() {
       setShowPasswordForm(false)
     } catch (err) {
       console.error('Change password error:', err)
-      setError(err.message || 'Er is een fout opgetreden bij het wijzigen van het wachtwoord.')
+      setError(withSupportContact(err.message || 'Er is een fout opgetreden bij het wijzigen van het wachtwoord.'))
     } finally {
       setIsLoading(false)
     }
@@ -136,7 +137,7 @@ export default function MyAccount() {
     
     if (!id) {
       console.error('MyAccount - No user ID found!')
-      setError('Gebruikers-ID niet gevonden. Log opnieuw in.')
+      setError(withSupportContact('Gebruikers-ID niet gevonden. Log opnieuw in.'))
       return
     }
     
@@ -168,7 +169,7 @@ export default function MyAccount() {
       setMessage(`Status succesvol bijgewerkt naar ${statusText}.`)
     } catch (err) {
       console.error('MyAccount - Error updating active status:', err)
-      setError(err.message || 'Er is een fout opgetreden bij het bijwerken van je status.')
+      setError(withSupportContact(err.message || 'Er is een fout opgetreden bij het bijwerken van je status.'))
       // Revert the checkbox state on error
       setActiveStatus(!newActiveStatus)
     } finally {

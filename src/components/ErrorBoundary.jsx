@@ -18,6 +18,7 @@
  */
 
 import React from 'react'
+import { withSupportContact } from '../config/appInfo'
 
 // ================================================================
 // BASE ERROR BOUNDARY CLASS
@@ -135,6 +136,13 @@ class BaseErrorBoundary extends React.Component {
       app: 'error-boundary-app'
     }
 
+    const baseMessage = level === 'app' ?
+      'Er is een kritieke fout opgetreden. De applicatie kan niet verder laden.' :
+      level === 'page' ?
+      'Er is een fout opgetreden op deze pagina. Je kunt proberen om de pagina te verversen.' :
+      'Er is een fout opgetreden in dit onderdeel. Je kunt proberen om het opnieuw te laden.'
+    const supportMessage = withSupportContact(baseMessage)
+
     return (
       <div className={`error-boundary ${baseStyles[level]}`}>
         <div className="error-content">
@@ -147,13 +155,7 @@ class BaseErrorBoundary extends React.Component {
              level === 'page' ? 'Pagina Error' : 'Component Error'}
           </h2>
           
-          <p className="error-message">
-            {level === 'app' ? 
-              'Er is een kritieke fout opgetreden. De applicatie kan niet verder laden.' :
-             level === 'page' ? 
-              'Er is een fout opgetreden op deze pagina. Je kunt proberen om de pagina te verversen.' :
-              'Er is een fout opgetreden in dit onderdeel. Je kunt proberen om het opnieuw te laden.'}
-          </p>
+          <p className="error-message">{supportMessage}</p>
 
           {import.meta.env.DEV && (
             <details className="error-details">
@@ -253,7 +255,7 @@ export function CalendarErrorBoundary({ children, onError }) {
     <div className="calendar-error-fallback">
       <div className="calendar-error-content">
         <h3>📅 Kalender Fout</h3>
-        <p>De kalender kon niet geladen worden. Dit kan komen door een tijdelijke serverfout.</p>
+        <p>{withSupportContact('De kalender kon niet geladen worden. Dit kan komen door een tijdelijke serverfout.')}</p>
         
         <div className="calendar-error-actions">
           <button onClick={retry} className="btn btn-primary">
@@ -294,7 +296,7 @@ export function FormErrorBoundary({ children, formName, onError }) {
     <div className="form-error-fallback">
       <div className="form-error-content">
         <h4>📝 Formulier Fout</h4>
-        <p>Er is een fout opgetreden in het {formName} formulier.</p>
+        <p>{withSupportContact(`Er is een fout opgetreden in het ${formName} formulier.`)}</p>
         
         <button onClick={retry} className="btn btn-primary btn-sm">
           🔄 Formulier opnieuw laden

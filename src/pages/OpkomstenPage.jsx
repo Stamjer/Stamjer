@@ -16,6 +16,7 @@
 // React core imports
 import React, { useState, useEffect, useCallback } from 'react'
 import { updateAttendance, updateEvent } from '../services/api'
+import { withSupportContact } from '../config/appInfo'
 // Component styling
 import './OpkomstenPage.css'
 
@@ -362,7 +363,7 @@ function OpkomstEditForm({ event, onClose, onSave, users = [], currentUser = nul
       onClose()
     } catch (err) {
       console.error('Error saving opkomst:', err)
-      setErrors({ submit: `Opslaan mislukt: ${err.message}` })
+      setErrors({ submit: withSupportContact(`Opslaan mislukt: ${err.message}`) })
     } finally {
       setIsSubmitting(false)
     }
@@ -634,8 +635,12 @@ export default function OpkomstenPage() {
     // ================================================================
 
     const showToast = useCallback((message, type = 'info') => {
-      console.log('Showing toast:', message, type)
-      setToast({ message, type })
+      const normalizedMessage = typeof message === 'string' ? message.trim() : ''
+      const finalMessage = type === 'error'
+        ? withSupportContact(normalizedMessage)
+        : (normalizedMessage || 'Er is een melding beschikbaar')
+      console.log('Showing toast:', finalMessage, type)
+      setToast({ message: finalMessage, type })
     }, [])
 
     const hideToast = useCallback(() => {
@@ -819,7 +824,7 @@ export default function OpkomstenPage() {
         console.log('Data loading completed successfully')
       } catch (err) {
         console.error('Critical error in data loading:', err)
-        setError(`Er is een fout opgetreden: ${err.message}`)
+        setError(withSupportContact(`Er is een fout opgetreden: ${err.message}`))
       } finally {
         console.log('Setting loading to false')
         setIsLoading(false)
@@ -829,7 +834,7 @@ export default function OpkomstenPage() {
     // Add a timeout to ensure the effect doesn't hang
     const timeoutId = setTimeout(() => {
       console.error('Data loading timed out')
-      setError('Het laden van data duurde te lang')
+      setError(withSupportContact('Het laden van data duurde te lang'))
       setIsLoading(false)
     }, 10000) // 10 second timeout
 

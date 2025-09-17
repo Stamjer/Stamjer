@@ -20,6 +20,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
+import { APP_VERSION, withSupportContact } from './config/appInfo'
 
 // Page components
 import Login from './pages/Login'
@@ -66,7 +67,7 @@ class LegacyErrorBoundary extends React.Component {
         <div className="error-boundary">
           <div className="error-content">
             <h2>Er is iets misgegaan</h2>
-            <p>We konden de applicatie niet laden. Probeer de pagina te vernieuwen.</p>
+            <p>{withSupportContact('We konden de applicatie niet laden. Probeer de pagina te vernieuwen.')}</p>
             <button 
               onClick={() => window.location.reload()} 
               className="btn btn-primary"
@@ -287,6 +288,12 @@ function App() {
                   className="nav-logo"
                 />
                 <span className="nav-title">Stamjer</span>
+                <span
+                  className="nav-version"
+                  aria-label={`Applicatie versie ${APP_VERSION}`}
+                >
+                  v{APP_VERSION}
+                </span>
               </div>
 
               {/* Mobile Menu Toggle Button */}

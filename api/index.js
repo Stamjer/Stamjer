@@ -1,3 +1,4 @@
+/* eslint-env node */
 /**
  * ================================================================
  * STAMJER AGENDA-API - BACKEND SERVER
@@ -30,6 +31,7 @@ import expressStaticGzip from 'express-static-gzip'
 import { fileURLToPath } from 'url'
 import { dirname } from 'path'
 import { MongoClient } from 'mongodb'
+import { createRequestLogger, configureDailyReport, logError as logSystemError, logEvent } from './logger.js'
 
 // MongoDB setup
 const uri = process.env.MONGODB_URI
@@ -53,6 +55,7 @@ const debugLog = (...args) => {
 }
 const infoLog = (...args) => console.info(...args)
 const warnLog = (...args) => console.warn(...args)
+const DAILY_LOG_EMAIL = process.env.DAILY_LOG_EMAIL || 'stamjer.mpd@gmail.com'
 
 function maskEmail(email = '') {
   if (typeof email !== 'string') return ''
@@ -286,6 +289,7 @@ async function initMailer() {
     infoLog('Mail transporter initialised')
   } catch (err) {
     console.error('❌ Initialisatie mailer mislukt:', err)
+    logSystemError(err, { action: 'initMailer', status: 500 })
   }
 }
 
@@ -329,7 +333,28 @@ function calculateStreepjes() {
 await loadUsers()
 await loadEvents()
 await initMailer()
+configureDailyReport({
+  sendEmail: async ({ subject, text, html }) => {
+    if (!transporter) {
+      warnLog('Daily report overgeslagen: transporter niet beschikbaar')
+      return
+    }
+    try {
+      await transporter.sendMail({
+        from: process.env.SMTP_FROM || 'stamjer.mpd@gmail.com',
+        to: DAILY_LOG_EMAIL,
+        subject,
+        text,
+        html
+      })
+    } catch (error) {
+      console.error('Dagrapport versturen mislukt:', error)
+      logSystemError(error, { action: 'daily-report-email', status: 500 })
+    }
+  }
+})
 await cleanupExpiredResetCodes() // Clean up old reset codes on startup
+logEvent({ action: 'server-start', metadata: { environment: process.env.NODE_ENV || 'development' } })
 
 // Express-app
 const __filename = fileURLToPath(import.meta.url)
@@ -373,6 +398,7 @@ app.use((req, res, next) => {
 })
 
 app.use(express.json({ limit: '1mb' }))
+app.use(createRequestLogger())
 
 // Request logging (no sensitive payloads)
 app.use((req, res, next) => {
@@ -403,6 +429,7 @@ apiRouter.get('/users', async (req, res) => {
     res.json(safeUsers)
   } catch (err) {
     console.error('Fout bij ophalen gebruikers:', err)
+    logSystemError(err, { action: 'GET /api/users', status: 500 })
     res.status(500).json({ error: 'Opvragen gebruikers mislukt', message: err.message })
   }
 })
@@ -429,7 +456,7 @@ async function sendActiveStatusChangeEmail(user, newActiveStatus) {
     const statusEmoji = newActiveStatus ? '✅' : '❌'
     
     await transporter.sendMail({
-      from: process.env.SMTP_FROM || 'noreply@stamjer.nl',
+      from: process.env.SMTP_FROM || 'stamjer.mpd@gmail.coml',
       to: 'stamjer.mpd@gmail.com',
       subject: `Stamjer - Status wijziging: ${user.firstName} ${user.lastName}`,
       html: `
@@ -461,6 +488,7 @@ async function sendActiveStatusChangeEmail(user, newActiveStatus) {
     debugLog('Status change notification email sent', { userId: user.id, active: newActiveStatus })
   } catch (error) {
     console.error('Error sending status change email:', error)
+    logSystemError(error, { action: 'notify-active-status', status: 500, metadata: { userId: user?.id, active: newActiveStatus } })
   }
 }
 
@@ -489,6 +517,7 @@ apiRouter.put('/user/profile', async (req, res) => {
     res.json({ user: users[idx], msg: 'Profiel succesvol bijgewerkt' })
   } catch (err) {
     console.error(err)
+    logSystemError(err, { action: 'PUT /api/user/profile', status: 500, metadata: req.body })
     res.status(500).json({ error: 'Profiel bijwerken mislukt' })
   }
 })
@@ -536,6 +565,7 @@ apiRouter.post('/events', async (req, res) => {
     res.json(newEv)
   } catch (err) {
     console.error(err)
+    logSystemError(err, { action: 'POST /api/events', status: 500, metadata: req.body })
     res.status(500).json({ msg: 'Aanmaken evenement mislukt' })
   }
 })
@@ -552,6 +582,7 @@ apiRouter.put('/events/:id', async (req, res) => {
     res.json(updated)
   } catch (err) {
     console.error(err)
+    logSystemError(err, { action: 'PUT /api/events/:id', status: 500, metadata: req.body })
     res.status(500).json({ msg: 'Bijwerken evenement mislukt' })
   }
 })
@@ -567,6 +598,7 @@ apiRouter.delete('/events/:id', async (req, res) => {
     res.json({ msg: 'Evenement verwijderd', event: removed })
   } catch (err) {
     console.error(err)
+    logSystemError(err, { action: 'DELETE /api/events/:id', status: 500, metadata: req.params })
     res.status(500).json({ msg: 'Verwijderen mislukt' })
   }
 })
@@ -586,6 +618,7 @@ apiRouter.put('/events/:id/attendance', async (req, res) => {
     res.json({ msg: 'Aanwezigheid bijgewerkt', event: ev })
   } catch (err) {
     console.error(err)
+    logSystemError(err, { action: 'PUT /api/events/:id/attendance', status: 500, metadata: req.body })
     res.status(500).json({ msg: 'Bijwerken aanwezigheid mislukt' })
   }
 })
@@ -612,6 +645,7 @@ apiRouter.post('/login', async (req, res) => {
     res.json({ user: { ...u, password: undefined } })
   } catch (err) {
     console.error('Login error details:', err)
+    logSystemError(err, { action: 'POST /api/login', status: 500, metadata: req.body })
     res.status(500).json({ msg: 'Inloggen mislukt' })
   }
 })
@@ -643,7 +677,7 @@ apiRouter.post('/forgot-password', async (req, res) => {
       debugLog('Stored password reset code with expiry', { email: maskEmail(rawEmail), expiresAt })
       
       await transporter.sendMail({
-        from: process.env.SMTP_FROM || 'noreply@stamjer.nl',
+        from: process.env.SMTP_FROM || 'stamjer.mpd@gmail.com',
         to: u.email, // Use original email for sending
         subject: 'Stamjer wachtwoordherstelcode',
         html: `<p>Je Stamjer-wachtwoordherstelcode: <strong>${code}</strong></p>`
@@ -652,6 +686,7 @@ apiRouter.post('/forgot-password', async (req, res) => {
     res.json({ msg: generic })
   } catch (err) {
     console.error(err)
+    logSystemError(err, { action: 'POST /api/forgot-password', status: 500, metadata: req.body })
     res.status(500).json({ msg: 'Verzoek wachtwoordherstel mislukt' })
   }
 })
@@ -711,6 +746,7 @@ apiRouter.post('/reset-password', async (req, res) => {
 
   } catch (err) {
     console.error('Reset-password error:', err)
+    logSystemError(err, { action: 'POST /api/reset-password', status: 500, metadata: req.body })
     res.status(500).json({ msg: 'Wachtwoordherstel mislukt' })
   }
 })
@@ -734,6 +770,7 @@ apiRouter.post('/change-password', async (req, res) => {
     res.json({ msg: 'Wachtwoord gewijzigd' })
   } catch (err) {
     console.error(err)
+    logSystemError(err, { action: 'POST /api/change-password', status: 500, metadata: req.body })
     res.status(500).json({ msg: 'Wijzigen mislukt' })
   }
 })
@@ -760,11 +797,22 @@ app.use('/api', (req, res) => {
   res.status(404).json({ msg: 'API-route niet gevonden' })
 })
 
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled rejection:', reason)
+  logSystemError(reason, { action: 'unhandled-rejection', status: 500 })
+})
+
+process.on('uncaughtException', (error) => {
+  console.error('Ongehandelde uitzondering:', error)
+  logSystemError(error, { action: 'uncaught-exception', status: 500 })
+})
+
 const port = Number(process.env.PORT) || 3002
 
 if (!process.env.VERCEL) {
   app.listen(port, () => {
     infoLog(`API server listening on port ${port}`)
+    logEvent({ action: 'server-listen', metadata: { port } })
   })
 }
 

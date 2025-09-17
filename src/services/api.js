@@ -50,7 +50,7 @@ const JSON_HEADERS = {
 function createTimeoutPromise(timeout) {
   return new Promise((_, reject) => {
     setTimeout(() => {
-      reject(new Error(`Request timeout after ${timeout}ms`))
+      reject(new Error(`Aanvraag verlopen na ${timeout}ms`))
     }, timeout)
   })
 }

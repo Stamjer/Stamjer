@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate }      from 'react-router-dom'
+import { withSupportContact } from '../config/appInfo'
 import { forgotPassword, resetPassword } from '../services/api'
 import './Auth.css'
 
@@ -41,7 +42,7 @@ export default function ForgotPassword() {
       setSuccess('Herstelcode verzonden naar je e-mailadres.')
     } catch (err) {
       console.error('Forgot password error:', err) // Debug log
-      setError(err.message || 'Er is een fout opgetreden bij het verzenden van de herstelcode.')
+      setError(withSupportContact(err.message || 'Er is een fout opgetreden bij het verzenden van de herstelcode.'))
     } finally {
       setIsLoading(false)
     }
@@ -57,7 +58,7 @@ export default function ForgotPassword() {
       await forgotPassword(normalizedEmail)
       setSuccess('Verificatiecode opnieuw verzonden.')
     } catch {
-      setError('Kon de verificatiecode niet opnieuw verzenden.')
+      setError(withSupportContact('Kon de verificatiecode niet opnieuw verzenden.'))
     } finally {
       setIsLoading(false)
     }
@@ -93,11 +94,11 @@ export default function ForgotPassword() {
       } else if (msg.includes('verlopen')) {
         setError('De herstelcode is verlopen. Vraag een nieuwe code aan.')
       } else if (msg.includes('404')) {
-        setError('API endpoint niet gevonden. Controleer of de server draait.')
+        setError(withSupportContact('API endpoint niet gevonden. Controleer of de server draait.'))
       } else if (msg.includes('failed to fetch')) {
-        setError('Kan geen verbinding maken met de server. Controleer je internet.')
+        setError(withSupportContact('Kan geen verbinding maken met de server. Controleer je internet.'))
       } else {
-        setError(err.message || 'Er is een fout opgetreden bij resetten.')
+        setError(withSupportContact(err.message || 'Er is een fout opgetreden bij resetten.'))
       }
     } finally {
       setIsLoading(false)

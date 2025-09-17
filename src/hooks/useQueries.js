@@ -118,7 +118,7 @@ export function useUsers(options = {}) {
     queryFn: async () => {
       const response = await fetch('/api/users')
       if (!response.ok) {
-        throw new Error(`Failed to fetch users: ${response.status}`)
+        throw new Error(`Kon gebruikers niet ophalen: ${response.status}`)
       }
       const data = await response.json()
       return Array.isArray(data) ? data : data.users || []
@@ -143,7 +143,7 @@ export function useUsersWithStreepjes(options = {}) {
     queryFn: async () => {
       const response = await fetch('/api/users/full')
       if (!response.ok) {
-        throw new Error(`Failed to fetch users: ${response.status}`)
+        throw new Error(`Kon gebruikers niet ophalen: ${response.status}`)
       }
       const data = await response.json()
       return data.users || []
@@ -165,7 +165,7 @@ export function useUserProfile(options = {}) {
     queryFn: async () => {
       const response = await fetch('/api/user/profile')
       if (!response.ok) {
-        throw new Error(`Failed to fetch profile: ${response.status}`)
+        throw new Error(`Kon profiel niet ophalen: ${response.status}`)
       }
       return response.json()
     },
@@ -196,7 +196,7 @@ export function useCreateEvent(options = {}) {
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.msg || `Server error: ${response.status}`)
+        throw new Error(errorData.msg || `Serverfout: ${response.status}`)
       }
 
       return response.json()
@@ -302,7 +302,7 @@ export function useUpdateEvent(options = {}) {
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.msg || `Server error: ${response.status}`)
+        throw new Error(errorData.msg || `Serverfout: ${response.status}`)
       }
 
       return response.json()
@@ -404,7 +404,7 @@ export function useDeleteEvent(options = {}) {
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.msg || `Server error: ${response.status}`)
+        throw new Error(errorData.msg || `Serverfout: ${response.status}`)
       }
 
       return response.json()
@@ -471,7 +471,7 @@ export function useUpdateUserProfile(options = {}) {
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || `Server error: ${response.status}`)
+        throw new Error(errorData.error || `Serverfout: ${response.status}`)
       }
 
       return response.json()
@@ -512,7 +512,7 @@ export function useUpdateAttendance(options = {}) {
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.msg || `Server error: ${response.status}`)
+        throw new Error(errorData.msg || `Serverfout: ${response.status}`)
       }
 
       return response.json()
