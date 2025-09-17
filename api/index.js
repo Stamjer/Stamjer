@@ -365,20 +365,44 @@ const app = express()
 const allowedOriginEnv = process.env.CLIENT_ORIGIN || ''
 const configuredOrigins = allowedOriginEnv.split(',').map(origin => origin.trim()).filter(Boolean)
 const fallbackOrigins = ['http://localhost:5173', 'http://localhost:4173']
+
+// Add Vercel URLs to fallback origins
 if (process.env.VERCEL_URL) {
   fallbackOrigins.push(`https://${process.env.VERCEL_URL}`)
 }
+// Also add common Vercel domain patterns
+if (process.env.VERCEL) {
+  // If we're running on Vercel, allow all .vercel.app domains
+  fallbackOrigins.push('https://stamjer.vercel.app')
+  fallbackOrigins.push('https://stamjer-git-main-stamjer.vercel.app')
+  // Add any other deployment URLs that might be used
+}
+
 const corsAllowedOrigins = configuredOrigins.length > 0 ? configuredOrigins : fallbackOrigins
 const allowAllLocalOrigins = !isProduction && configuredOrigins.length === 0
 
 const corsOptions = {
   origin(origin, callback) {
+    // Always allow requests without origin (e.g., mobile apps, Postman)
     if (!origin) {
       return callback(null, true)
     }
-    if (corsAllowedOrigins.includes(origin) || allowAllLocalOrigins) {
+    
+    // Allow configured origins
+    if (corsAllowedOrigins.includes(origin)) {
       return callback(null, true)
     }
+    
+    // Allow all local origins in development
+    if (allowAllLocalOrigins) {
+      return callback(null, true)
+    }
+    
+    // For Vercel deployments, be more flexible with .vercel.app domains
+    if (process.env.VERCEL && origin.includes('.vercel.app')) {
+      return callback(null, true)
+    }
+    
     debugLog('Blocked request from origin', origin)
     return callback(new Error('Not allowed by CORS'))
   },
