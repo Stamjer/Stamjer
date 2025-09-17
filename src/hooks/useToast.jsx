@@ -12,8 +12,8 @@
  * - Accessibility support with ARIA attributes
  * - Configurable positioning and styling
  * 
- * @author Stamjer Development Team
- * @version 1.3.0
+ * @author R.S. Kort
+ * @version 1.3.3
  */
 
 import { useState, useCallback, useEffect } from 'react'

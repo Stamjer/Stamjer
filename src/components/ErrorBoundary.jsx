@@ -13,8 +13,8 @@
  * - Development vs production behavior
  * - Error recovery mechanisms
  * 
- * @author Stamjer Development Team
- * @version 1.3.0
+ * @author R.S. Kort
+ * @version 1.3.3
  */
 
 import React from 'react'

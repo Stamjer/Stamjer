@@ -10,8 +10,8 @@
  * - Accessibility improvements
  * - Password visibility toggle
  * 
- * @author Stamjer Development Team
- * @version 1.1.0
+ * @author R.S. Kort
+ * @version 1.3.3
  */
 
 import React, { useState, useEffect, useCallback } from 'react'

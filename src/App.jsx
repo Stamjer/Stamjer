@@ -11,8 +11,8 @@
  * - Global navigation bar
  * - Error boundaries and performance optimization
  * 
- * @author Stamjer Development Team
- * @version 1.2.0
+ * @author R.S. Kort
+ * @version 1.3.3
  */
 
 // React core imports

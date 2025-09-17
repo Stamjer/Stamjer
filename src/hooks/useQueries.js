@@ -13,8 +13,8 @@
  * - Robust error handling and retries
  * - TypeScript-like query key management
  * 
- * @author Stamjer Development Team
- * @version 1.3.0
+ * @author R.S. Kort
+ * @version 1.3.3
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'

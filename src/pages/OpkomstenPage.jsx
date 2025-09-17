@@ -9,8 +9,8 @@
  * - Opkomstmakers column
  * - Description column
  * 
- * @author Stamjer Development Team
- * @version 1.3.0
+ * @author R.S. Kort
+ * @version 1.3.3
  */
 
 // React core imports

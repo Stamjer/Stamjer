@@ -95,4 +95,4 @@ src/               React application
 
 ## License
 
-MIT License (c) Stamjer Development Team
+MIT License (c) R.S. Kort

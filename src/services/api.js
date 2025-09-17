@@ -13,7 +13,7 @@
  * - TypeScript-ready structure
  * - Consistent response formatting
  * 
- * @author Stamjer Development Team
+ * @author R.S. Kort
  * @version 2.0.0
  */
 

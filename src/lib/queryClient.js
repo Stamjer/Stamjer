@@ -14,8 +14,8 @@
  * - Global error handling
  * - Query key factory for consistent cache keys
  * 
- * @author Stamjer Development Team
- * @version 1.0.0
+ * @author R.S. Kort
+ * @version 1.3.3
  */
 
 import { QueryClient } from '@tanstack/react-query'
