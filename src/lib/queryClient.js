@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ================================================================
  * TANSTACK QUERY CONFIGURATION
  * ================================================================
@@ -15,7 +15,7 @@
  * - Query key factory for consistent cache keys
  * 
  * @author R.S. Kort
- * @version 1.3.3
+ *
  */
 
 import { QueryClient } from '@tanstack/react-query'
@@ -32,16 +32,11 @@ const defaultQueryOptions = {
     // Keep in cache for 10 minutes after component unmount
     gcTime: 10 * 60 * 1000,
     
-    // Conservative retry logic to prevent infinite loops
-    retry: false, // Disable retries for now to prevent loops
+    // Retry failed queries twice with exponential backoff\n    retry: 2,
     
-    // No automatic retries
-    retryDelay: 1000,
+    // Exponential backoff capped at 10s\n    retryDelay: (attempt) => Math.min(1000 * (2 ** attempt), 10000),
     
-    // Disable aggressive refetching to prevent loops
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-    refetchOnMount: false
+    // Keep refetches lightweight while staying resilient\n    refetchOnWindowFocus: false,\n    refetchOnReconnect: true,\n    refetchOnMount: false
   },
   
   mutations: {
@@ -54,15 +49,6 @@ const defaultQueryOptions = {
 // ================================================================
 // GLOBAL ERROR HANDLER
 // ================================================================
-
-function globalErrorHandler(error) {
-  console.error('Query error:', error)
-  
-  // Here you could integrate with error reporting services like Sentry
-  // if (window.Sentry) {
-  //   window.Sentry.captureException(error)
-  // }
-}
 
 // ================================================================
 // QUERY CLIENT INSTANCE
@@ -186,3 +172,5 @@ export function getQueryClient() {
 }
 
 export default queryClient
+
+

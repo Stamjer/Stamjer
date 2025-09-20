@@ -12,17 +12,21 @@
  * - Performance optimizations
  * 
  * @author R.S. Kort
- * @version 1.3.3
+ *
  */
 
 // React core imports
-import React, { useState, useCallback, useMemo, useRef } from 'react'
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 
 // FullCalendar imports for calendar functionality
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
+import listPlugin from '@fullcalendar/list'
 import interactionPlugin from '@fullcalendar/interaction'
 import nlLocale from '@fullcalendar/core/locales/nl'
+
+// Mobile-first custom agenda
+import MobileAgenda from '../components/MobileAgenda'
 
 // TanStack Query hooks
 import { 
@@ -30,11 +34,12 @@ import {
   useUsers, 
   useCreateEvent, 
   useUpdateEvent, 
-  useDeleteEvent 
+  useDeleteEvent,
+  useUpdateAttendance,
 } from '../hooks/useQueries'
 
 // Error boundaries
-import { CalendarErrorBoundary, FormErrorBoundary } from '../components/ErrorBoundary'
+import { CalendarErrorBoundary, FormErrorBoundary, ComponentErrorBoundary } from '../components/ErrorBoundary'
 
 // Toast hook
 import { useToast } from '../hooks/useToast'
@@ -78,24 +83,100 @@ function formatDate(dateString) {
 /**
  * Format time for display
  */
-function formatTime(date) {
-  return date.toLocaleTimeString('nl-NL', {
+function formatTime(input) {
+  const d = input instanceof Date ? input : new Date(input)
+  if (!(d instanceof Date) || isNaN(d.getTime())) return ''
+  return d.toLocaleTimeString('nl-NL', {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false
   })
 }
 
+/**
+ * Whether attendance can be changed for an event based on start date
+ */
+function canChangeAttendance(eventStart) {
+  if (!eventStart) return false
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const start = new Date(eventStart)
+  const eventDay = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+  return eventDay > today
+}
+
 // ================================================================
 // EVENT MODAL COMPONENT
 // ================================================================
 
-function EventModal({ event, onClose, onDelete, onEdit, isAdmin = false }) {
+function EventModal({ event, onClose, onDelete, onEdit, isAdmin = false, currentUser = null, onToggleAttendance }) {
   const [isDeleting, setIsDeleting] = useState(false)
+  const dialogRef = useRef(null)
+  const focusableElementsRef = useRef([])
+  const previouslyFocusedElementRef = useRef(null)
+
+  useEffect(() => {
+    if (!event) {
+      return
+    }
+
+    previouslyFocusedElementRef.current = (
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
+    )
+
+    const dialogNode = dialogRef.current
+    if (!dialogNode) {
+      return
+    }
+
+    const focusableSelectors = [
+      'a[href]',
+      'button:not([disabled])',
+      'textarea:not([disabled])',
+      'input:not([disabled])',
+      'select:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])'
+    ].join(', ')
+
+    const focusableElements = Array.from(
+      dialogNode.querySelectorAll(focusableSelectors)
+    ).filter((el) => el instanceof HTMLElement && el.tabIndex !== -1)
+
+    focusableElementsRef.current = focusableElements
+
+    const focusTarget = focusableElements[0] || dialogNode
+    focusTarget.focus()
+
+    const handleFocusIn = (focusEvent) => {
+      if (!dialogNode.contains(focusEvent.target)) {
+        focusEvent.stopPropagation()
+        const firstFocusable = focusableElementsRef.current[0] || dialogNode
+        firstFocusable.focus()
+      }
+    }
+
+    document.addEventListener('focusin', handleFocusIn)
+
+    return () => {
+      document.removeEventListener('focusin', handleFocusIn)
+      focusableElementsRef.current = []
+      const previouslyFocused = previouslyFocusedElementRef.current
+      if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
+        previouslyFocused.focus()
+      }
+    }
+  }, [event])
 
   if (!event) return null
 
   const { title, start, end, allDay, extendedProps } = event
+
+  // Attendance state derived from event participants
+  const participants = extendedProps?.participants || []
+  const initialAttending = !!(currentUser && participants.includes(Number(currentUser.id)))
+  const [attending, setAttending] = useState(initialAttending)
+  useEffect(() => { setAttending(initialAttending) }, [initialAttending])
+  const attendanceDisabled = !currentUser || !canChangeAttendance(start)
 
   const handleDelete = async () => {
     if (!window.confirm('Weet je zeker dat je dit evenement wilt verwijderen?')) {
@@ -114,23 +195,60 @@ function EventModal({ event, onClose, onDelete, onEdit, isAdmin = false }) {
 
   const handleKeyDown = (e) => {
     if (e.key === 'Escape') {
+      e.preventDefault()
+      e.stopPropagation()
       onClose()
+      return
+    }
+
+    if (e.key === 'Tab') {
+      const focusable = focusableElementsRef.current
+      if (!focusable || focusable.length === 0) {
+        e.preventDefault()
+        if (dialogRef.current) {
+          dialogRef.current.focus()
+        }
+        return
+      }
+
+      const currentIndex = focusable.indexOf(document.activeElement)
+
+      if (e.shiftKey) {
+        const targetIndex = currentIndex <= 0 ? focusable.length - 1 : currentIndex - 1
+        focusable[targetIndex].focus()
+      } else {
+        const targetIndex = currentIndex === -1 || currentIndex === focusable.length - 1
+          ? 0
+          : currentIndex + 1
+        focusable[targetIndex].focus()
+      }
+
+      e.preventDefault()
     }
   }
 
   return (
-    <div className="modal-overlay" onKeyDown={handleKeyDown}>
-      <div className="modal-content" onClick={e => e.stopPropagation()}>
+    <div className="modal-overlay" role="presentation" onKeyDown={handleKeyDown}>
+      <div
+        ref={dialogRef}
+        className="modal-content"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="event-modal-title"
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+      >
         <button 
+          type="button"
           className="close-btn" 
           onClick={onClose}
           aria-label="Evenement details sluiten"
         >
-          ×
+          x
         </button>
 
         <div className="modal-header">
-          <h2 className="modal-title">{title}</h2>
+          <h2 id="event-modal-title" className="modal-title">{title}</h2>
         </div>
 
         <div className="modal-body">
@@ -139,36 +257,36 @@ function EventModal({ event, onClose, onDelete, onEdit, isAdmin = false }) {
             {allDay ? (
               <div className="detail-item">
                 <div className="detail-content">
-                  <strong>📅 {(() => {
+                  <strong>{(() => {
                     const startDate = new Date(start)
-                    const endDate = new Date(end)
+                    const endDate = end ? new Date(end) : null
+                    const hasValidEnd = endDate && !isNaN(endDate.getTime())
+                    if (!hasValidEnd) return 'Datum:'
+
                     const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24))
-                    
-                    if (daysDiff <= 1) {
-                      return 'Datum:'
-                    } else if (daysDiff === 2) {
-                      return 'Periode (2 dagen):'
-                    } else {
-                      return `Periode (${daysDiff} dagen):`
-                    }
-                  })()}</strong><br />
+                    if (daysDiff <= 1) return 'Datum:'
+                    if (daysDiff === 2) return 'Periode (2 dagen):'
+                    return `Periode (${daysDiff} dagen):`
+                  })()}</strong>
                   {(() => {
                     const startDate = new Date(start)
-                    const endDate = new Date(end)
+                    const endDate = end ? new Date(end) : null
+                    const hasValidEnd = endDate && !isNaN(endDate.getTime())
+                    if (!hasValidEnd) {
+                      return formatDate(startDate)
+                    }
                     const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24))
-                    
                     if (daysDiff <= 1) {
                       return formatDate(startDate)
-                    } else {
-                      const endDisplayDate = new Date(endDate.getTime() - 24 * 60 * 60 * 1000) // Subtract 1 day for display
-                      return (
-                        <>
-                          Van {formatDate(startDate)}
-                          <br />
-                          Tot {formatDate(endDisplayDate)}
-                        </>
-                      )
                     }
+                    const endDisplayDate = new Date(endDate.getTime() - 24 * 60 * 60 * 1000) // Subtract 1 day for display
+                    return (
+                      <>
+                        Van {formatDate(startDate)}
+                        <br />
+                        Tot {formatDate(endDisplayDate)}
+                      </>
+                    )
                   })()}
                 </div>
               </div>
@@ -176,14 +294,14 @@ function EventModal({ event, onClose, onDelete, onEdit, isAdmin = false }) {
               <>
                 <div className="detail-item">
                   <div className="detail-content">
-                    <strong>📅 Datum:</strong><br />
+                    <strong>Datum:</strong>
                     {formatDate(start)}
                   </div>
                 </div>
                 {end && (
                   <div className="detail-item">
                     <div className="detail-content">
-                      <strong>🕐 {(() => {
+                      <strong>{(() => {
                         const startTime = new Date(start)
                         const endTime = new Date(end)
                         const durationMs = endTime - startTime
@@ -197,7 +315,7 @@ function EventModal({ event, onClose, onDelete, onEdit, isAdmin = false }) {
                         } else {
                           return `Tijd (${hours}u ${minutes}m):`
                         }
-                      })()}</strong><br />
+                      })()}</strong>
                       {formatTime(start)} - {formatTime(end)}
                     </div>
                   </div>
@@ -205,11 +323,37 @@ function EventModal({ event, onClose, onDelete, onEdit, isAdmin = false }) {
               </>
             )}
 
+            {/* Attendance toggle for opkomst events */}
+            {extendedProps?.isOpkomst && (
+              <div className="detail-item">
+                <div className="detail-content">
+                  <label className={`checkbox-label${attendanceDisabled ? ' disabled' : ''}`} aria-live="polite">
+                    <input
+                      type="checkbox"
+                      className="checkbox-input"
+                      checked={attending}
+                      onChange={(e) => {
+                        const next = e.target.checked
+                        setAttending(next) // optimistic UI
+                        onToggleAttendance && onToggleAttendance(event.id, next)
+                      }}
+                      disabled={attendanceDisabled}
+                    />
+                    <span className="checkbox-custom"></span>
+                    {attending ? 'Aangemeld' : 'Afgemeld'}
+                  </label>
+                  {attendanceDisabled && (
+                    <div className="muted-text">Je kan je aanwezigheid niet meer aanpassen</div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Location */}
             {extendedProps?.location && (
               <div className="detail-item">
                 <div className="detail-content">
-                  <strong>📍 Locatie:</strong><br />
+                  <strong>Locatie:</strong>
                   {extendedProps.location}
                 </div>
               </div>
@@ -219,7 +363,7 @@ function EventModal({ event, onClose, onDelete, onEdit, isAdmin = false }) {
             {extendedProps?.isOpkomst && extendedProps?.opkomstmakers && (
               <div className="detail-item">
                 <div className="detail-content">
-                  <strong>👥 Opkomstmakers:</strong><br />
+                  <strong>Team Opkomstmakers:</strong>
                   {extendedProps.opkomstmakers.split(',').map((maker, index) => (
                     <React.Fragment key={index}>
                       {maker.trim()}
@@ -234,8 +378,8 @@ function EventModal({ event, onClose, onDelete, onEdit, isAdmin = false }) {
             {extendedProps?.description && (
               <div className="detail-item">
                 <div className="detail-content">
-                  <strong>📄 Beschrijving:</strong><br />
-                  {extendedProps.description}
+                  <strong>Beschrijving:</strong>
+                  <span className="description-text">{extendedProps.description}</span>
                 </div>
               </div>
             )}
@@ -251,7 +395,7 @@ function EventModal({ event, onClose, onDelete, onEdit, isAdmin = false }) {
                 onClick={() => onEdit(event)}
                 disabled={isDeleting}
               >
-                ✏️ Aanpassen
+                 Aanpassen
               </button>
               <button 
                 type="button" 
@@ -265,7 +409,7 @@ function EventModal({ event, onClose, onDelete, onEdit, isAdmin = false }) {
                     Verwijderen...
                   </>
                 ) : (
-                  <>🗑️ Verwijderen</>
+                  <> Verwijderen</>
                 )}
               </button>
             </>
@@ -484,12 +628,12 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
           onClick={onClose}
           aria-label="Formulier sluiten"
         >
-          ×
+          x
         </button>
 
         <div className="modal-header">
-          <h2 className="modal-title">
-            {isEdit ? '✏️ Evenement aanpassen' : 'Nieuw evenement'}
+          <h2 id="event-modal-title" className="modal-title">
+            {isEdit ? ' Evenement aanpassen' : 'Nieuw evenement'}
           </h2>
         </div>
 
@@ -498,7 +642,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
             {/* Title */}
             <div className="form-group form-group-full">
               <label className="form-label" htmlFor="event-title">
-                📝 Titel *
+                Titel *
               </label>
               <input
                 id="event-title"
@@ -527,8 +671,8 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
                   disabled={isSubmitting}
                   className="checkbox-input"
                 />
-                <span className="checkbox-custom"></span>
-                🏕️ Stam opkomst
+           <span className="checkbox-custom"></span>
+           Stam opkomst
               </label>
             </div>
 
@@ -536,7 +680,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
             {formData.isOpkomst && (
               <div className="form-group form-group-full">
                 <label className="form-label">
-                  👥 Opkomstmakers selecteren
+                  Team Opkomstmakers selecteren
                 </label>
                 <div className="opkomstmakers-checkboxes">
                   {users.map(user => (
@@ -567,14 +711,14 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
                   className="checkbox-input"
                 />
                 <span className="checkbox-custom"></span>
-                🕐 Hele dag evenement
+                Tijd Hele dag evenement
               </label>
             </div>
 
             {/* Start date */}
             <div className="form-group form-group-full">
               <label className="form-label" htmlFor="start-date">
-                📅 {formData.isAllDay ? 'Startdatum' : 'Datum'} *
+                {formData.isAllDay ? 'Startdatum *' : 'Datum *'}
               </label>
               <input
                 id="start-date"
@@ -596,7 +740,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
             {!formData.isAllDay && (
               <div className="form-group">
                 <label className="form-label" htmlFor="start-time">
-                  🕐 Starttijd *
+                  Starttijd *
                 </label>
                 <TimeInput24
                   id="start-time"
@@ -618,7 +762,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
             {formData.isAllDay && (
               <div className="form-group form-group-full">
                 <label className="form-label" htmlFor="end-date">
-                  📅 Einddatum *
+                  Einddatum *
                 </label>
                 <input
                   id="end-date"
@@ -641,7 +785,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
             {!formData.isAllDay && (
               <div className="form-group">
                 <label className="form-label" htmlFor="end-time">
-                  🕑 Eindtijd *
+                  Eindtijd *
                 </label>
                 <TimeInput24
                   id="end-time"
@@ -662,7 +806,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
             {/* Location */}
             <div className="form-group form-group-full">
               <label className="form-label" htmlFor="location">
-                📍 Locatie
+                Locatie
               </label>
               <input
                 id="location"
@@ -678,7 +822,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
             {/* Description */}
             <div className="form-group form-group-full">
               <label className="form-label" htmlFor="description">
-                📄 Beschrijving
+                Beschrijving
               </label>
               <textarea
                 id="description"
@@ -707,7 +851,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
             onClick={onClose}
             disabled={isSubmitting}
           >
-            ❌ Annuleren
+                Annuleren
           </button>
           <button 
             type="submit" 
@@ -722,7 +866,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
               </>
             ) : (
               <>
-                {isEdit ? '💾 Bewaar wijzigingen' : '✨ Evenement aanmaken'}
+                {isEdit ? 'Bewaar wijzigingen' : 'Evenement aanmaken'}
               </>
             )}
           </button>
@@ -801,6 +945,12 @@ export default function CalendarPage() {
   const [showNewForm, setShowNewForm] = useState(false)
   const [editingEvent, setEditingEvent] = useState(null)
   const [currentUser, setCurrentUser] = useState(null)
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia
+      ? window.matchMedia('(max-width: 600px)').matches
+      : false
+  )
+  const [viewDate, setViewDate] = useState(new Date())
 
   // Ref for calendar wrapper to handle scroll detection
   const calendarWrapperRef = useRef(null)
@@ -857,6 +1007,15 @@ export default function CalendarPage() {
     }
   })
 
+  const updateAttendanceMutation = useUpdateAttendance({
+    onSuccess: () => {
+      showSuccess('Aanwezigheid bijgewerkt')
+    },
+    onError: (error) => {
+      showError(`Kon aanwezigheid niet bijwerken: ${error.message}`)
+    }
+  })
+
   // ================================================================
   // TOAST NOTIFICATIONS
   // ================================================================
@@ -877,6 +1036,21 @@ export default function CalendarPage() {
       }
     } catch (error) {
       console.error('Error loading user from localStorage:', error)
+    }
+  }, [])
+
+  // Track mobile viewport to adjust day header format
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return
+    const mq = window.matchMedia('(max-width: 600px)')
+    const handler = (e) => setIsMobile(e.matches)
+    // Some browsers use addEventListener, others use addListener
+    if (mq.addEventListener) mq.addEventListener('change', handler)
+    else mq.addListener(handler)
+    setIsMobile(mq.matches)
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener('change', handler)
+      else mq.removeListener(handler)
     }
   }, [])
 
@@ -928,6 +1102,15 @@ export default function CalendarPage() {
     }
   }, [createEventMutation, updateEventMutation, currentUser, showError])
 
+  // Toggle attendance for current user
+  const handleToggleAttendance = useCallback((eventId, attending) => {
+    if (!currentUser) {
+      showError('Je moet ingelogd zijn om aanwezigheid te registreren')
+      return
+    }
+    updateAttendanceMutation.mutate({ eventId, userId: currentUser.id, attending })
+  }, [currentUser, updateAttendanceMutation, showError])
+
   // Handle edit button click
   const handleEdit = useCallback((ev) => {
     if (!currentUser || !currentUser.isAdmin) {
@@ -948,17 +1131,20 @@ export default function CalendarPage() {
     }
 
     // Get dates from Date objects
-    const startDate = ev.start ? ev.start.toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)
-    const endDate = ev.allDay && ev.end ? 
-      new Date(ev.end.getTime() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10) : // Subtract 1 day for display
+    const startObj = ev.start instanceof Date ? ev.start : new Date(ev.start)
+    const endObjRaw = ev.end instanceof Date || !ev.end ? ev.end : new Date(ev.end)
+    const startDate = startObj ? startObj.toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)
+    const endDate = ev.allDay && endObjRaw ? 
+      new Date((endObjRaw instanceof Date ? endObjRaw : new Date(endObjRaw)).getTime() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10) :
       startDate
 
     // Get times from Date objects
-    const startTime = ev.start && !ev.allDay ? 
-      ev.start.toTimeString().slice(0, 5) : 
+    const startTime = startObj && !ev.allDay ? 
+      (startObj.toTimeString ? startObj.toTimeString().slice(0, 5) : new Date(ev.start).toTimeString().slice(0, 5)) : 
       '09:00'
-    const endTime = ev.end && !ev.allDay ? 
-      ev.end.toTimeString().slice(0, 5) : 
+    const endObj = endObjRaw instanceof Date ? endObjRaw : (endObjRaw ? new Date(endObjRaw) : null)
+    const endTime = endObj && !ev.allDay ? 
+      endObj.toTimeString().slice(0, 5) : 
       '10:00'
 
     setEditingEvent({
@@ -983,27 +1169,36 @@ export default function CalendarPage() {
   
   // Static calendar configuration (doesn't change often)
   const staticCalendarConfig = useMemo(() => ({
-    plugins: [dayGridPlugin, interactionPlugin],
+    plugins: [dayGridPlugin, listPlugin, interactionPlugin],
     locale: nlLocale,
     firstDay: 1,
-    initialView: 'dayGridMonth',
+  initialView: isMobile ? 'listMonth' : 'dayGridMonth',
     fixedWeekCount: false,
     showNonCurrentDates: true,
+    // Mobile-specific display tweaks for better readability
+    eventDisplay: isMobile ? 'block' : 'auto',
+    displayEventTime: isMobile ? false : true,
     headerToolbar: {
       left: 'prev today next',
       center: 'title',
-      right: isAdmin ? 'nieuwBtn' : '', // Only show for admins
+  // Show view toggles on the right (month <-> listMonth), and admin action when applicable
+  right: `${'dayGridMonth,listMonth'}${isAdmin ? ' nieuwBtn' : ''}`,
     },
     buttonText: { 
       today: 'Vandaag',
-      prev: '‹ Vorige',
-      next: 'Volgende ›'
+      month: 'Maand',
+      list: 'Lijst',
+      prev: '< Vorige',
+      next: 'Volgende >'
     },
-    dayHeaderFormat: { weekday: 'long' },
+    dayHeaderFormat: isMobile ? { weekday: 'short' } : { weekday: 'long' },
     eventTimeFormat: {
       hour: '2-digit',
       minute: '2-digit',
       hour12: false
+    },
+    eventClassNames: (arg) => {
+      return arg.event?.extendedProps?.isOpkomst ? ['event-opkomst'] : []
     },
     customButtons: isAdmin ? {
       nieuwBtn: {
@@ -1019,7 +1214,7 @@ export default function CalendarPage() {
       info.el.setAttribute('role', 'button')
       info.el.setAttribute('aria-label', `Evenement: ${info.event.title}`)
     }
-  }), [isAdmin])
+  }), [isAdmin, isMobile])
 
   // Dynamic calendar configuration (changes with data)
   const dynamicCalendarConfig = useMemo(() => ({
@@ -1029,6 +1224,27 @@ export default function CalendarPage() {
 
   // Final calendar configuration
   const calendarConfig = { ...staticCalendarConfig, ...dynamicCalendarConfig }
+
+  // MobileAgenda navigation handlers
+  const handlePrevMonth = useCallback(() => {
+    setViewDate(prev => {
+      const d = new Date(prev)
+      d.setMonth(d.getMonth() - 1)
+      return d
+    })
+  }, [])
+
+  const handleNextMonth = useCallback(() => {
+    setViewDate(prev => {
+      const d = new Date(prev)
+      d.setMonth(d.getMonth() + 1)
+      return d
+    })
+  }, [])
+
+  const handleToday = useCallback(() => {
+    setViewDate(new Date())
+  }, [])
 
   // ================================================================
   // LOADING AND ERROR STATES
@@ -1056,13 +1272,13 @@ export default function CalendarPage() {
         <div className="calendar-container">
           <div className="error-state">
             <div className="error-content">
-              <h2>⚠️ Er is iets misgegaan</h2>
+              <h2>Let op Er is iets misgegaan</h2>
               <p>{withSupportContact(`Kon de kalender niet laden: ${eventsError.message}`)}</p>
               <button 
                 onClick={() => refetchEvents()} 
                 className="btn btn-primary"
               >
-                🔄 Probeer opnieuw
+                Vernieuwen Probeer opnieuw
               </button>
             </div>
           </div>
@@ -1088,26 +1304,43 @@ export default function CalendarPage() {
           )}
         </div>
 
+        {/* Removed duplicate mobile helpers to avoid double controls */}
+
         <div className="calendar-wrapper" ref={calendarWrapperRef}>
-          <CalendarErrorBoundary 
-            onError={(errorReport) => {
-              console.error('Calendar Error:', errorReport)
-              showError('Er is een fout opgetreden in de kalender')
-            }}
-          >
-            <FullCalendar {...calendarConfig} />
-          </CalendarErrorBoundary>
+          {isMobile ? (
+            <MobileAgenda
+              events={events}
+              viewDate={viewDate}
+              onPrev={handlePrevMonth}
+              onToday={handleToday}
+              onNext={handleNextMonth}
+              onEventClick={(info) => handleEventClick(info)}
+            />
+          ) : (
+            <CalendarErrorBoundary 
+              onError={(errorReport) => {
+                console.error('Calendar Error:', errorReport)
+                showError('Er is een fout opgetreden in de kalender')
+              }}
+            >
+              <FullCalendar {...calendarConfig} />
+            </CalendarErrorBoundary>
+          )}
         </div>
 
         {/* Modals */}
         {selectedEvent && (
-          <EventModal
-            event={selectedEvent}
-            onClose={() => setSelectedEvent(null)}
-            onDelete={handleDelete}
-            onEdit={handleEdit}
-            isAdmin={isAdmin}
-          />
+          <ComponentErrorBoundary componentName="EventModal" onError={() => showError('Er ging iets mis bij het tonen van het evenement')}>
+            <EventModal
+              event={selectedEvent}
+              onClose={() => setSelectedEvent(null)}
+              onDelete={handleDelete}
+              onEdit={handleEdit}
+              isAdmin={isAdmin}
+              currentUser={currentUser}
+              onToggleAttendance={handleToggleAttendance}
+            />
+          </ComponentErrorBoundary>
         )}
 
         {showNewForm && isAdmin && (
@@ -1136,3 +1369,12 @@ export default function CalendarPage() {
     </div>
   )
 }
+
+
+
+
+
+
+
+
+

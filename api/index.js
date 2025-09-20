@@ -17,7 +17,7 @@
  * - E-mails verstuurd via Nodemailer
  *
  * @author R.S. Kort
- * @version 1.3.3
+ *
  */
 
 import 'dotenv/config'

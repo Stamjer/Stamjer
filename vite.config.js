@@ -6,7 +6,7 @@ export default defineConfig({
   base: '/',
   plugins: [react()],
   define: {
-    __APP_VERSION__: JSON.stringify(process.env.VITE_APP_VERSION || process.env.npm_package_version || '0.0.0')
+    __APP_VERSION__: JSON.stringify(process.env.npm_package_version || process.env.VITE_APP_VERSION || '0.0.0')
   },
   server: {
     port: 5173,

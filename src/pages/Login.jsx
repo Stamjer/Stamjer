@@ -11,7 +11,7 @@
  * - Password visibility toggle
  * 
  * @author R.S. Kort
- * @version 1.3.3
+ *
  */
 
 import React, { useState, useEffect, useCallback } from 'react'

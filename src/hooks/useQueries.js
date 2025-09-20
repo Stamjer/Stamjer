@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ================================================================
  * DATA FETCHING HOOKS - TANSTACK QUERY
  * ================================================================
@@ -14,7 +14,7 @@
  * - TypeScript-like query key management
  * 
  * @author R.S. Kort
- * @version 1.3.3
+ *
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -116,12 +116,8 @@ export function useUsers(options = {}) {
   return useQuery({
     queryKey: queryKeys.users.lists(),
     queryFn: async () => {
-      const response = await fetch('/api/users')
-      if (!response.ok) {
-        throw new Error(`Kon gebruikers niet ophalen: ${response.status}`)
-      }
-      const data = await response.json()
-      return Array.isArray(data) ? data : data.users || []
+      const users = await api.getUsers()
+      return Array.isArray(users) ? users : users.users || []
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 15 * 60 * 1000,   // 15 minutes
@@ -141,12 +137,8 @@ export function useUsersWithStreepjes(options = {}) {
   return useQuery({
     queryKey: queryKeys.users.full(),
     queryFn: async () => {
-      const response = await fetch('/api/users/full')
-      if (!response.ok) {
-        throw new Error(`Kon gebruikers niet ophalen: ${response.status}`)
-      }
-      const data = await response.json()
-      return data.users || []
+      const users = await api.getUsersFull()
+      return Array.isArray(users) ? users : users.users || []
     },
     staleTime: 3 * 60 * 1000, // Streepjes can change more frequently
     gcTime: 10 * 60 * 1000,
@@ -162,13 +154,7 @@ export function useUsersWithStreepjes(options = {}) {
 export function useUserProfile(options = {}) {
   return useQuery({
     queryKey: queryKeys.users.profile(),
-    queryFn: async () => {
-      const response = await fetch('/api/user/profile')
-      if (!response.ok) {
-        throw new Error(`Kon profiel niet ophalen: ${response.status}`)
-      }
-      return response.json()
-    },
+    queryFn: async () => api.getUserProfile(),
     staleTime: 5 * 60 * 1000,
     ...options
   })
@@ -187,20 +173,8 @@ export function useCreateEvent(options = {}) {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ eventData, userId }) => {
-      const response = await fetch('/api/events', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...eventData, userId }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.msg || `Serverfout: ${response.status}`)
-      }
-
-      return response.json()
-    },
+    mutationFn: async ({ eventData, userId }) =>
+      api.createEvent(eventData, userId),
 
     // Optimistic update
     onMutate: async ({ eventData }) => {
@@ -237,12 +211,19 @@ export function useCreateEvent(options = {}) {
     },
 
     // Handle success
-    onSuccess: (newEvent, variables, context) => {
-      // Replace optimistic event with real event from server
+    onSuccess: (newEventResponse, variables, context) => {
+      const newEvent = newEventResponse?.event || newEventResponse
+
+      if (!newEvent) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.events.lists() })
+        return
+      }
+
+      // Replace optimistic event with server response
       queryClient.setQueryData(queryKeys.events.lists(), old => {
         if (!old) return [newEvent]
-        
-        return old.map(evt => 
+
+        return old.map(evt =>
           evt.id === context.optimisticEvent.id ? {
             id: newEvent.id,
             title: newEvent.title,
@@ -260,14 +241,14 @@ export function useCreateEvent(options = {}) {
         )
       })
 
-      // Invalidate related queries
       if (newEvent.isOpkomst) {
         queryClient.invalidateQueries({ queryKey: queryKeys.events.opkomsten() })
       }
+
     },
 
     // Handle error - rollback optimistic update
-    onError: (error, variables, context) => {
+    onError: (error, _variables, context) => {
       console.error('Create event error:', error)
       
       if (context?.previousEvents) {
@@ -293,20 +274,8 @@ export function useUpdateEvent(options = {}) {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ eventId, eventData, userId }) => {
-      const response = await fetch(`/api/events/${eventId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...eventData, userId }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.msg || `Serverfout: ${response.status}`)
-      }
-
-      return response.json()
-    },
+    mutationFn: async ({ eventId, eventData, userId }) =>
+      api.updateEvent(eventId, eventData, userId),
 
     // Optimistic update
     onMutate: async ({ eventId, eventData }) => {
@@ -340,12 +309,20 @@ export function useUpdateEvent(options = {}) {
     },
 
     // Handle success
-    onSuccess: (updatedEvent, { eventId }) => {
+    onSuccess: (updatedEventResponse, { eventId }) => {
+      const updatedEvent = updatedEventResponse?.event || updatedEventResponse
+
+      if (!updatedEvent) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.events.detail(eventId) })
+        queryClient.invalidateQueries({ queryKey: queryKeys.events.lists() })
+        return
+      }
+
       // Update cache with server response
       queryClient.setQueryData(queryKeys.events.lists(), old => {
         if (!old) return old
-        
-        return old.map(evt => 
+
+        return old.map(evt =>
           evt.id === eventId ? {
             id: updatedEvent.id,
             title: updatedEvent.title,
@@ -363,8 +340,8 @@ export function useUpdateEvent(options = {}) {
         )
       })
 
-      // Update individual event cache
       queryClient.setQueryData(queryKeys.events.detail(eventId), updatedEvent)
+
     },
 
     // Handle error - rollback
@@ -373,6 +350,10 @@ export function useUpdateEvent(options = {}) {
       
       if (context?.previousEvents) {
         queryClient.setQueryData(queryKeys.events.lists(), context.previousEvents)
+      }
+
+      if (eventId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.events.detail(eventId) })
       }
     },
 
@@ -395,20 +376,8 @@ export function useDeleteEvent(options = {}) {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ eventId, userId }) => {
-      const response = await fetch(`/api/events/${eventId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.msg || `Serverfout: ${response.status}`)
-      }
-
-      return response.json()
-    },
+    mutationFn: async ({ eventId, userId }) =>
+      api.deleteEvent(eventId, userId),
 
     // Optimistic update
     onMutate: async ({ eventId }) => {
@@ -437,6 +406,10 @@ export function useDeleteEvent(options = {}) {
       if (context?.previousEvents) {
         queryClient.setQueryData(queryKeys.events.lists(), context.previousEvents)
       }
+
+      if (eventId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.events.detail(eventId) })
+      }
     },
 
     // Cleanup
@@ -462,26 +435,13 @@ export function useUpdateUserProfile(options = {}) {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (profileData) => {
-      const response = await fetch('/api/user/profile', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(profileData),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || `Serverfout: ${response.status}`)
-      }
-
-      return response.json()
-    },
+    mutationFn: async (profileData) => api.updateUserProfile(profileData),
 
     onSuccess: (data) => {
-      // Update profile cache
-      queryClient.setQueryData(queryKeys.users.profile(), data.user)
-      
-      // Invalidate users list to reflect changes
+      const updatedProfile = data?.user || data
+
+      queryClient.setQueryData(queryKeys.users.profile(), updatedProfile)
+
       queryClient.invalidateQueries({ queryKey: queryKeys.users.lists() })
       queryClient.invalidateQueries({ queryKey: queryKeys.users.full() })
     },
@@ -503,20 +463,8 @@ export function useUpdateAttendance(options = {}) {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ eventId, userId, attending }) => {
-      const response = await fetch(`/api/events/${eventId}/attendance`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, attending }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.msg || `Serverfout: ${response.status}`)
-      }
-
-      return response.json()
-    },
+    mutationFn: async ({ eventId, userId, attending }) =>
+      api.updateAttendance(eventId, userId, attending),
 
     // Optimistic update for attendance
     onMutate: async ({ eventId, userId, attending }) => {
@@ -558,10 +506,12 @@ export function useUpdateAttendance(options = {}) {
     },
 
     onSuccess: (data, { eventId }) => {
-      // Update with server response
-      queryClient.setQueryData(queryKeys.events.detail(eventId), data.event)
-      
-      // Invalidate streepjes as attendance affects them
+      const updatedEvent = data?.event || data
+
+      if (updatedEvent) {
+        queryClient.setQueryData(queryKeys.events.detail(eventId), updatedEvent)
+      }
+
       queryClient.invalidateQueries({ queryKey: queryKeys.users.full() })
     },
 
@@ -573,8 +523,10 @@ export function useUpdateAttendance(options = {}) {
       }
     },
 
-    onSettled: ({ eventId }) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.events.detail(eventId) })
+    onSettled: (data, error, variables) => {
+      if (variables?.eventId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.events.detail(variables.eventId) })
+      }
     },
 
     ...options
@@ -620,3 +572,5 @@ export function useIsEventsFetching() {
   const queryClient = useQueryClient()
   return queryClient.isFetching({ queryKey: queryKeys.events.all }) > 0
 }
+
+

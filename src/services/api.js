@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ================================================================
  * SIMPLIFIED API SERVICE MODULE
  * ================================================================
@@ -43,19 +43,6 @@ const JSON_HEADERS = {
 // ================================================================
 
 /**
- * Create timeout promise for request cancellation
- * @param {number} timeout - Timeout in milliseconds
- * @returns {Promise}
- */
-function createTimeoutPromise(timeout) {
-  return new Promise((_, reject) => {
-    setTimeout(() => {
-      reject(new Error(`Aanvraag verlopen na ${timeout}ms`))
-    }, timeout)
-  })
-}
-
-/**
  * Enhanced error handling with user-friendly messages
  * @param {Response} response - Fetch response
  * @param {string} url - Request URL
@@ -63,7 +50,9 @@ function createTimeoutPromise(timeout) {
  * @throws {Error} Enhanced error with user-friendly message
  */
 async function handleResponse(response, url) {
-  console.log(`API Response: ${response.status} ${response.statusText} for ${url}`)
+  if (import.meta.env.DEV) {
+    console.log(`API Response: ${response.status} ${response.statusText} for ${url}`)
+  }
   
   if (!response.ok) {
     let errorMessage = 'Er is een onbekende fout opgetreden'
@@ -138,7 +127,9 @@ async function handleResponse(response, url) {
   if (contentType.includes('application/json')) {
     try {
       const data = await response.json()
-      console.log('API Success:', data)
+      if (import.meta.env.DEV) {
+        console.log('API Success:', data)
+      }
       return data
     } catch (parseError) {
       console.error('JSON parse error:', parseError)
@@ -161,45 +152,51 @@ async function handleResponse(response, url) {
  */
 async function request(url, options = {}, timeout = DEFAULT_TIMEOUT) {
   const fullUrl = url.startsWith('http') ? url : `${BASE_URL}${url}`
-  
-  console.log(`API Request: ${options.method || 'GET'} ${fullUrl}`)
-  
-  // Create abort controller for request cancellation
+
+  if (import.meta.env.DEV) {
+    console.log(`API Request: ${options.method || 'GET'} ${fullUrl}`)
+  }
+
   const controller = new AbortController()
   const requestOptions = {
     ...options,
     signal: controller.signal,
   }
-  
-  // Add default headers if body is an object
-  if (requestOptions.body && typeof requestOptions.body === 'object') {
+
+  const shouldSerializeBody =
+    requestOptions.body &&
+    typeof requestOptions.body === 'object' &&
+    !(requestOptions.body instanceof FormData) &&
+    !(typeof Blob !== 'undefined' && requestOptions.body instanceof Blob)
+
+  if (shouldSerializeBody) {
     requestOptions.headers = {
       ...JSON_HEADERS,
       ...requestOptions.headers,
     }
     requestOptions.body = JSON.stringify(requestOptions.body)
   }
-  
+
+  let timeoutId
+
   try {
-    // Race between fetch and timeout
-    const fetchPromise = fetch(fullUrl, requestOptions)
-    const timeoutPromise = createTimeoutPromise(timeout)
-    
-    const response = await Promise.race([fetchPromise, timeoutPromise])
+    timeoutId = setTimeout(() => controller.abort(), timeout)
+    const response = await fetch(fullUrl, requestOptions)
     return await handleResponse(response, fullUrl)
   } catch (error) {
-    // Handle abort errors
     if (error.name === 'AbortError') {
-      throw new Error('Request was cancelled')
+      throw new Error('De aanvraag duurde te lang en is afgebroken.')
     }
-    
-    // Handle network errors
-    if (error.message.includes('fetch')) {
+
+    if (error.message && error.message.includes('fetch')) {
       throw new Error('Netwerkfout. Controleer je internetverbinding.')
     }
-    
-    // Re-throw other errors
+
     throw error
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId)
+    }
   }
 }
 
@@ -475,3 +472,5 @@ export default {
   isOnline,
   addNetworkListeners
 }
+
+

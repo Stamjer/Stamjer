@@ -3,14 +3,13 @@
 /* Main page wrapper for horizontal scrolling */
 .strepen-page-wrapper {
   width: 100vw;
-  overflow-x: auto;
+  overflow-x: hidden; /* prevent horizontal scroll on mobile */
   overflow-y: visible;
 }
 
 .strepen-page {
-  width: auto;
+  width: 100%;
   max-width: 1200px;
-  min-width: max-content;
   margin: 0 auto;
   padding: var(--space-8);
   font-family: var(--font-primary);
@@ -562,6 +561,173 @@
 .toggle-input:focus + .toggle-switch {
   outline: 2px solid var(--primary-500);
   outline-offset: 2px;
+}
+
+/* ================================================================
+ * MOBILE LAYOUT
+ * ================================================================ */
+
+.visually-hidden, .sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+@media (max-width: 600px) {
+  .strepen-page {
+    padding: 20px 32px 24px 10px; /* add a little extra right padding for breathing room */
+  }
+
+  .strepen-header h1 {
+    font-size: 2rem;
+  }
+
+  .strepen-mobile-header {
+    position: sticky;
+    top: 64px; /* align under app nav */
+    z-index: 5;
+    background: linear-gradient(135deg, var(--secondary-50) 0%, var(--primary-50) 100%);
+    padding-bottom: 8px;
+  }
+
+  .mobile-event-title {
+    padding: 6px 4px 10px;
+  }
+  .mobile-event-main {
+    font-weight: var(--font-weight-bold);
+    color: var(--secondary-800);
+  }
+  .mobile-event-sub {
+    color: var(--secondary-600);
+    font-size: 0.95rem;
+  }
+
+  .mobile-controls {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .mobile-select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 2px solid var(--secondary-200);
+    border-radius: var(--radius-lg);
+    background: white;
+    font-size: 1rem;
+  }
+
+  .mobile-search input[type="search"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 2px solid var(--secondary-200);
+    border-radius: var(--radius-lg);
+    background: white;
+    font-size: 1rem;
+  }
+
+  .filter-chips {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .chip {
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--secondary-300);
+    background: white;
+    color: var(--secondary-700);
+    font-size: 0.9rem;
+  }
+  .chip.active {
+    background: var(--primary-50);
+    border-color: var(--primary-400);
+    color: var(--primary-700);
+  }
+
+  .mobile-user-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .user-card {
+    background: white;
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--secondary-200);
+    box-shadow: var(--shadow-sm);
+    padding: 10px 12px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+  }
+
+  .user-card.participant {
+    border-left: 4px solid #10b981;
+  }
+  .user-card.non-participant {
+    border-left: 4px solid #f59e0b;
+  }
+  .user-card.modified {
+    outline: 2px dashed var(--accent-orange);
+    outline-offset: 2px;
+  }
+
+  .user-name {
+    font-weight: var(--font-weight-semibold);
+    color: var(--secondary-800);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .changed-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent-orange);
+    display: inline-block;
+  }
+
+  .user-meta {
+    margin-top: 4px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    color: var(--secondary-700);
+    background: var(--secondary-100);
+  }
+  .pill-yes { background: #dcfce7; color: #166534; }
+  .pill-no { background: #fff7ed; color: #9a3412; }
+  .pill-streepjes { background: #eef2ff; color: #3730a3; }
+
+  .user-card-action {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .toggle-label {
+    font-size: 0.75rem;
+    color: var(--secondary-600);
+  }
+
+  /* Hide desktop table on mobile */
+  .attendance-table { display: none; }
 }
 
 

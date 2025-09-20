@@ -1,22 +1,18 @@
-/**
+﻿/**
  * Service Worker for Stamjer Application
  * Provides offline functionality and caching for mobile users
  */
 
-const CACHE_NAME = 'stamjer-v1.0.0'
-const STATIC_CACHE_NAME = 'stamjer-static-v1.0.0'
-const DYNAMIC_CACHE_NAME = 'stamjer-dynamic-v1.0.0'
+const CACHE_NAME = 'stamjer-v1.4.0'
+const STATIC_CACHE_NAME = 'stamjer-static'
+const DYNAMIC_CACHE_NAME = 'stamjer-dynamic'
 
 // Assets to cache immediately
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/stam_H.png',
-  '/src/main.jsx',
-  '/src/App.jsx',
-  '/src/App.css',
-  '/src/index.css'
+  '/stam_H.png'
 ]
 
 // API endpoints to cache dynamically
@@ -192,7 +188,7 @@ self.addEventListener('notificationclick', (event) => {
 
   if (event.action === 'open' || !event.action) {
     event.waitUntil(
-      clients.openWindow(event.notification.data.url || '/')
+      self.clients.openWindow(event.notification.data.url || '/')
     )
   }
 })
@@ -233,9 +229,13 @@ async function submitFormData(data) {
   })
 }
 
-async function removePendingFormData(id) {
+async function removePendingFormData() {
   // Implementation would remove from IndexedDB
   return Promise.resolve()
 }
 
 console.log('Service Worker: Script loaded')
+
+
+
+

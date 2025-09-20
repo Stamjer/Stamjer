@@ -39,7 +39,7 @@
 }
 
 /* Table Styles */
-.opkomsten-table-wrapper {
+  .opkomsten-table-wrapper {
   background: white;
   border-radius: var(--radius-2xl);
   box-shadow: var(--shadow-2xl);
@@ -49,7 +49,7 @@
   transition: all var(--duration-normal) var(--ease-out);
   width: auto;
   min-width: min-content;
-  max-width: 100%;
+    max-width: 100%;
 }
 
 .opkomsten-table-wrapper:hover {
@@ -99,6 +99,120 @@
   padding: var(--space-4);
   text-align: center;
   vertical-align: top;
+}
+
+/* Small pill badges used in cards */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  border: 1px solid transparent;
+}
+.time-badge {
+  background: #eef2ff;
+  color: #3730a3;
+  border-color: #c7d2fe;
+}
+.all-day-badge {
+  background: #ecfeff;
+  color: #155e75;
+  border-color: #a5f3fc;
+}
+.location-badge {
+  background: #f0fdf4;
+  color: #065f46;
+  border-color: #bbf7d0;
+}
+
+/* Mobile-first redesign: transform table rows into clean cards */
+@media (max-width: 700px) {
+  /* Add equal horizontal padding on mobile */
+  .opkomsten-container {
+    padding: 0px 32px 24px 0px;
+  }
+  /* Sticky page header for context while scrolling */
+  .opkomsten-header {
+    position: sticky;
+    top: 0.5rem;
+    z-index: 2;
+    backdrop-filter: blur(10px);
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+  }
+
+  /* Hide table header and lay out rows as cards */
+  .opkomsten-table thead { display: none; }
+  .opkomsten-table { border-collapse: separate; border-spacing: 0 0.75rem; }
+  .opkomsten-table tbody { display: block; }
+  .opkomsten-table tr {
+    display: grid;
+    grid-template-columns: 1fr auto; /* content | actions */
+    gap: 0.75rem 1rem;
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 10px 20px rgba(2, 8, 23, 0.08);
+    border: 1px solid #e5e7eb;
+    padding: 0.9rem 0.9rem;
+    margin: 0 0.25rem;
+    align-items: start; /* Make first-row items share the same top */
+  }
+  .opkomsten-table td { display: block; width: 100%; padding: 0; border: 0; text-align: left; }
+  .opkomsten-table td::before { display: none; }
+  /* Allow the actions cell to size to its content so it can truly hug the right edge */
+  .opkomsten-table td.actions-cell { width: auto !important; }
+
+  /* Date/time in the left column of first row */
+  .date-cell {
+    grid-column: 1;
+    padding-bottom: 0;
+    border-bottom: none;
+    margin-bottom: 0;
+    align-self: start; /* lock to top */
+  }
+  .date-content {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+  .time-info { font-size: 0.9rem; color: #475569; }
+
+  /* Attendance + makers on same row */
+  .attendance-cell, .opkomstmakers-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .attendance-cell { order: 1; }
+  .opkomstmakers-cell { order: 2; }
+
+  .attendance-checkbox .checkbox-custom {
+    width: 24px; height: 24px; border-radius: 6px;
+  }
+
+  /* Participants block */
+  .participants-cell { order: 3; }
+  .participants-content { gap: 0.35rem; }
+  .participants-count {
+    background: #f1f5f9; color: #0f172a; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 999px;
+  }
+  .participants-names { justify-content: flex-start; }
+
+  /* Description and location */
+  .description-cell { order: 4; }
+  .description-content { color: #334155; }
+  .location-info { justify-content: flex-start; padding-left: 0; }
+
+  /* Actions to the top-right */
+  .actions-cell { grid-row: 1; grid-column: 2; display: flex; align-items: flex-start; justify-content: flex-end; width: auto; align-self: start; justify-self: end; }
+  .edit-btn { padding: 0.5rem 0.75rem; border-radius: 10px; }
+
+  /* Card hover touch affordance */
+  .opkomsten-table tr:active { transform: scale(0.997); }
 }
 
 /* Cell Specific Styles */
@@ -259,6 +373,7 @@
 .description-content {
   line-height: 1.6;
   color: #374151;
+  text-align: center;
 }
 
 .no-description {
@@ -675,8 +790,9 @@
 
 .actions-cell {
   width: 120px;
-  text-align: center;
-  vertical-align: middle;
+  text-align: right; /* align to the right on desktop */
+  vertical-align: top; /* level with date/time at top */
+  padding-right: 0; /* push button fully to the right */
 }
 
 .edit-btn {

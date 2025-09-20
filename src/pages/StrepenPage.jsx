@@ -57,6 +57,15 @@ export default function StrepenPage() {
   const [error, setError] = useState(null)
   const [isSaving, setIsSaving] = useState(false)
   const [toast, setToast] = useState(null)
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia
+      ? window.matchMedia('(max-width: 600px)').matches
+      : false
+  )
+  const [query, setQuery] = useState('')
+  const [showOnlyParticipants, setShowOnlyParticipants] = useState(false)
+  const [showOnlyChanged, setShowOnlyChanged] = useState(false)
+  const [liveMsg, setLiveMsg] = useState('')
 
   // Toast functions
   const showToast = useCallback((message, type = 'info') => {
@@ -84,6 +93,20 @@ export default function StrepenPage() {
       navigate('/login')
     }
   }, [navigate])
+
+  // Track mobile viewport
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return
+    const mq = window.matchMedia('(max-width: 600px)')
+    const handler = (e) => setIsMobile(e.matches)
+    if (mq.addEventListener) mq.addEventListener('change', handler)
+    else mq.addListener(handler)
+    setIsMobile(mq.matches)
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener('change', handler)
+      else mq.removeListener(handler)
+    }
+  }, [])
 
   // Load events and users
   useEffect(() => {
@@ -154,11 +177,14 @@ export default function StrepenPage() {
   }, [selectedEvent, users])
 
   // Toggle only updates local state
-  const handleAttendanceToggle = (userId) => {
-    setAttendance(prev => ({
-      ...prev,
-      [userId]: !prev[userId]
-    }))
+  const handleAttendanceToggle = (u) => {
+    setAttendance(prev => {
+      const next = { ...prev, [u.id]: !prev[u.id] }
+      // aria-live message for accessibility
+      const status = next[u.id] ? 'aanwezig' : 'afwezig'
+      setLiveMsg(`${u.firstName} gemarkeerd als ${status}`)
+      return next
+    })
   }
 
   // Explicit save via button
@@ -223,90 +249,211 @@ export default function StrepenPage() {
     return `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`)
   })
 
+  const modifiedCount = sortedUsers.reduce((acc, u) => {
+    const isPart = selectedEvent.participants.includes(u.id)
+    const present = attendance[u.id]
+    return acc + (present === isPart ? 0 : 1)
+  }, 0)
+
+  const filteredUsers = sortedUsers.filter(u => {
+    const name = `${u.firstName} ${u.lastName || ''}`.toLowerCase()
+    const matchesQuery = !query.trim() || name.includes(query.trim().toLowerCase())
+    const isPart = selectedEvent.participants.includes(u.id)
+    const satisfiesPart = showOnlyParticipants ? isPart : true
+    const isChanged = attendance[u.id] !== isPart
+    const satisfiesChanged = showOnlyChanged ? isChanged : true
+    return matchesQuery && satisfiesPart && satisfiesChanged
+  })
+
   return (
     <div className="strepen-page-wrapper">
       <div className="strepen-page">
+        {/* aria-live region for toggle feedback */}
+        <div className="visually-hidden" aria-live="polite">{liveMsg}</div>
+
         <header className="strepen-header">
           <h1>Strepen</h1>
         </header>
 
-      <section className="event-selector">
-        <label htmlFor="event-select">Selecteer opkomst:</label>
-        <select
-          id="event-select"
-          value={selectedEvent.id}
-          onChange={e => {
-            const ev = events.find(x => x.id === e.target.value)
-            setSelectedEvent(ev)
-          }}
-        >
-          {events.map(ev => (
-            <option key={ev.id} value={ev.id}>
-              {capitalizeWeekday(ev.start)}
-            </option>
-          ))}
-        </select>
-      </section>
-
-      <section className="event-info">
-        <h2>{selectedEvent.title}</h2>
-        <p>📅 {capitalizeWeekday(selectedEvent.start)}</p>
-        <p>👥 Opkomstmakers: {selectedEvent.opkomstmakers}</p>
-      </section>
-
-      <div className="attendance-table">
-        <div className="table-header">
-          <div className="header-cell name">Naam</div>
-          <div className="header-cell status">Aangemeld</div>
-          <div className="header-cell toggle">Aanwezigheid</div>
-          <div className="header-cell streepjes">Streepjes</div>
-        </div>
-        {sortedUsers.map(u => {
-          const isPart = selectedEvent.participants.includes(u.id)
-          const present = attendance[u.id]
-          const defaultState = present === isPart
-
-          return (
-            <div
-              key={u.id}
-              className={`table-row ${isPart ? 'participant' : 'non-participant'} ${
-                defaultState ? 'default-state' : 'modified-state'
-              }`}
-            >
-              <div className="cell name">
-                {u.firstName}{!defaultState && <span className="modified-indicator"> *</span>}
-              </div>
-              <div className="cell status">{isPart ? '✅' : '❌'}</div>
-              <div className="cell toggle">
-                <input
-                  type="checkbox"
-                  id={`toggle-${u.id}`}
-                  checked={present}
-                  onChange={() => handleAttendanceToggle(u.id)}
-                  disabled={isSaving}
-                  className="toggle-input"
-                />
-                <label htmlFor={`toggle-${u.id}`} className="toggle-switch">
-                  <div className="switch-ball"></div>
-                </label>
-              </div>
-              <div className="cell streepjes">{u.streepjes || 0}</div>
+        {/* Mobile header with selector + filters */}
+        {isMobile ? (
+          <div className="strepen-mobile-header">
+            <div className="mobile-event-title">
+              <div className="mobile-event-main">{selectedEvent.title}</div>
+              <div className="mobile-event-sub">{capitalizeWeekday(selectedEvent.start)}</div>
             </div>
-          )
-        })}
-      </div>
+            <div className="mobile-controls">
+              <label htmlFor="event-select" className="sr-only">Selecteer opkomst</label>
+              <select
+                id="event-select"
+                value={selectedEvent.id}
+                onChange={e => {
+                  const ev = events.find(x => x.id === e.target.value)
+                  setSelectedEvent(ev)
+                }}
+                className="mobile-select"
+                aria-label="Selecteer opkomst"
+              >
+                {events.map(ev => (
+                  <option key={ev.id} value={ev.id}>
+                    {capitalizeWeekday(ev.start)}
+                  </option>
+                ))}
+              </select>
 
-      <div className="save-section">
-        <button
-          className="save-button"
-          onClick={handleSaveAttendance}
-          disabled={isSaving}
-        >
-          {isSaving ? 'Opslaan...' : 'Opslaan'}
-        </button>
-      </div>
+              <div className="mobile-search">
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Zoek op naam..."
+                  aria-label="Zoek op naam"
+                />
+              </div>
 
-      {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
+              <div className="filter-chips" role="group" aria-label="Filters">
+                <button
+                  type="button"
+                  className={`chip ${showOnlyParticipants ? 'active' : ''}`}
+                  onClick={() => setShowOnlyParticipants(v => !v)}
+                >
+                  Aangemeld
+                </button>
+                <button
+                  type="button"
+                  className={`chip ${showOnlyChanged ? 'active' : ''}`}
+                  onClick={() => setShowOnlyChanged(v => !v)}
+                >
+                  Gewijzigd{modifiedCount ? ` (${modifiedCount})` : ''}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            <section className="event-selector">
+              <label htmlFor="event-select">Selecteer opkomst:</label>
+              <select
+                id="event-select"
+                value={selectedEvent.id}
+                onChange={e => {
+                  const ev = events.find(x => x.id === e.target.value)
+                  setSelectedEvent(ev)
+                }}
+              >
+                {events.map(ev => (
+                  <option key={ev.id} value={ev.id}>
+                    {capitalizeWeekday(ev.start)}
+                  </option>
+                ))}
+              </select>
+            </section>
+
+            <section className="event-info">
+              <h2>{selectedEvent.title}</h2>
+              <p>📅 {capitalizeWeekday(selectedEvent.start)}</p>
+              <p>👥 Opkomstmakers: {selectedEvent.opkomstmakers}</p>
+            </section>
+          </>
+        )}
+
+        {/* Mobile user list */}
+        {isMobile ? (
+          <div className="mobile-user-list">
+            {filteredUsers.map(u => {
+              const isPart = selectedEvent.participants.includes(u.id)
+              const present = attendance[u.id]
+              const isChanged = present !== isPart
+              return (
+                <div key={u.id} className={`user-card ${isPart ? 'participant' : 'non-participant'} ${isChanged ? 'modified' : ''}`}>
+                  <div className="user-card-main">
+                    <div className="user-name">
+                      {u.firstName} {u.lastName}
+                      {isChanged && <span className="changed-dot" aria-hidden="true"></span>}
+                    </div>
+                    <div className="user-meta">
+                      <span className={`pill ${isPart ? 'pill-yes' : 'pill-no'}`}>{isPart ? 'Aangemeld' : 'Niet aangemeld'}</span>
+                      <span className="pill pill-streepjes">{u.streepjes || 0} streepjes</span>
+                    </div>
+                  </div>
+                  <div className="user-card-action">
+                    <input
+                      type="checkbox"
+                      id={`toggle-${u.id}`}
+                      checked={present}
+                      onChange={() => handleAttendanceToggle(u)}
+                      disabled={isSaving}
+                      className="toggle-input"
+                    />
+                    <label htmlFor={`toggle-${u.id}`} className="toggle-switch">
+                      <div className="switch-ball"></div>
+                    </label>
+                    <div className="toggle-label" aria-hidden="true">{present ? 'Aanwezig' : 'Afwezig'}</div>
+                  </div>
+                </div>
+              )
+            })}
+            {filteredUsers.length === 0 && (
+              <div className="empty-state">Geen resultaten voor je filters</div>
+            )}
+          </div>
+        ) : (
+          // Desktop table stays intact
+          <div className="attendance-table">
+            <div className="table-header">
+              <div className="header-cell name">Naam</div>
+              <div className="header-cell status">Aangemeld</div>
+              <div className="header-cell toggle">Aanwezigheid</div>
+              <div className="header-cell streepjes">Streepjes</div>
+            </div>
+            {sortedUsers.map(u => {
+              const isPart = selectedEvent.participants.includes(u.id)
+              const present = attendance[u.id]
+              const defaultState = present === isPart
+
+              return (
+                <div
+                  key={u.id}
+                  className={`table-row ${isPart ? 'participant' : 'non-participant'} ${
+                    defaultState ? 'default-state' : 'modified-state'
+                  }`}
+                >
+                  <div className="cell name">
+                    {u.firstName}{!defaultState && <span className="modified-indicator"> *</span>}
+                  </div>
+                  <div className="cell status">{isPart ? '✅' : '❌'}</div>
+                  <div className="cell toggle">
+                    <input
+                      type="checkbox"
+                      id={`toggle-${u.id}`}
+                      checked={present}
+                      onChange={() => handleAttendanceToggle(u)}
+                      disabled={isSaving}
+                      className="toggle-input"
+                    />
+                    <label htmlFor={`toggle-${u.id}`} className="toggle-switch">
+                      <div className="switch-ball"></div>
+                    </label>
+                  </div>
+                  <div className="cell streepjes">{u.streepjes || 0}</div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        <div className="save-section">
+          <button
+            className="save-button"
+            onClick={handleSaveAttendance}
+            disabled={isSaving}
+            aria-label={modifiedCount ? `Sla ${modifiedCount} wijziging${modifiedCount===1?'':'en'} op` : 'Opslaan'}
+          >
+            {isSaving ? 'Opslaan...' : (modifiedCount ? `Opslaan (${modifiedCount})` : 'Opslaan')}
+          </button>
+        </div>
+
+        {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
       </div>
     </div>
   )

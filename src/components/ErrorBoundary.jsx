@@ -14,7 +14,7 @@
  * - Error recovery mechanisms
  * 
  * @author R.S. Kort
- * @version 1.3.3
+ *
  */
 
 import React from 'react'

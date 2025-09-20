@@ -18,6 +18,25 @@ export const SUPPORT_EMAIL = 'stamjer.mpd@gmail.com'
 
 
 const resolvedVersion = (() => {
+  // 1) Prefer the build-time version injected by Vite from package.json
+  if (typeof __APP_VERSION__ !== 'undefined' && String(__APP_VERSION__).trim().length > 0) {
+    const pkgVer = String(__APP_VERSION__).trim()
+    try {
+      const env = typeof import.meta !== 'undefined' ? import.meta.env : {}
+      const envVersion = env?.VITE_APP_VERSION || env?.APP_VERSION
+      if (envVersion && String(envVersion).trim() !== pkgVer) {
+        // Helpful notice in dev if there's an override mismatch
+        if (typeof window !== 'undefined' && import.meta?.env?.DEV) {
+          console.warn('[Stamjer] VITE_APP_VERSION differs from package.json version:', envVersion, '!=', pkgVer)
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return pkgVer
+  }
+
+  // 2) Fallback to env-based version if provided (e.g., explicit override)
   try {
     const env = typeof import.meta !== 'undefined' ? import.meta.env : {}
     const envVersion = env?.VITE_APP_VERSION || env?.APP_VERSION
@@ -25,11 +44,10 @@ const resolvedVersion = (() => {
       return envVersion.trim()
     }
   } catch {
-    // Ignore access issues and fall back to global version
+    // Ignore access issues
   }
-  if (typeof __APP_VERSION__ !== 'undefined') {
-    return __APP_VERSION__
-  }
+
+  // 3) Final fallback
   return '0.0.0'
 })()
 

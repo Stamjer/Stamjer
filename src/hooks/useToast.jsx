@@ -13,7 +13,7 @@
  * - Configurable positioning and styling
  * 
  * @author R.S. Kort
- * @version 1.3.3
+ *
  */
 
 import { useState, useCallback, useEffect } from 'react'

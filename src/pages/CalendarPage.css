@@ -56,6 +56,32 @@
   min-width: min-content;
 }
 
+/* Mobile helpers: sticky month title and quick navigation */
+.calendar-mobile-helpers {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  .calendar-mobile-helpers {
+    display: block;
+    position: sticky;
+    top: 64px; /* below top nav */
+    z-index: 10;
+    padding: 0.5rem 0.25rem;
+    background: linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.75) 100%);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--secondary-200);
+  }
+
+  .calendar-mobile-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .calendar-mobile-spacer { flex: 1; }
+}
+
 .calendar-wrapper:hover {
   box-shadow: var(--shadow-2xl);
   transform: translateY(-2px);
@@ -555,6 +581,11 @@
   margin-bottom: var(--space-1);
 }
 
+/* Preserve line breaks in event description */
+.description-text {
+  white-space: pre-line;
+}
+
 /* Opkomstmaker Items */
 .opkomstmaker-item {
   padding: var(--space-2) var(--space-3);
@@ -877,6 +908,16 @@
   }
 }
 
+/* Attendance checkbox disabled state (clarify it cannot be changed) */
+.modal-content .checkbox-input:disabled + .checkbox-custom {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.modal-content .checkbox-label.disabled {
+  color: var(--secondary-500);
+  cursor: not-allowed;
+}
+
 /* Focus improvements */
 .fc-button:focus-visible {
   outline: 3px solid rgba(59, 130, 246, 0.5) !important;
@@ -1149,3 +1190,232 @@ input[type="time"]::placeholder {
 }
 
 
+
+
+@media (max-width: 600px) {
+  /* Stack title above buttons and keep within viewport */
+  .fc-header-toolbar {
+    grid-template-columns: 1fr !important;
+    grid-template-areas:
+      "title"
+      "buttons" !important;
+    padding: var(--space-3) !important;
+    gap: var(--space-2) !important;
+  }
+
+  .fc-toolbar-chunk { width: 100% !important; }
+  .fc-toolbar-chunk:nth-child(2) { grid-area: title; justify-content: center !important; }
+  .fc-toolbar-chunk:nth-child(1),
+  .fc-toolbar-chunk:nth-child(3) { grid-area: buttons; justify-content: center !important; }
+
+  .fc-toolbar-title {
+    font-size: 1.35rem !important; /* slightly bigger for mobile */
+    line-height: 1.2 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  /* Mobile: use full width for event text and remove dot/time for more room */
+  .calendar-wrapper .fc-daygrid-event {
+    border-radius: 8px !important;
+  }
+
+  .calendar-wrapper .fc-daygrid-event .fc-event-main {
+    padding: 4px 6px !important;
+  }
+
+  /* Hide the colored dot and the time on mobile */
+  .calendar-wrapper .fc-daygrid-event-dot,
+  .calendar-wrapper .fc-event-time {
+    display: none !important;
+  }
+
+  /* If FullCalendar still renders dot-style items, remove left offset */
+  .calendar-wrapper .fc-daygrid-dot-event .fc-event-title {
+    margin-left: 0 !important;
+  }
+
+  /* Clamp title to two lines with ellipsis */
+  .calendar-wrapper .fc-daygrid-event .fc-event-title {
+    display: -webkit-box !important;
+    line-clamp: 2;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: normal !important; /* allow wrapping to multiple lines */
+    margin: 0 !important;
+  }
+
+  /* Also apply inside popovers ("+x meer" dialog) */
+  .calendar-wrapper .fc-popover .fc-daygrid-event-dot,
+  .calendar-wrapper .fc-popover .fc-event-time {
+    display: none !important;
+  }
+
+  .calendar-wrapper .fc-popover .fc-daygrid-event .fc-event-title {
+    display: -webkit-box !important;
+    line-clamp: 2;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: normal !important;
+  }
+
+  /* Harden: ensure no horizontal scroll anywhere inside calendar on mobile */
+  .calendar-page-wrapper,
+  .calendar-container,
+  .calendar-wrapper,
+  .calendar-wrapper .fc,
+  .calendar-wrapper .fc-view-harness,
+  .calendar-wrapper .fc-scroller,
+  .calendar-wrapper .fc-scroller-harness {
+    overflow-x: hidden !important;
+    max-width: 100% !important;
+  }
+
+  /* Segmented control look for Month/List view group */
+  .calendar-wrapper .fc .fc-button-group {
+    border: 1px solid var(--secondary-300, #d1d5db) !important;
+    border-radius: 10px !important;
+    overflow: hidden !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important;
+  }
+  .calendar-wrapper .fc .fc-button-group .fc-button {
+    background: #fff !important;
+    color: var(--secondary-800, #1f2937) !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 6px 10px !important;
+  }
+  .calendar-wrapper .fc .fc-button-group .fc-button.fc-button-active {
+    background: var(--secondary-900, #0f172a) !important;
+    color: #fff !important;
+  }
+
+  /* List view: compact, readable mobile list */
+  .calendar-wrapper .fc-list,
+  .calendar-wrapper .fc-theme-standard .fc-list {
+    border: none !important;
+  }
+
+  .calendar-wrapper .fc-list table {
+    border-collapse: separate !important;
+    border-spacing: 0 8px !important; /* space between rows */
+    width: 100% !important;
+  }
+
+  .calendar-wrapper .fc-list-day-cushion {
+    background: transparent !important;
+    padding: 4px 0 !important;
+    color: var(--secondary-700) !important;
+    font-weight: var(--font-weight-semibold, 600) !important;
+  }
+  /* Make month list section headers sticky-ish spacing */
+  .calendar-wrapper .fc-list-day {
+    margin-top: 6px !important;
+  }
+
+  .calendar-wrapper .fc-list-event td {
+    background: var(--secondary-50, #f8fafc) !important;
+    border: 1px solid var(--secondary-200, #e5e7eb) !important;
+    border-left-width: 4px !important;
+    border-radius: 8px !important;
+    padding: 8px 10px !important;
+  }
+  /* Hide time column in list view on mobile for a cleaner look */
+  .calendar-wrapper .fc-list-event-time {
+    display: none !important;
+  }
+
+  .calendar-wrapper .fc-list-event-title {
+    font-weight: 600 !important;
+    color: var(--secondary-900) !important;
+    display: -webkit-box !important;
+    line-clamp: 2;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: normal !important;
+  }
+
+  /* Highlight today in list headers */
+  .calendar-wrapper .fc-list-day.fc-day-today .fc-list-day-cushion {
+    color: var(--secondary-900, #0f172a) !important;
+    text-decoration: underline dashed 1px var(--secondary-400, #9ca3af);
+    text-underline-offset: 2px;
+  }
+
+  /* Color accent for opkomsten in list view */
+  .calendar-wrapper .event-opkomst td {
+    border-left-color: #059669 !important; /* match green */
+  }
+
+  .fc-button { padding: 0.4rem 0.6rem !important; font-size: 0.85rem !important; }
+  .fc-toolbar-chunk .fc-button { margin: 0 var(--space-1) !important; }
+
+  /* Keep calendar within page without horizontal scroll */
+  .calendar-page-wrapper {
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  .calendar-container {
+    padding: var(--space-4) var(--space-3);
+    min-height: auto;
+  }
+
+  .calendar-header {
+    margin-bottom: var(--space-6);
+  }
+
+  .calendar-title {
+    font-size: 2.25rem;
+  }
+
+  .calendar-wrapper {
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
+    overflow-x: hidden;
+  }
+
+  .calendar-wrapper .fc {
+    font-size: 0.85rem;
+  }
+
+  /* Reduce day number size and padding for tighter fit */
+  .fc-daygrid-day-number { padding: 6px !important; font-size: 0.8rem !important; }
+  .fc-day-today .fc-daygrid-day-number { width: 1.75rem !important; height: 1.75rem !important; }
+
+  /* Ensure grid fits viewport width */
+  .fc-scrollgrid, .fc-daygrid-body, .fc-scrollgrid-sync-table { overflow-x: hidden !important; }
+
+  .modal-content {
+    width: calc(100vw - 2.5rem);
+    max-height: calc(100dvh - 3rem);
+    margin: 1rem auto;
+  }
+}
+
+/* Opkomst events: make them green for quick recognition */
+.calendar-wrapper .event-opkomst,
+.calendar-wrapper .event-opkomst .fc-event-main,
+.calendar-wrapper .event-opkomst.fc-daygrid-event,
+.calendar-wrapper .event-opkomst.fc-event {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important; /* green */
+  color: #ffffff !important;
+}
+
+.calendar-wrapper .event-opkomst:hover {
+  filter: brightness(0.95) !important;
+}
+
+/* Ensure inner text/time blocks don't have their own backgrounds to avoid layered gradients */
+.calendar-wrapper .fc-event-title,
+.calendar-wrapper .fc-event-time {
+  background: transparent !important;
+}

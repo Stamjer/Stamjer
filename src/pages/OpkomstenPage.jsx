@@ -10,7 +10,7 @@
  * - Description column
  * 
  * @author R.S. Kort
- * @version 1.3.3
+ *
  */
 
 // React core imports
@@ -77,6 +77,7 @@ function canChangeAttendance(eventStart) {
   return eventDay > today
 }
 
+
 // ================================================================
 // TOAST NOTIFICATION COMPONENT
 // ================================================================
@@ -88,10 +89,10 @@ function Toast({ message, type = 'info', onClose }) {
   }, [onClose])
 
   const icons = {
-    success: '✅',
-    error: '❌',
-    warning: '⚠️',
-    info: 'ℹ️'
+    success: 'OK',
+    error: 'X',
+    warning: 'Let op',
+    info: 'Info'
   }
 
   return (
@@ -103,7 +104,7 @@ function Toast({ message, type = 'info', onClose }) {
         onClick={onClose}
         aria-label="Notificatie sluiten"
       >
-        ×
+        X
       </button>
     </div>
   )
@@ -383,12 +384,12 @@ function OpkomstEditForm({ event, onClose, onSave, users = [], currentUser = nul
           onClick={onClose}
           aria-label="Formulier sluiten"
         >
-          ×
+          X
         </button>
 
         <div className="modal-header">
           <h2 className="modal-title">
-            ✏️ Opkomst aanpassen
+             Opkomst aanpassen
           </h2>
         </div>
 
@@ -397,7 +398,7 @@ function OpkomstEditForm({ event, onClose, onSave, users = [], currentUser = nul
             {/* Title */}
             <div className="form-group">
               <label className="form-label" htmlFor="event-title">
-                📝 Titel *
+                 Titel *
               </label>
               <input
                 id="event-title"
@@ -419,7 +420,7 @@ function OpkomstEditForm({ event, onClose, onSave, users = [], currentUser = nul
             {/* Opkomstmakers */}
             <div className="form-group form-group-full">
               <label className="form-label">
-                👥 Opkomstmakers selecteren
+                 Opkomstmakers selecteren
               </label>
               <div className="opkomstmakers-checkboxes">
                 {users.map(user => (
@@ -449,14 +450,14 @@ function OpkomstEditForm({ event, onClose, onSave, users = [], currentUser = nul
                   className="checkbox-input"
                 />
                 <span className="checkbox-custom"></span>
-                🕐 Hele dag evenement
+                Tijd Hele dag evenement
               </label>
             </div>
 
             {/* Start date */}
             <div className="form-group">
               <label className="form-label" htmlFor="start-date">
-                📅 {formData.isAllDay ? 'Startdatum' : 'Datum'} *
+                Datum {formData.isAllDay ? 'Startdatum' : 'Datum'} *
               </label>
               <input
                 id="start-date"
@@ -478,7 +479,7 @@ function OpkomstEditForm({ event, onClose, onSave, users = [], currentUser = nul
             {!formData.isAllDay && (
               <div className="form-group">
                 <label className="form-label" htmlFor="start-time">
-                  🕐 Starttijd *
+                  Tijd Starttijd *
                 </label>
                 <TimeInput24
                   id="start-time"
@@ -500,7 +501,7 @@ function OpkomstEditForm({ event, onClose, onSave, users = [], currentUser = nul
             {formData.isAllDay && (
               <div className="form-group">
                 <label className="form-label" htmlFor="end-date">
-                  📅 Einddatum *
+                  Datum Einddatum *
                 </label>
                 <input
                   id="end-date"
@@ -523,7 +524,7 @@ function OpkomstEditForm({ event, onClose, onSave, users = [], currentUser = nul
             {!formData.isAllDay && (
               <div className="form-group">
                 <label className="form-label" htmlFor="end-time">
-                  🕑 Eindtijd *
+                  Tijd Eindtijd *
                 </label>
                 <TimeInput24
                   id="end-time"
@@ -544,7 +545,7 @@ function OpkomstEditForm({ event, onClose, onSave, users = [], currentUser = nul
             {/* Location */}
             <div className="form-group form-group-full">
               <label className="form-label" htmlFor="location">
-                📍 Locatie
+                Locatie Locatie
               </label>
               <input
                 id="location"
@@ -560,7 +561,7 @@ function OpkomstEditForm({ event, onClose, onSave, users = [], currentUser = nul
             {/* Description */}
             <div className="form-group form-group-full">
               <label className="form-label" htmlFor="description">
-                📄 Beschrijving
+                Document Beschrijving
               </label>
               <textarea
                 id="description"
@@ -898,7 +899,7 @@ export default function OpkomstenPage() {
     }
 
     if (!canChangeAttendance(event.start)) {
-      showToast('Je kunt alleen aanwezigheid wijzigen vóór de datum van de opkomst', 'warning')
+      showToast('Je kunt alleen aanwezigheid wijzigen voor de datum van de opkomst', 'warning')
       return
     }
 
@@ -1090,7 +1091,7 @@ export default function OpkomstenPage() {
         <div className="opkomsten-container">
           <div className="error-state">
             <div className="error-content">
-              <h2>⚠️ Er is iets misgegaan</h2>
+              <h2>Er is iets misgegaan</h2>
               <p>{error}</p>
               <button 
                 onClick={() => window.location.reload()} 
@@ -1115,7 +1116,7 @@ export default function OpkomstenPage() {
       {opkomstEvents.length === 0 ? (
         <div className="empty-state">
           <div className="empty-content">
-            <h2>📅 Geen opkomsten gepland</h2>
+            <h2>Geen opkomsten gepland</h2>
             <p>Er zijn momenteel geen opkomsten ingepland.</p>
             <p>Nieuwe opkomsten kunnen worden toegevoegd via de kalender.</p>
           </div>
@@ -1136,31 +1137,23 @@ export default function OpkomstenPage() {
             <tbody>
               {opkomstEvents.map((event) => (
                 <tr key={event.id} className="opkomst-row">
-                  <td className="date-cell">
+                  <td className="date-cell" data-label="Datum">
                     <div className="date-content">
                       {formatDate(event.start)}
                       {!event.allDay && event.start && (
                         <div className="time-info">
-                          {new Date(event.start).toLocaleTimeString('nl-NL', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            hour12: false
-                          })}
+                          {new Date(event.start).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit', hour12: false })}
                           {event.end && (
                             <span>
                               {' - '}
-                              {new Date(event.end).toLocaleTimeString('nl-NL', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                hour12: false
-                              })}
+                              {new Date(event.end).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit', hour12: false })}
                             </span>
                           )}
                         </div>
                       )}
                     </div>
                   </td>
-                  <td className="attendance-cell">
+                  <td className="attendance-cell" data-label="Aanwezig">
                     <label className="attendance-checkbox">
                       <input
                         type="checkbox"
@@ -1171,7 +1164,7 @@ export default function OpkomstenPage() {
                         onChange={(e) => handleAttendanceChange(event.id, e.target.checked)}
                         className="checkbox-input"
                         disabled={!canChangeAttendance(event.start)}
-                        title={!canChangeAttendance(event.start) ? 'Aanwezigheid kan alleen worden gewijzigd vóór de datum van de opkomst' : ''}
+                        title={!canChangeAttendance(event.start) ? 'Aanwezigheid kan alleen worden gewijzigd voor de datum van de opkomst' : ''}
                       />
                       <span className="checkbox-custom"></span>
                       <span className="sr-only">
@@ -1179,7 +1172,7 @@ export default function OpkomstenPage() {
                       </span>
                     </label>
                   </td>
-                  <td className="opkomstmakers-cell">
+                  <td className="opkomstmakers-cell" data-label="Opkomstmakers">
                     <div className="opkomstmakers-content">
                       {event.opkomstmakers ? (
                         event.opkomstmakers.split(',').map((maker, index) => (
@@ -1192,7 +1185,7 @@ export default function OpkomstenPage() {
                       )}
                     </div>
                   </td>
-                  <td className="participants-cell">
+                  <td className="participants-cell" data-label="Aanwezigen">
                     <div className="participants-content">
                       {currentUser && currentUser.isAdmin ? (
                         // Admin view: Show all users with clickable names
@@ -1245,14 +1238,14 @@ export default function OpkomstenPage() {
                       )}
                     </div>
                   </td>
-                  <td className="description-cell">
+                  <td className="description-cell" data-label="Beschrijving">
                     <div className="description-content">
                       {event.description || (
                         <span className="no-description">Geen beschrijving</span>
                       )}
                       {event.location && (
                         <div className="location-info">
-                          📍 {event.location}
+                          Locatie {event.location}
                         </div>
                       )}
                     </div>
@@ -1265,7 +1258,7 @@ export default function OpkomstenPage() {
                         title="Opkomst bewerken"
                         type="button"
                       >
-                        ✏️ Bewerken
+                         Bewerken
                       </button>
                     </td>
                   )}
@@ -1299,3 +1292,5 @@ export default function OpkomstenPage() {
     </div>
   )
 }
+
+

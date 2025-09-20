@@ -1,5 +1,27 @@
-/* Import Inter font from Google Fonts with font-display: swap for performance */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+/* Inter font (self-hosted) */
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/Inter-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/Inter-600.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/Inter-700.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
 
 /* Global CSS Variables for Design System */
 :root {
@@ -194,6 +216,12 @@ body {
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   overflow-x: auto;
+}
+
+body.body-lock-scroll {
+  overflow: hidden;
+  touch-action: none;
+  overscroll-behavior: contain;
 }
 
 /* Enhanced Typography Scale */

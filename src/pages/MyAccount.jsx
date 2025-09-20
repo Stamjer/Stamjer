@@ -4,7 +4,7 @@ import { withSupportContact } from '../config/appInfo'
 import { changePassword, updateUserProfile } from '../services/api'
 import './Auth.css'
 
-export default function MyAccount() {
+export default function MyAccount({ user: userProp, onLogout }) {
   const navigate = useNavigate()
   const [showPasswordForm, setShowPasswordForm] = useState(false)
   const [passwordData, setPasswordData] = useState({
@@ -24,11 +24,18 @@ export default function MyAccount() {
   const [isUpdatingActive, setIsUpdatingActive] = useState(false)
   const [userWithStreepjes, setUserWithStreepjes] = useState(null)
   
-  let user = null
-  try {
-    user = JSON.parse(localStorage.getItem('user'))
-  } catch {
-    localStorage.removeItem('user')
+  // Resolve user from props first, then storage
+  let user = userProp
+  if (!user) {
+    try {
+      const fromSession = sessionStorage.getItem('user')
+      const fromLocal = localStorage.getItem('user')
+      const raw = fromSession || fromLocal
+      if (raw) user = JSON.parse(raw)
+    } catch {
+      localStorage.removeItem('user')
+      sessionStorage.removeItem('user')
+    }
   }
   
   // Load user data with calculated streepjes
@@ -60,10 +67,12 @@ export default function MyAccount() {
     }
   }, [user])
   
-  if (!user) {
-    navigate('/login')
-    return null
-  }
+  React.useEffect(() => {
+    if (!user) {
+      navigate('/login')
+    }
+  }, [user, navigate])
+  if (!user) return null
 
   const { firstName, lastName, email, active = false, id } = user
   const streepjes = userWithStreepjes?.streepjes ?? 0
@@ -114,6 +123,15 @@ export default function MyAccount() {
       setIsLoading(false)
     }
   }
+
+  const handleAccountLogout = React.useCallback(() => {
+    if (typeof onLogout === 'function') {
+      onLogout()
+    } else {
+      localStorage.removeItem('user')
+      navigate('/login')
+    }
+  }, [navigate, onLogout])
 
   const togglePasswordVisibility = (field) => {
     setShowPasswords(prev => ({
@@ -193,7 +211,7 @@ export default function MyAccount() {
           {/* Error Messages */}
           {error && (
             <div className="auth-error">
-              ❌ {error}
+              {error}
             </div>
           )}
           
@@ -201,7 +219,7 @@ export default function MyAccount() {
             <>             
               <div className="form-group" style={{ marginBottom: '1.5rem' }}>
                 <label className="form-label">
-                  👤 Naam
+                  Naam
                 </label>
                 <div style={{ 
                   padding: '0.75rem', 
@@ -217,7 +235,7 @@ export default function MyAccount() {
 
               <div className="form-group" style={{ marginBottom: '1.5rem' }}>
                 <label className="form-label">
-                  🔑 Account type
+                  Account type
                 </label>
                 <div style={{ 
                   padding: '0.75rem', 
@@ -227,13 +245,13 @@ export default function MyAccount() {
                   color: 'var(--secondary-800)', 
                   fontWeight: '500' 
                 }}>
-                  {user.isAdmin ? '👑 Administrator' : '👤 Gebruiker'}
+                  {user.isAdmin ? 'Administrator' : 'Gebruiker'}
                 </div>
               </div>
               
               <div className="form-group" style={{ marginBottom: '1.5rem' }}>
                 <label className="form-label">
-                  📧 E-mailadres
+                  E-mailadres
                 </label>
                 <div style={{ 
                   padding: '0.75rem', 
@@ -249,7 +267,7 @@ export default function MyAccount() {
               
               <div className="form-group" style={{ marginBottom: '1.5rem' }}>
                 <label className="form-label">
-                  🎯 Streepjes
+                  Streepjes
                 </label>
                 <div style={{ 
                   padding: '0.75rem', 
@@ -263,9 +281,7 @@ export default function MyAccount() {
                 </div>
               </div>
 
-              <label className="form-label">
-                🏃‍♂️ Activiteit
-              </label>
+              <label className="form-label">Activiteit</label>
               <div className="form-group toggle-section">
 
                 <div className="toggle-container">
@@ -280,21 +296,14 @@ export default function MyAccount() {
                   <label htmlFor="active-toggle" className="toggle-switch">
                     <span className="switch-ball" />
                   </label>
-                  <span className="toggle-label">
-                    {activeStatus ? 'Actief' : 'Inactief'}
-                    {isUpdatingActive && <small> (wordt bijgewerkt…)</small>}
-                  </span>
+                  <span className="toggle-label">{activeStatus ? 'Actief' : 'Inactief'}{isUpdatingActive && <small> (wordt bijgewerkt...)</small>}</span>
                 </div>
 
-                <div className="toggle-desc">
-                  {activeStatus
-                    ? 'Je bent automatisch aangemeld voor nieuwe opkomsten'
-                    : 'Je bent automatisch afgemeld voor nieuwe opkomsten'}
-                </div>
+                <div className="toggle-desc">{activeStatus ? 'Je bent automatisch aangemeld voor nieuwe opkomsten' : 'Je bent automatisch afgemeld voor nieuwe opkomsten'}</div>
 
                 {message?.startsWith('Status succesvol bijgewerkt') && (
                   <div className="toggle-success">
-                    ✅ {message}
+                    {message}
                   </div>
                 )}
               </div>
@@ -305,7 +314,7 @@ export default function MyAccount() {
                   onClick={() => setShowPasswordForm(true)}
                   style={{ width: '100%'}}
                 >
-                  🔒 Wachtwoord wijzigen
+                  Wachtwoord wijzigen
                 </button>
               </div>
             </>
@@ -328,7 +337,7 @@ export default function MyAccount() {
                       value={passwordData.currentPassword}
                       onChange={e => setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }))}
                       className="form-input"
-                      placeholder="••••••••"
+                      placeholder="********"
                       required 
                       disabled={isLoading}
                       autoComplete="current-password"
@@ -340,7 +349,7 @@ export default function MyAccount() {
                       aria-label={showPasswords.current ? "Wachtwoord verbergen" : "Wachtwoord tonen"}
                       disabled={isLoading}
                     >
-                      {showPasswords.current ? '🔒' : '👁️'}
+                      {showPasswords.current ? 'Verberg' : 'Toon'}
                     </button>
                   </div>
                 </div>
@@ -357,7 +366,7 @@ export default function MyAccount() {
                       value={passwordData.newPassword}
                       onChange={e => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
                       className="form-input"
-                      placeholder="••••••••"
+                      placeholder="********"
                       required 
                       disabled={isLoading}
                       autoComplete="new-password"
@@ -369,7 +378,7 @@ export default function MyAccount() {
                       aria-label={showPasswords.new ? "Wachtwoord verbergen" : "Wachtwoord tonen"}
                       disabled={isLoading}
                     >
-                      {showPasswords.new ? '🔒' : '👁️'}
+                      {showPasswords.new ? 'Verberg' : 'Toon'}
                     </button>
                   </div>
                 </div>
@@ -386,7 +395,7 @@ export default function MyAccount() {
                       value={passwordData.confirmPassword}
                       onChange={e => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
                       className="form-input"
-                      placeholder="••••••••"
+                      placeholder="********"
                       required 
                       disabled={isLoading}
                       autoComplete="new-password"
@@ -398,7 +407,7 @@ export default function MyAccount() {
                       aria-label={showPasswords.confirm ? "Wachtwoord verbergen" : "Wachtwoord tonen"}
                       disabled={isLoading}
                     >
-                      {showPasswords.confirm ? '🔒' : '👁️'}
+                      {showPasswords.confirm ? 'Verberg' : 'Toon'}
                     </button>
                   </div>
                 </div>
@@ -437,12 +446,9 @@ export default function MyAccount() {
         
         <div className="auth-footer">
           <div className="auth-links">
-            <button 
-              className="btn-primary" 
-              onClick={() => { 
-                localStorage.removeItem('user'); 
-                navigate('/login') 
-              }}
+            <button
+              className="btn-primary"
+              onClick={handleAccountLogout}
               style={{ width: '100%' }}
               disabled={isLoading}
             >
@@ -454,3 +460,8 @@ export default function MyAccount() {
     </div>
   )
 }
+
+
+
+
+
