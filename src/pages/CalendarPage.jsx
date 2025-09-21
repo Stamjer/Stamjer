@@ -465,7 +465,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
       // If opkomst is toggled, update title accordingly
       if (field === 'isOpkomst') {
         if (value) {
-          newData.title = 'Stam opkomst'
+          newData.title = 'Opkomst'
           newData.startTime = '20:30'
           newData.endTime = '22:30'
           newData.location = 'Clubhuis Scouting Marco Polo Delft'
@@ -672,7 +672,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
                   className="checkbox-input"
                 />
            <span className="checkbox-custom"></span>
-           Stam opkomst
+           Opkomst
               </label>
             </div>
 
