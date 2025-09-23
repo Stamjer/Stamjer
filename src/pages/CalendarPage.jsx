@@ -27,6 +27,7 @@ import nlLocale from '@fullcalendar/core/locales/nl'
 
 // Mobile-first custom agenda
 import MobileAgenda from '../components/MobileAgenda'
+import { useIsMobile } from '../hooks/useDeviceDetection'
 
 // TanStack Query hooks
 import { 
@@ -866,7 +867,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
               </>
             ) : (
               <>
-                {isEdit ? 'Bewaar wijzigingen' : 'Evenement aanmaken'}
+                {isEdit ? 'Opslaan' : 'Evenement aanmaken'}
               </>
             )}
           </button>
@@ -945,11 +946,7 @@ export default function CalendarPage() {
   const [showNewForm, setShowNewForm] = useState(false)
   const [editingEvent, setEditingEvent] = useState(null)
   const [currentUser, setCurrentUser] = useState(null)
-  const [isMobile, setIsMobile] = useState(() =>
-    typeof window !== 'undefined' && window.matchMedia
-      ? window.matchMedia('(max-width: 600px)').matches
-      : false
-  )
+  const isMobile = useIsMobile()
   const [viewDate, setViewDate] = useState(new Date())
 
   // Ref for calendar wrapper to handle scroll detection
@@ -1036,21 +1033,6 @@ export default function CalendarPage() {
       }
     } catch (error) {
       console.error('Error loading user from localStorage:', error)
-    }
-  }, [])
-
-  // Track mobile viewport to adjust day header format
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return
-    const mq = window.matchMedia('(max-width: 600px)')
-    const handler = (e) => setIsMobile(e.matches)
-    // Some browsers use addEventListener, others use addListener
-    if (mq.addEventListener) mq.addEventListener('change', handler)
-    else mq.addListener(handler)
-    setIsMobile(mq.matches)
-    return () => {
-      if (mq.removeEventListener) mq.removeEventListener('change', handler)
-      else mq.removeListener(handler)
     }
   }, [])
 

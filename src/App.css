@@ -3,7 +3,7 @@
   min-height: 100vh;
   margin: 0;
   padding: 0;
-  overflow-x: auto;
+  overflow-x: hidden;
 }
 
 /* App Container */
@@ -12,7 +12,7 @@
   background: linear-gradient(135deg, var(--secondary-50) 0%, var(--primary-50) 100%);
   display: flex;
   flex-direction: column;
-  overflow-x: auto;
+  overflow-x: hidden;
 }
 
 /* Common Page Layout Classes */
@@ -23,7 +23,7 @@
 }
 
 .page-title {
-  font-size: 3rem;
+  font-size: 2.5rem;
   font-weight: var(--font-weight-bold);
   
   /* Desktop icon nav mirroring mobile bottom nav */
@@ -86,6 +86,12 @@
   background-clip: text;
   margin-bottom: var(--space-2);
   line-height: 1.2;
+}
+
+@media (min-width: 768px) {
+  .page-title {
+    font-size: 3rem;
+  }
 }
 
 .page-subtitle {
@@ -312,12 +318,19 @@
 }
 
 .nav-title {
-  font-size: 1.5rem;
-  font-weight: 700;
+  font-size: 1.6rem;
+  font-weight: var(--font-weight-extrabold);
   background: var(--gradient-primary);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.1);
+  letter-spacing: -0.5px;
+  transition: all var(--duration-normal) var(--ease-out);
+}
+
+.nav-brand:hover .nav-title {
+  text-shadow: 2px 2px 6px rgba(29, 78, 216, 0.2);
 }
 
 .nav-version {
@@ -605,6 +618,7 @@
 
   .bottom-nav-link.is-active {
     color: var(--primary-700);
+    text-decoration: none;
   }
 
   .bottom-nav-link.is-active .bottom-nav-icon {
@@ -615,6 +629,10 @@
 
   .bottom-nav-label {
     display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.7rem;
   }
 
   /* Disable hamburger and side menu on mobile; bottom nav is sufficient */
@@ -881,7 +899,7 @@
 }
 
 .card-success {
-  border-left: 4px solid var(--accent-green);
+  border-left: 4px solid var(--primary-600);
 }
 
 .card-warning {
@@ -1027,8 +1045,8 @@
 
 /* Status and State Classes */
 .status-success {
-  color: var(--accent-green);
-  background-color: rgba(5, 150, 105, 0.1);
+  color: var(--primary-700);
+  background-color: var(--primary-50);
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-md);
   font-weight: var(--font-weight-medium);
@@ -1135,7 +1153,7 @@
 }
 
 .toast-success {
-  border-left: 4px solid var(--accent-green);
+  border-left: 4px solid var(--primary-600);
 }
 
 .toast-error {

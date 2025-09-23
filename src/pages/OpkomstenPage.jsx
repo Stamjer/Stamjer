@@ -17,6 +17,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { updateAttendance, updateEvent } from '../services/api'
 import { withSupportContact } from '../config/appInfo'
+import { useToast } from '../hooks/useToast'
 // Component styling
 import './OpkomstenPage.css'
 
@@ -626,7 +627,7 @@ export default function OpkomstenPage() {
   const [attendance, setAttendance] = useState({}) // Track attendance for each event
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [toast, setToast] = useState(null)
+  const { addToast } = useToast();
   const [editingEvent, setEditingEvent] = useState(null) // For editing events
 
   console.log('OpkomstenPage component initialized')
@@ -636,18 +637,10 @@ export default function OpkomstenPage() {
     // ================================================================
 
     const showToast = useCallback((message, type = 'info') => {
-      const normalizedMessage = typeof message === 'string' ? message.trim() : ''
-      const finalMessage = type === 'error'
-        ? withSupportContact(normalizedMessage)
-        : (normalizedMessage || 'Er is een melding beschikbaar')
-      console.log('Showing toast:', finalMessage, type)
-      setToast({ message: finalMessage, type })
-    }, [])
+      const appearance = type === 'info' ? 'info' : type;
+      addToast(message, { appearance });
+    }, [addToast]);
 
-    const hideToast = useCallback(() => {
-      console.log('Hiding toast')
-      setToast(null)
-    }, [])
 
     // Handle edit event
     const handleEditEvent = useCallback((event) => {
@@ -1122,160 +1115,139 @@ export default function OpkomstenPage() {
           </div>
         </div>
       ) : (
-        <div className="opkomsten-table-wrapper">
-          <table className="opkomsten-table">
-            <thead>
-              <tr>
-                <th>Datum</th>
-                <th>Aanwezig</th>
-                <th>Opkomstmakers</th>
-                <th>Aanwezigen</th>
-                <th>Beschrijving</th>
-                {currentUser && currentUser.isAdmin && <th>Acties</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {opkomstEvents.map((event) => (
-                <tr key={event.id} className="opkomst-row">
-                  <td className="date-cell" data-label="Datum">
-                    <div className="date-content">
-                      {formatDate(event.start)}
-                      {!event.allDay && event.start && (
-                        <div className="time-info">
-                          {new Date(event.start).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit', hour12: false })}
-                          {event.end && (
-                            <span>
-                              {' - '}
-                              {new Date(event.end).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit', hour12: false })}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="attendance-cell" data-label="Aanwezig">
-                    <label className="attendance-checkbox">
-                      <input
-                        type="checkbox"
-                        checked={
-                          attendance[event.id] || 
-                          (currentUser && event.participants && event.participants.includes(currentUser.id))
-                        }
-                        onChange={(e) => handleAttendanceChange(event.id, e.target.checked)}
-                        className="checkbox-input"
-                        disabled={!canChangeAttendance(event.start)}
-                        title={!canChangeAttendance(event.start) ? 'Aanwezigheid kan alleen worden gewijzigd voor de datum van de opkomst' : ''}
-                      />
-                      <span className="checkbox-custom"></span>
-                      <span className="sr-only">
-                        {(attendance[event.id] || (currentUser && event.participants && event.participants.includes(currentUser.id))) ? 'Aanwezig' : 'Afwezig'}
-                      </span>
-                    </label>
-                  </td>
-                  <td className="opkomstmakers-cell" data-label="Opkomstmakers">
-                    <div className="opkomstmakers-content">
-                      {event.opkomstmakers ? (
-                        event.opkomstmakers.split(',').map((maker, index) => (
-                          <span key={index} className="opkomstmaker-name">
-                            {maker.trim()}
+        <div className="opkomsten-cards-grid">
+          {opkomstEvents.map((event) => (
+            <div key={event.id} className="opkomst-card">
+              {/* Card Header with Date and Actions */}
+              <div className="card-header">
+                <div className="date-section">
+                  <div className="date-content">
+                    {formatDate(event.start)}
+                    {!event.allDay && event.start && (
+                      <div className="time-info">
+                        {new Date(event.start).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                        {event.end && (
+                          <span>
+                            {' - '}
+                            {new Date(event.end).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit', hour12: false })}
                           </span>
-                        ))
-                      ) : (
-                        <span className="no-opkomstmakers">Geen opkomstmakers</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="participants-cell" data-label="Aanwezigen">
-                    <div className="participants-content">
-                      {currentUser && currentUser.isAdmin ? (
-                        // Admin view: Show all users with clickable names
-                        <div className="admin-participants-view">
-                          <div className="participants-count">
-                            {event.participants ? event.participants.length : 0} {(event.participants ? event.participants.length : 0) === 1 ? 'persoon' : 'personen'} aanwezig
-                          </div>
-                          <div className="admin-participants-list">
-                            {users.length > 0 ? (
-                              users
-                                .sort((a, b) => a.firstName.localeCompare(b.firstName, 'nl-NL'))
-                                .map(user => {
-                                  const isParticipating = event.participants && event.participants.includes(user.id)
-                                  // Admins can always change participation, regardless of date
-                                  return (
-                                    <button
-                                      key={user.id}
-                                      type="button"
-                                      className={`admin-participant-name ${isParticipating ? 'participating' : 'not-participating'}`}
-                                      onClick={() => handleAdminToggleParticipation(event.id, user.id)}
-                                      title={`Klik om ${isParticipating ? 'af te melden' : 'aan te melden'}: ${user.firstName}`}
-                                    >
-                                      {user.firstName}
-                                    </button>
-                                  )
-                                })
-                            ) : (
-                              <span className="loading-users">Gebruikers laden...</span>
-                            )}
-                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="card-actions">
+                  <label className="attendance-toggle">
+                    <input
+                      type="checkbox"
+                      checked={
+                        attendance[event.id] || 
+                        (currentUser && event.participants && event.participants.includes(currentUser.id))
+                      }
+                      onChange={(e) => handleAttendanceChange(event.id, e.target.checked)}
+                      className="checkbox-input"
+                      disabled={!canChangeAttendance(event.start)}
+                      title={!canChangeAttendance(event.start) ? 'Aanwezigheid kan alleen worden gewijzigd voor de datum van de opkomst' : ''}
+                    />
+                    <span className="checkbox-custom"></span>
+                    <span className="attendance-label">
+                      {(attendance[event.id] || (currentUser && event.participants && event.participants.includes(currentUser.id))) ? 'Aanwezig' : 'Afwezig'}
+                    </span>
+                  </label>
+                  
+                  {currentUser && currentUser.isAdmin && (
+                    <button
+                      onClick={() => handleEditEvent(event)}
+                      className="edit-btn"
+                      title="Opkomst bewerken"
+                      type="button"
+                    >
+                      ✏️ Bewerken
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Card Body with Main Content */}
+              <div className="card-body">
+                {/* Participants Section */}
+                <div className="content-section">
+                  <div className="section-title">
+                    Aanwezigen ({event.participants ? event.participants.length : 0})
+                  </div>
+                  <div className="participants-content">
+                    {currentUser && currentUser.isAdmin ? (
+                      // Admin view: Show all users with toggleable states
+                      <div className="admin-participants-grid">
+                        {users.length > 0 ? (
+                          users
+                            .sort((a, b) => a.firstName.localeCompare(b.firstName, 'nl-NL'))
+                            .map(user => {
+                              const isParticipating = event.participants && event.participants.includes(user.id)
+                              return (
+                                <button
+                                  key={user.id}
+                                  type="button"
+                                  className={`participant-toggle ${isParticipating ? 'participating' : 'not-participating'}`}
+                                  onClick={() => handleAdminToggleParticipation(event.id, user.id)}
+                                  title={`Klik om ${isParticipating ? 'af te melden' : 'aan te melden'}: ${user.firstName}`}
+                                >
+                                  {user.firstName}
+                                </button>
+                              )
+                            })
+                        ) : (
+                          <span className="loading-users">Gebruikers laden...</span>
+                        )}
+                      </div>
+                    ) : (
+                      // Regular user view: Show only participants
+                      event.participants && event.participants.length > 0 ? (
+                        <div className="participants-list">
+                          {getParticipantNames(event.participants).map((name, index) => (
+                            <span key={index} className="participant-badge">
+                              {name}
+                            </span>
+                          ))}
                         </div>
                       ) : (
-                        // Regular user view: Show only participants
-                        event.participants && event.participants.length > 0 ? (
-                          <div className="participants-list">
-                            <div className="participants-count">
-                              {event.participants.length} {event.participants.length === 1 ? 'persoon' : 'personen'}
-                            </div>
-                            <div className="participants-names">
-                              {getParticipantNames(event.participants).map((name, index) => (
-                                <span key={index} className="participant-name">
-                                  {name}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="no-participants">Geen aanwezigen</span>
-                        )
-                      )}
-                    </div>
-                  </td>
-                  <td className="description-cell" data-label="Beschrijving">
+                        <span className="no-content">Geen aanwezigen</span>
+                      )
+                    )}
+                  </div>
+                </div>
+
+                {/* Description Section */}
+                {(event.description || event.location || event.opkomstmakers) && (
+                  <div className="content-section">
+                    <div className="section-title">Details</div>
                     <div className="description-content">
-                      {event.description || (
-                        <span className="no-description">Geen beschrijving</span>
+                      {event.opkomstmakers && (
+                        <div style={{ marginBottom: 'var(--space-3)' }}>
+                          <div style={{ fontSize: '0.7rem', fontWeight: 'var(--font-weight-semibold)', color: 'var(--secondary-600)', marginBottom: 'var(--space-1)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            Opkomstmakers
+                          </div>
+                          <div className="opkomstmakers-content">
+                            {event.opkomstmakers.split(',').map((maker, index) => maker.trim()).join(' & ')}
+                          </div>
+                        </div>
+                      )}
+                      {event.description && (
+                        <p className="description-text">{event.description}</p>
                       )}
                       {event.location && (
-                        <div className="location-info">
-                          Locatie {event.location}
-                        </div>
+                        <p className="location-info">
+                          📍 {event.location}
+                        </p>
                       )}
                     </div>
-                  </td>
-                  {currentUser && currentUser.isAdmin && (
-                    <td className="actions-cell">
-                      <button
-                        onClick={() => handleEditEvent(event)}
-                        className="edit-btn"
-                        title="Opkomst bewerken"
-                        type="button"
-                      >
-                         Bewerken
-                      </button>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
-      )}
-
-      {/* Toast notifications */}
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={hideToast}
-        />
       )}
 
       {/* Edit event form - modal */}

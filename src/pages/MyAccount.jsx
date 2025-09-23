@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { withSupportContact } from '../config/appInfo'
 import { changePassword, updateUserProfile } from '../services/api'
+import './MyAccount.css'
 import './Auth.css'
 
 export default function MyAccount({ user: userProp, onLogout }) {
@@ -149,6 +150,15 @@ export default function MyAccount({ user: userProp, onLogout }) {
   }
 
   const handleActiveStatusChange = async (newActiveStatus) => {
+    const statusText = newActiveStatus ? 'actief' : 'inactief';
+    const confirmationMessage = `Weet je zeker dat je je status wilt wijzigen naar "${statusText}"?
+
+Als je ${statusText} bent, word je automatisch ${newActiveStatus ? 'aangemeld voor' : 'afgemeld van'} alle toekomstige opkomsten.`;
+
+    if (!window.confirm(confirmationMessage)) {
+      return; // User cancelled the action
+    }
+
     console.log('MyAccount - handleActiveStatusChange called with:', newActiveStatus)
     console.log('MyAccount - User ID:', id)
     console.log('MyAccount - User ID type:', typeof id)
@@ -183,7 +193,6 @@ export default function MyAccount({ user: userProp, onLogout }) {
       localStorage.setItem('user', JSON.stringify(updatedUser))
       
       // Show success message - includes notification about email being sent
-      const statusText = newActiveStatus ? 'actief' : 'inactief'
       setMessage(`Status succesvol bijgewerkt naar ${statusText}.`)
     } catch (err) {
       console.error('MyAccount - Error updating active status:', err)
@@ -196,94 +205,60 @@ export default function MyAccount({ user: userProp, onLogout }) {
   }
 
   return (
-    <div className="auth-container">
-      <div className="auth-card">
-        <div className="auth-header">
-          <img 
-            src="/stam_H.png" 
-            alt="Stamjer Logo" 
-            className="auth-logo"
-          />
-          <h2 className="auth-title">Mijn Account</h2>
+    <div className="account-page-wrapper">
+      <div className="account-page-container">
+        <div className="account-header">
+          <h1 className="account-title">Account</h1>
         </div>
-        
-        <div className="auth-body">
-          {/* Error Messages */}
-          {error && (
-            <div className="auth-error">
-              {error}
+
+        <div className="account-content-grid">
+          {/* Left Column: User Info */}
+          <div className="account-card">
+            <div className="account-card-header">
+              <h4>Persoonlijke Gegevens</h4>
             </div>
-          )}
-          
-          {!showPasswordForm ? (
-            <>             
-              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                <label className="form-label">
-                  Naam
-                </label>
-                <div style={{ 
-                  padding: '0.75rem', 
-                  background: 'var(--secondary-50)', 
-                  border: '1px solid var(--secondary-200)', 
-                  borderRadius: 'var(--radius-md)', 
-                  color: 'var(--secondary-800)', 
-                  fontWeight: '500' 
-                }}>
-                  {firstName} {lastName}
+            <div className="account-card-body">
+              <div className="info-grid">
+                <div className="info-item">
+                  <label>Naam</label>
+                  <span>{firstName} {lastName}</span>
+                </div>
+                <div className="info-item">
+                  <label>E-mailadres</label>
+                  <span>{email}</span>
+                </div>
+                <div className="info-item">
+                  <label>Account type</label>
+                  <span className={`pill ${user.isAdmin ? 'pill-admin' : 'pill-user'}`}>
+                    {user.isAdmin ? 'Administrator' : 'Gebruiker'}
+                  </span>
+                </div>
+                <div className="info-item">
+                  <label>Streepjes</label>
+                  {isStreepjesLoading ? (
+                    <span className="streepjes-loading">Laden...</span>
+                  ) : (
+                    <span className={`streepjes-count ${streepjes > 0 ? 'has-streepjes' : ''}`}>
+                      {streepjes}
+                    </span>
+                  )}
                 </div>
               </div>
+            </div>
+          </div>
 
-              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                <label className="form-label">
-                  Account type
-                </label>
-                <div style={{ 
-                  padding: '0.75rem', 
-                  background: 'var(--secondary-50)', 
-                  border: '1px solid var(--secondary-200)', 
-                  borderRadius: 'var(--radius-md)', 
-                  color: 'var(--secondary-800)', 
-                  fontWeight: '500' 
-                }}>
-                  {user.isAdmin ? 'Administrator' : 'Gebruiker'}
+          {/* Right Column: Settings & Actions */}
+          <div className="account-card">
+            <div className="account-card-header">
+              <h4>Instellingen</h4>
+            </div>
+            <div className="account-card-body">
+              {/* Active Status Toggle */}
+              <div className="setting-item">
+                <div className="setting-label">
+                  <h6>Activiteit</h6>
+                  <p>{activeStatus ? 'Je bent automatisch aangemeld voor nieuwe opkomsten.' : 'Je bent automatisch afgemeld voor nieuwe opkomsten.'}</p>
                 </div>
-              </div>
-              
-              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                <label className="form-label">
-                  E-mailadres
-                </label>
-                <div style={{ 
-                  padding: '0.75rem', 
-                  background: 'var(--secondary-50)', 
-                  border: '1px solid var(--secondary-200)', 
-                  borderRadius: 'var(--radius-md)', 
-                  color: 'var(--secondary-800)', 
-                  fontWeight: '500' 
-                }}>
-                  {email}
-                </div>
-              </div>
-              
-              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                <label className="form-label">
-                  Streepjes
-                </label>
-                <div style={{ 
-                  padding: '0.75rem', 
-                  background: 'var(--secondary-50)', 
-                  border: '1px solid var(--secondary-200)', 
-                  borderRadius: 'var(--radius-md)', 
-                  color: (isStreepjesLoading ? 'var(--secondary-600)' : (streepjes > 0 ? 'var(--accent-red-800)' : 'var(--secondary-800)')),
-                  fontWeight: '500' 
-                }}>
-                  {isStreepjesLoading ? 'Streepjes worden geteld...' : streepjes}
-                </div>
-              </div>
-
-              <label className="form-label">Activiteit</label>
-              <div className="form-group toggle-section">
-
                 <div className="toggle-container">
                   <input
                     id="active-toggle"
@@ -296,165 +271,79 @@ export default function MyAccount({ user: userProp, onLogout }) {
                   <label htmlFor="active-toggle" className="toggle-switch">
                     <span className="switch-ball" />
                   </label>
-                  <span className="toggle-label">{activeStatus ? 'Actief' : 'Inactief'}{isUpdatingActive && <small> (wordt bijgewerkt...)</small>}</span>
+                  <span className="toggle-label-text">
+                    {activeStatus ? 'Actief' : 'Inactief'}
+                    {isUpdatingActive && <small> (bezig...)</small>}
+                  </span>
                 </div>
+              </div>
 
-                <div className="toggle-desc">{activeStatus ? 'Je bent automatisch aangemeld voor nieuwe opkomsten' : 'Je bent automatisch afgemeld voor nieuwe opkomsten'}</div>
+              {message?.startsWith('Status succesvol bijgewerkt') && (
+                <div className="setting-success">
+                  {message}
+                </div>
+              )}
+              {error && <div className="setting-error">{error}</div>}
 
-                {message?.startsWith('Status succesvol bijgewerkt') && (
-                  <div className="toggle-success">
-                    {message}
+              <hr className="setting-divider" />
+
+              {/* Password Change Section */}
+              {!showPasswordForm ? (
+                <div className="setting-item-vertical">
+                  <div className="setting-label">
+                    <h6>Wachtwoord</h6>
                   </div>
-                )}
-              </div>
-              <p><br></br></p>
-              <div className="form-group">
-                <button 
-                  className="btn-secondary" 
-                  onClick={() => setShowPasswordForm(true)}
-                  style={{ width: '100%'}}
-                >
-                  Wachtwoord wijzigen
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="auth-info">
-                Voer je huidige wachtwoord en je nieuwe wachtwoord in
-              </div>
-              
-              <form className="auth-form" onSubmit={handlePasswordChange}>
-                {/* Current Password */}
-                <div className="form-group">
-                  <label className="form-label" htmlFor="current-password">
-                    Huidig wachtwoord *
-                  </label>
-                  <div className="password-field">
-                    <input 
-                      id="current-password"
-                      type={showPasswords.current ? "text" : "password"}
-                      value={passwordData.currentPassword}
-                      onChange={e => setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }))}
-                      className="form-input"
-                      placeholder="********"
-                      required 
-                      disabled={isLoading}
-                      autoComplete="current-password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => togglePasswordVisibility('current')}
-                      className="password-toggle"
-                      aria-label={showPasswords.current ? "Wachtwoord verbergen" : "Wachtwoord tonen"}
-                      disabled={isLoading}
-                    >
-                      {showPasswords.current ? 'Verberg' : 'Toon'}
-                    </button>
-                  </div>
-                </div>
-                
-                {/* New Password */}
-                <div className="form-group">
-                  <label className="form-label" htmlFor="new-password">
-                    Nieuw wachtwoord *
-                  </label>
-                  <div className="password-field">
-                    <input 
-                      id="new-password"
-                      type={showPasswords.new ? "text" : "password"}
-                      value={passwordData.newPassword}
-                      onChange={e => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
-                      className="form-input"
-                      placeholder="********"
-                      required 
-                      disabled={isLoading}
-                      autoComplete="new-password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => togglePasswordVisibility('new')}
-                      className="password-toggle"
-                      aria-label={showPasswords.new ? "Wachtwoord verbergen" : "Wachtwoord tonen"}
-                      disabled={isLoading}
-                    >
-                      {showPasswords.new ? 'Verberg' : 'Toon'}
-                    </button>
-                  </div>
-                </div>
-                
-                {/* Confirm Password */}
-                <div className="form-group">
-                  <label className="form-label" htmlFor="confirm-password">
-                    Bevestig nieuw wachtwoord *
-                  </label>
-                  <div className="password-field">
-                    <input 
-                      id="confirm-password"
-                      type={showPasswords.confirm ? "text" : "password"}
-                      value={passwordData.confirmPassword}
-                      onChange={e => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                      className="form-input"
-                      placeholder="********"
-                      required 
-                      disabled={isLoading}
-                      autoComplete="new-password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => togglePasswordVisibility('confirm')}
-                      className="password-toggle"
-                      aria-label={showPasswords.confirm ? "Wachtwoord verbergen" : "Wachtwoord tonen"}
-                      disabled={isLoading}
-                    >
-                      {showPasswords.confirm ? 'Verberg' : 'Toon'}
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="form-group" style={{ display: 'flex', gap: '0.75rem' }}>
                   <button 
-                    type="submit" 
-                    className="btn-primary" 
-                    disabled={isLoading}
-                    style={{ flex: 1 }}
+                    className="btn btn-secondary" 
+                    onClick={() => setShowPasswordForm(true)}
                   >
-                    {isLoading ? (
-                      <>
-                        <div className="loading-spinner"></div>
-                        Wijzigen...
-                      </>
-                    ) : (
-                      <>Wachtwoord wijzigen</>
-                    )}
-                  </button>
-                  
-                  <button 
-                    type="button" 
-                    className="btn-secondary" 
-                    onClick={cancelPasswordChange}
-                    disabled={isLoading}
-                    style={{ flex: 1 }}
-                  >
-                    Annuleren
+                    Wachtwoord wijzigen
                   </button>
                 </div>
-              </form>
-            </>
-          )}
-        </div>
-        
-        <div className="auth-footer">
-          <div className="auth-links">
-            <button
-              className="btn-primary"
-              onClick={handleAccountLogout}
-              style={{ width: '100%' }}
-              disabled={isLoading}
-            >
-              Uitloggen
-            </button>
+              ) : (
+                <form className="password-form" onSubmit={handlePasswordChange}>
+                  <h4>Nieuw wachtwoord instellen</h4>
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="current-password">Huidig wachtwoord</label>
+                    <div className="password-field">
+                      <input id="current-password" type={showPasswords.current ? "text" : "password"} value={passwordData.currentPassword} onChange={e => setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }))} className="form-input" required disabled={isLoading} />
+                      <button type="button" onClick={() => togglePasswordVisibility('current')} className="password-toggle">{showPasswords.current ? 'Verberg' : 'Toon'}</button>
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="new-password">Nieuw wachtwoord</label>
+                    <div className="password-field">
+                      <input id="new-password" type={showPasswords.new ? "text" : "password"} value={passwordData.newPassword} onChange={e => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))} className="form-input" required disabled={isLoading} />
+                      <button type="button" onClick={() => togglePasswordVisibility('new')} className="password-toggle">{showPasswords.new ? 'Verberg' : 'Toon'}</button>
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="confirm-password">Bevestig wachtwoord</label>
+                    <div className="password-field">
+                      <input id="confirm-password" type={showPasswords.confirm ? "text" : "password"} value={passwordData.confirmPassword} onChange={e => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))} className="form-input" required disabled={isLoading} />
+                      <button type="button" onClick={() => togglePasswordVisibility('confirm')} className="password-toggle">{showPasswords.confirm ? 'Verberg' : 'Toon'}</button>
+                    </div>
+                  </div>
+                  <div className="password-form-actions">
+                    <button type="button" className="btn btn-secondary" onClick={cancelPasswordChange} disabled={isLoading}>Annuleren</button>
+                    <button type="submit" className="btn btn-primary" disabled={isLoading}>
+                      {isLoading ? 'Bezig...' : 'Opslaan'}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
           </div>
+        </div>
+
+        <div className="account-footer">
+          <button
+            className="btn btn-danger"
+            onClick={handleAccountLogout}
+            disabled={isLoading}
+          >
+            Uitloggen
+          </button>
         </div>
       </div>
     </div>

@@ -25,7 +25,7 @@
 }
 
 .page-title-common {
-  font-size: 3rem;
+  font-size: 2.5rem;
   font-weight: var(--font-weight-bold);
   background: var(--gradient-primary);
   -webkit-background-clip: text;
@@ -33,6 +33,12 @@
   background-clip: text;
   margin-bottom: var(--space-2);
   line-height: 1.2;
+}
+
+@media (min-width: 768px) {
+  .page-title-common {
+    font-size: 3rem;
+  }
 }
 
 .page-subtitle-common {
@@ -243,9 +249,9 @@
 }
 
 .message-success {
-  color: var(--accent-green);
-  border: 1px solid var(--accent-green);
-  border-left: 4px solid var(--accent-green);
+  color: var(--primary-700);
+  border: 1px solid var(--primary-500);
+  border-left: 4px solid var(--primary-600);
 }
 
 .message-warning {
@@ -289,6 +295,6 @@
 
 .text-muted { color: var(--secondary-600); }
 .text-primary { color: var(--primary-600); }
-.text-success { color: var(--accent-green); }
+.text-success { color: var(--primary-600); }
 .text-warning { color: var(--accent-orange); }
 .text-error { color: var(--accent-red); }

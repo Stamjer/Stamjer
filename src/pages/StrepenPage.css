@@ -19,19 +19,25 @@
 
 .strepen-header {
   text-align: center;
-  margin-bottom: var(--space-12);
+  margin-bottom: var(--space-2);
   animation: fadeInUp var(--duration-slow) var(--ease-out);
 }
 
 .strepen-header h1 {
-  font-size: 3rem;
+  font-size: 2.5rem;
   font-weight: var(--font-weight-bold);
   background: var(--gradient-primary);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  margin-bottom: var(--space-2);
+  margin-bottom: var(--space-1);
   line-height: 1.2;
+}
+
+@media (min-width: 768px) {
+  .strepen-header h1 {
+    font-size: 3rem;
+  }
 }
 
 .strepen-header p {
@@ -164,10 +170,33 @@
   border-radius: var(--radius-2xl);
   box-shadow: var(--shadow-lg);
   border: 1px solid var(--secondary-200);
-  /* width: 100%; */
+  width: 100%;
   margin-bottom: var(--space-8);
   animation: slideInUp var(--duration-slow) var(--ease-out) 0.3s both;
   transition: all var(--duration-normal) var(--ease-out);
+  overflow-x: auto;
+  
+  /* Smooth scrolling for better UX */
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--secondary-300) transparent;
+}
+
+.attendance-table::-webkit-scrollbar {
+  height: 8px;
+}
+
+.attendance-table::-webkit-scrollbar-track {
+  background: var(--secondary-100);
+}
+
+.attendance-table::-webkit-scrollbar-thumb {
+  background: var(--secondary-300);
+  border-radius: var(--radius-sm);
+}
+
+.attendance-table::-webkit-scrollbar-thumb:hover {
+  background: var(--secondary-400);
 }
 
 .attendance-table:hover {
@@ -177,7 +206,7 @@
 
 .table-header {
   display: grid;
-  grid-template-columns: repeat(4, minmax(auto, 1fr));
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
   gap: 1px;
   background: var(--gradient-primary) !important;
   color: white;
@@ -202,7 +231,7 @@
 
 .table-row {
   display: grid;
-  grid-template-columns: repeat(4, minmax(auto, 1fr));
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
   gap: 1px;
   background: var(--secondary-100);
   transition: all var(--duration-fast) var(--ease-out);
@@ -214,11 +243,11 @@
 }
 
 .table-row.participant {
-  background: var(--accent-green-light);
+  background: var(--primary-50);
 }
 
 .table-row.participant:hover {
-  background: var(--accent-green);
+  background: var(--primary-100);
 }
 
 .table-row.non-participant {
@@ -326,12 +355,14 @@
   border: none !important;
   border-radius: var(--radius-lg) !important;
   font-weight: var(--font-weight-semibold) !important;
-  padding: var(--space-4) var(--space-12) !important;
+  padding: var(--space-2) var(--space-24) !important;
   transition: all var(--duration-normal) var(--ease-out) !important;
   box-shadow: var(--shadow-sm) !important;
   font-size: 1.35rem !important;
   position: relative !important;
   overflow: hidden !important;
+  /* Add space below the button */
+  margin-bottom: var(--space-8);
 }
 
 
@@ -435,7 +466,7 @@
 }
 
 .toast-success {
-  border-left-color: #10b981;
+  border-left-color: var(--primary-600);
 }
 
 .toast-error {
@@ -538,7 +569,7 @@
 
 /* Checked state - present */
 .toggle-input:checked + .toggle-switch {
-  background: #10b981; /* On state - present */
+  background: var(--primary-600); /* On state - present */
 }
 
 .toggle-input:checked + .toggle-switch .switch-ball {
@@ -581,7 +612,7 @@
 
 @media (max-width: 600px) {
   .strepen-page {
-    padding: 20px 32px 24px 10px; /* add a little extra right padding for breathing room */
+    padding: 0px 32px 24px 10px; /* add a little extra right padding for breathing room */
   }
 
   .strepen-header h1 {
@@ -592,7 +623,7 @@
     position: sticky;
     top: 64px; /* align under app nav */
     z-index: 5;
-    background: linear-gradient(135deg, var(--secondary-50) 0%, var(--primary-50) 100%);
+    background: transparent;
     padding-bottom: 8px;
   }
 
@@ -670,7 +701,7 @@
   }
 
   .user-card.participant {
-    border-left: 4px solid #10b981;
+    border-left: 4px solid var(--primary-600);
   }
   .user-card.non-participant {
     border-left: 4px solid #f59e0b;

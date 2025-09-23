@@ -2,21 +2,26 @@
 
 /* Main page wrapper for horizontal scrolling */
 .calendar-page-wrapper {
-  width: 100vw;
-  overflow-x: auto;
+  width: 100%;
+  overflow-x: hidden;
   overflow-y: visible;
 }
 
 /* Calendar Container */
 .calendar-container {
-  width: auto;
-  min-width: min-content;
+  width: 100%;
   max-width: 1400px;
   margin: 0 auto;
-  padding: var(--space-8);
+  padding: var(--space-4) var(--space-2);
   background: linear-gradient(135deg, var(--secondary-50) 0%, var(--primary-50) 100%);
   min-height: 100vh;
-  overflow-x: auto;
+  margin-bottom: var(--space-8);
+}
+
+@media (min-width: 768px) {
+  .calendar-container {
+    padding: var(--space-8);
+  }
 }
 
 .calendar-header {
@@ -26,7 +31,7 @@
 }
 
 .calendar-title {
-  font-size: 3rem;
+  font-size: 2.5rem;
   font-weight: var(--font-weight-bold);
   background: var(--gradient-primary);
   -webkit-background-clip: text;
@@ -34,6 +39,12 @@
   background-clip: text;
   margin-bottom: var(--space-2);
   line-height: 1.2;
+}
+
+@media (min-width: 768px) {
+  .calendar-title {
+    font-size: 3rem;
+  }
 }
 
 .calendar-subtitle {
@@ -46,14 +57,11 @@
 .calendar-wrapper {
   background: white;
   border-radius: var(--radius-2xl);
-  box-shadow: var(--shadow-2xl);
   border: 1px solid var(--secondary-200);
   overflow: hidden;
   animation: slideInUp var(--duration-slow) var(--ease-out) 0.2s both;
   transition: all var(--duration-normal) var(--ease-out);
-  width: auto;               
-  max-width: 100%;           
-  min-width: min-content;
+  width: 100%;
 }
 
 /* Mobile helpers: sticky month title and quick navigation */
@@ -83,7 +91,6 @@
 }
 
 .calendar-wrapper:hover {
-  box-shadow: var(--shadow-2xl);
   transform: translateY(-2px);
 }
 
@@ -179,7 +186,7 @@
 }
 
 .toast-success {
-  border-left: 4px solid var(--accent-green);
+  border-left: 4px solid var(--primary-600);
 }
 
 .toast-error {
@@ -550,6 +557,8 @@
   gap: var(--space-3);
   justify-content: flex-end;
   padding-right: calc(var(--space-6) + 4px);
+  /* Put the buttons in the middle of the footer */
+  justify-content: center;
 }
 
 /* Event Details */
@@ -1352,7 +1361,7 @@ input[type="time"]::placeholder {
 
   /* Color accent for opkomsten in list view */
   .calendar-wrapper .event-opkomst td {
-    border-left-color: #059669 !important; /* match green */
+    border-left-color: var(--primary-600) !important; /* match primary blue */
   }
 
   .fc-button { padding: 0.4rem 0.6rem !important; font-size: 0.85rem !important; }
@@ -1370,7 +1379,7 @@ input[type="time"]::placeholder {
   }
 
   .calendar-header {
-    margin-bottom: var(--space-6);
+    margin-bottom: var(--space-2);
   }
 
   .calendar-title {
@@ -1401,12 +1410,12 @@ input[type="time"]::placeholder {
   }
 }
 
-/* Opkomst events: make them green for quick recognition */
+/* Opkomst events: make them blue for quick recognition */
 .calendar-wrapper .event-opkomst,
 .calendar-wrapper .event-opkomst .fc-event-main,
 .calendar-wrapper .event-opkomst.fc-daygrid-event,
 .calendar-wrapper .event-opkomst.fc-event {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important; /* green */
+  background: linear-gradient(135deg, var(--primary-500) 0%, var(--primary-600) 100%) !important; /* blue */
   color: #ffffff !important;
 }
 

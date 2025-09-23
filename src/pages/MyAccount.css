@@ -1,0 +1,258 @@
+/* MyAccount Page - Professional Redesign */
+
+.account-page-wrapper {
+  min-height: 100vh;
+  background: linear-gradient(135deg, var(--secondary-50) 0%, var(--primary-50) 100%);
+  padding: var(--space-2) var(--space-4);
+}
+
+.account-page-container {
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
+  margin-bottom: var(--space-8);
+}
+
+.account-header {
+  text-align: center;
+  margin-bottom: var(--space-4);
+  animation: fadeInUp var(--duration-slow) var(--ease-out);
+}
+
+.account-title {
+  font-size: 2.5rem;
+  font-weight: var(--font-weight-bold);
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: var(--space-1);
+}
+
+.account-subtitle {
+  font-size: 1.25rem;
+  color: var(--secondary-600);
+  font-weight: var(--font-weight-medium);
+}
+
+.account-content-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-8);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .account-content-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.account-card {
+  background: white;
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--secondary-200);
+  overflow: hidden;
+  animation: slideInUp var(--duration-slow) var(--ease-out);
+}
+
+.account-card-header {
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid var(--secondary-200);
+  background: var(--secondary-50);
+}
+
+.account-card-header h3 {
+  font-size: 1.25rem;
+  font-weight: var(--font-weight-semibold);
+  color: var(--secondary-800);
+  margin: 0;
+}
+
+.account-card-body {
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+/* User Info Card */
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-5);
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.info-item label {
+  font-size: 0.875rem;
+  font-weight: var(--font-weight-medium);
+  color: var(--secondary-500);
+}
+
+.info-item span {
+  font-size: 1rem;
+  font-weight: var(--font-weight-semibold);
+  color: var(--secondary-800);
+}
+
+.pill {
+  display: inline-block;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
+  font-size: 0.875rem;
+  font-weight: var(--font-weight-medium);
+  width: fit-content;
+}
+
+.pill-admin {
+  background-color: var(--accent-purple-light);
+  color: white;
+}
+
+.pill-user {
+  background-color: var(--secondary-200);
+  color: var(--secondary-700);
+}
+
+.streepjes-count {
+  font-size: 1.125rem;
+  font-weight: var(--font-weight-bold);
+}
+
+.streepjes-count.has-streepjes {
+  color: var(--accent-red);
+}
+
+.streepjes-loading {
+  color: var(--secondary-500);
+  font-style: italic;
+}
+
+/* Settings Card */
+.setting-item-vertical {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.setting-item-vertical .btn {
+  margin-top: var(--space-0);
+}
+
+.setting-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.setting-label h6 {
+  font-size: 1rem;
+  font-weight: var(--font-weight-semibold);
+  color: var(--secondary-800);
+  margin: 0 0 var(--space-1) 0;
+}
+
+.setting-label p {
+  font-size: 0.875rem;
+  color: var(--secondary-600);
+  margin: 0;
+  max-width: 300px;
+}
+
+.setting-divider {
+  border: none;
+  height: 1px;
+  background-color: var(--secondary-200);
+  margin: 0;
+}
+
+.setting-success, .setting-error {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: var(--font-weight-medium);
+  margin-top: var(--space-2);
+}
+
+.setting-success {
+  background-color: var(--primary-50);
+  color: var(--primary-800);
+}
+
+.setting-error {
+  background-color: #fee2e2;
+  color: #b91c1c;
+}
+
+/* Password Form */
+.password-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.password-form h4 {
+  font-size: 1.125rem;
+  margin-bottom: var(--space-2);
+}
+
+.password-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+/* Footer Actions */
+.account-footer {
+  margin-top: var(--space-8);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--secondary-200);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-primary {
+  background: var(--gradient-primary);
+  color: white;
+}
+
+.btn-secondary {
+  background: var(--secondary-100);
+  color: var(--secondary-700);
+  border: 1px solid var(--secondary-300);
+}
+
+.btn-danger {
+  background: var(--accent-red);
+  color: white;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+

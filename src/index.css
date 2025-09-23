@@ -49,9 +49,9 @@
   --secondary-800: #1e293b;
   --secondary-900: #0f172a;
   
-  /* Accent Colors - Improved for better contrast */
-  --accent-green: #059669;
-  --accent-green-light: #10b981;
+  /* Accent Colors - Updated to use primary blue theme */
+  --accent-green: var(--primary-600);
+  --accent-green-light: var(--primary-500);
   --accent-red: #dc2626;
   --accent-red-light: #ef4444;
   --accent-orange: #d97706;
@@ -65,7 +65,7 @@
   --gradient-primary: linear-gradient(135deg, var(--primary-600) 0%, var(--primary-800) 100%);
   --gradient-secondary: linear-gradient(135deg, var(--secondary-100) 0%, var(--secondary-200) 100%);
   --gradient-accent: linear-gradient(135deg, var(--accent-purple) 0%, var(--primary-600) 100%);
-  --gradient-success: linear-gradient(135deg, var(--accent-green) 0%, var(--accent-green-light) 100%);
+  --gradient-success: linear-gradient(135deg, var(--primary-600) 0%, var(--primary-500) 100%);
   --gradient-danger: linear-gradient(135deg, var(--accent-red) 0%, var(--accent-red-light) 100%);
   --gradient-warm: linear-gradient(135deg, var(--accent-orange) 0%, var(--accent-yellow) 100%);
   
@@ -230,7 +230,7 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: var(--font-weight-semibold);
   line-height: 1.2;
   color: var(--secondary-900);
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-2);
   letter-spacing: -0.025em;
 }
 

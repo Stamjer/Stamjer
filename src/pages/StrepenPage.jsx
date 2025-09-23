@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { withSupportContact } from '../config/appInfo'
+import { useIsMobile } from '../hooks/useDeviceDetection'
 import './StrepenPage.css'
 
 function capitalizeWeekday(dateStr) {
@@ -57,11 +58,7 @@ export default function StrepenPage() {
   const [error, setError] = useState(null)
   const [isSaving, setIsSaving] = useState(false)
   const [toast, setToast] = useState(null)
-  const [isMobile, setIsMobile] = useState(() =>
-    typeof window !== 'undefined' && window.matchMedia
-      ? window.matchMedia('(max-width: 600px)').matches
-      : false
-  )
+  const isMobile = useIsMobile()
   const [query, setQuery] = useState('')
   const [showOnlyParticipants, setShowOnlyParticipants] = useState(false)
   const [showOnlyChanged, setShowOnlyChanged] = useState(false)
@@ -95,19 +92,6 @@ export default function StrepenPage() {
   }, [navigate])
 
   // Track mobile viewport
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return
-    const mq = window.matchMedia('(max-width: 600px)')
-    const handler = (e) => setIsMobile(e.matches)
-    if (mq.addEventListener) mq.addEventListener('change', handler)
-    else mq.addListener(handler)
-    setIsMobile(mq.matches)
-    return () => {
-      if (mq.removeEventListener) mq.removeEventListener('change', handler)
-      else mq.removeListener(handler)
-    }
-  }, [])
-
   // Load events and users
   useEffect(() => {
     const loadData = async () => {
@@ -278,10 +262,10 @@ export default function StrepenPage() {
         {/* Mobile header with selector + filters */}
         {isMobile ? (
           <div className="strepen-mobile-header">
-            <div className="mobile-event-title">
+            {/* <div className="mobile-event-title">
               <div className="mobile-event-main">{selectedEvent.title}</div>
               <div className="mobile-event-sub">{capitalizeWeekday(selectedEvent.start)}</div>
-            </div>
+            </div> */}
             <div className="mobile-controls">
               <label htmlFor="event-select" className="sr-only">Selecteer opkomst</label>
               <select
@@ -372,7 +356,7 @@ export default function StrepenPage() {
                       {isChanged && <span className="changed-dot" aria-hidden="true"></span>}
                     </div>
                     <div className="user-meta">
-                      <span className={`pill ${isPart ? 'pill-yes' : 'pill-no'}`}>{isPart ? 'Aangemeld' : 'Niet aangemeld'}</span>
+                      <span className={`pill ${isPart ? 'pill-yes' : 'pill-no'}`}>{isPart ? 'Aangemeld' : 'Afgemeld'}</span>
                       <span className="pill pill-streepjes">{u.streepjes || 0} streepjes</span>
                     </div>
                   </div>

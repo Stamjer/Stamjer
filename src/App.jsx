@@ -52,7 +52,7 @@ const ROUTE_LABELS = {
   '/kalender': 'Kalender',
   '/opkomsten': 'Opkomsten',
   '/strepen': 'Strepen',
-  '/account': 'Mijn account',
+  '/account': 'Account',
 }
 
 const NAV_ICON_MAP = {
