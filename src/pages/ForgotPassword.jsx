@@ -129,7 +129,7 @@ export default function ForgotPassword() {
               {/* Email Field */}
               <div className="form-group">
                 <label className="form-label" htmlFor="email">
-                  📧 E-mailadres
+                  E-mailadres
                 </label>
                 <input
                   id="email"
@@ -196,7 +196,7 @@ export default function ForgotPassword() {
                           showNewPassword ? 'Wachtwoord verbergen' : 'Wachtwoord tonen'
                         }
                       >
-                        {showNewPassword ? '🔒' : '👁️'}
+                        {showNewPassword ? 'Verberg' : 'Toon'}
                       </button>
                     </div>
                   </div>
@@ -225,12 +225,12 @@ export default function ForgotPassword() {
           {/* Success/Error messages */}
           {success && (
             <div className="success-message">
-              ✅ {success}
+              {success}
             </div>
           )}
           {error && (
             <div className="error-message">
-              ⚠️ {error}
+              {error}
             </div>
           )}
 
@@ -242,7 +242,7 @@ export default function ForgotPassword() {
               onClick={() => navigate('/login')}
               disabled={isLoading}
             >
-              ← Terug naar inloggen
+              Terug naar inloggen
             </button>
           </div>
         </div>

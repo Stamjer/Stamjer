@@ -178,7 +178,7 @@ export default function Login({ setUser }) {
             {/* Email Field */}
             <div className="form-group">
               <label className="form-label" htmlFor="email">
-                📧 E-mailadres
+                E-mailadres
               </label>
               <div className="input-wrapper">
                 <input 
@@ -196,7 +196,7 @@ export default function Login({ setUser }) {
                 />
                 {fieldErrors.email && (
                   <div id="email-error" className="field-error" role="alert">
-                    ⚠️ {fieldErrors.email}
+                    {fieldErrors.email}
                   </div>
                 )}
               </div>
@@ -205,7 +205,7 @@ export default function Login({ setUser }) {
             {/* Password Field */}
             <div className="form-group">
               <label className="form-label" htmlFor="password">
-                🔒 Wachtwoord
+                Wachtwoord
               </label>
               <div className="input-wrapper">
                 <div className="password-field">
@@ -229,12 +229,12 @@ export default function Login({ setUser }) {
                     aria-label={showPassword ? "Wachtwoord verbergen" : "Wachtwoord tonen"}
                     disabled={isLoading}
                   >
-                    {showPassword ? '🔒' : '👁️'}
+                    {showPassword ? 'Verberg' : 'Toon'}
                   </button>
                 </div>
                 {fieldErrors.password && (
                   <div id="password-error" className="field-error" role="alert">
-                    ⚠️ {fieldErrors.password}
+                    {fieldErrors.password}
                   </div>
                 )}
               </div>
@@ -268,16 +268,14 @@ export default function Login({ setUser }) {
                   Inloggen…
                 </>
               ) : (
-                <>
-                  🚀 Inloggen
-                </>
+                'Inloggen'
               )}
             </button>
             
             {/* Error Message */}
             {error && (
               <div id="login-error" className="error-message" role="alert">
-                ⚠️ {error}
+                {error}
               </div>
             )}
           </form>
@@ -291,7 +289,7 @@ export default function Login({ setUser }) {
               disabled={isLoading}
               aria-label="Wachtwoord vergeten? Klik hier om je wachtwoord te resetten"
             >
-              🔐 Wachtwoord vergeten?
+              Wachtwoord vergeten?
             </button>
           </div>
         </div>

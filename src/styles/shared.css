@@ -311,7 +311,6 @@
   border-radius: var(--radius-md);
   transition: all var(--duration-fast) var(--ease-out);
   color: var(--secondary-500);
-  font-size: 1.125rem;
 }
 
 .password-toggle:hover:not(:disabled) {
@@ -491,12 +490,12 @@
 }
 
 .modal-footer {
-  padding: var(--space-4) var(--space-6) var(--space-6);
+  padding: var(--space-4) var(--space-6);
   border-top: 1px solid var(--secondary-200);
   background: var(--secondary-50);
   display: flex;
   gap: var(--space-3);
-  justify-content: center;
+  justify-content: center !important
 }
 
 .close-btn {

@@ -205,11 +205,12 @@
 .btn-primary,
 .btn-secondary {
   width: 100%;
+  /* Make the edges round */
+  border-radius: var(--radius-lg);
 }
 
 /* Loading Spinner - Already in shared.css as .spinner */
 /* Keeping local reference for now */
-.loading-spinner {
 .loading-spinner {
   width: 1.25rem;
   height: 1.25rem;

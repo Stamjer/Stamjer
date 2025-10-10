@@ -489,9 +489,27 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
         }
       }
       
-      // If start date changes for timed events, update end date to match
-      if (field === 'startDate' && !newData.isAllDay) {
-        newData.endDate = value
+      // If start date changes, handle automatic adjustments
+      if (field === 'startDate') {
+        if (newData.isAllDay) {
+          // For all-day events: when start date changes, set end date to same date
+          newData.endDate = value
+        } else {
+          // For timed events: update end date to match
+          newData.endDate = value
+        }
+      }
+      
+      // If start time changes for timed events, set end time to 2 hours later
+      if (field === 'startTime' && !newData.isAllDay) {
+        const startTime = value
+        if (startTime) {
+          // Parse the time and add 2 hours
+          const [hours, minutes] = startTime.split(':').map(Number)
+          const endHours = (hours + 2) % 24
+          const endTime = `${endHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
+          newData.endTime = endTime
+        }
       }
       
       return newData
