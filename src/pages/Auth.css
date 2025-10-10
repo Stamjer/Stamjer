@@ -44,16 +44,9 @@
   animation: slideInUp var(--duration-slow) var(--ease-out);
 }
 
-@keyframes slideInUp {
-  from {
-    opacity: 0;
-    transform: translateY(40px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
+/* Animations - Now using shared.css
+ * All standard animations are defined in src/styles/shared.css
+ */
 
 /* Auth Header */
 .auth-header {
@@ -127,91 +120,13 @@
   min-height: 3.5rem; /* guarantee room for the input */
 }
 
-/* Enhanced Input Styling */
-.form-input,
-.form-input.error {
-  width: 100%;
-  height: 3.5rem;                /* always 3.5rem tall */
-  padding: var(--space-4);       /* your existing padding */
-  box-sizing: border-box;        /* include border in that height */
-  border: 2px solid var(--secondary-200);
-  border-radius: var(--radius-lg);
-  font-size: 1rem;
-  font-weight: var(--font-weight-medium);
-  background: white;
-  color: var(--secondary-800);
-  transition: all var(--duration-normal) var(--ease-out);
-  text-align: left;
-}
+/* Form Inputs & Password Field - Now using shared.css
+ * All form input styles (.form-input, .password-field, .password-toggle, .field-error)
+ * are defined in src/styles/shared.css
+ * Only Auth-specific form customizations below if needed:
+ */
 
-.form-input:focus {
-  outline: none;
-  border-color: var(--primary-500);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-  transform: translateY(-1px);
-}
-
-.form-input:hover:not(:focus) {
-  border-color: var(--secondary-300);
-}
-
-.form-input.error {
-  border-color: var(--accent-red);
-  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
-}
-
-.form-input:disabled {
-  background: var(--secondary-50);
-  color: var(--secondary-500);
-  cursor: not-allowed;
-  opacity: 0.7;
-}
-
-/* Password Field with Toggle */
-.password-field {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.password-field .form-input {
-  padding-right: var(--space-12);
-}
-
-.password-toggle {
-  position: absolute;
-  right: var(--space-4);
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: var(--space-2);
-  border-radius: var(--radius-md);
-  transition: all var(--duration-fast) var(--ease-out);
-  color: var(--secondary-500);
-  font-size: 1.125rem;
-}
-
-.password-toggle:hover:not(:disabled) {
-  background: var(--secondary-100);
-  color: var(--secondary-700);
-  transform: scale(1.1);
-}
-
-.password-toggle:focus-visible {
-  outline: 2px solid var(--primary-500);
-  outline-offset: 2px;
-}
-
-.password-toggle:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-
-
-
-
-/* Field Error Messages */
+/* Field Error Messages - Already in shared.css, keeping for animation reference */
 .field-error {
   color: var(--accent-red);
   font-size: 0.875rem;
@@ -221,12 +136,6 @@
   align-items: center;
   gap: var(--space-1);
   animation: shake var(--duration-normal) var(--ease-out);
-}
-
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-4px); }
-  75% { transform: translateX(4px); }
 }
 
 /* Checkbox Styling */
@@ -288,65 +197,19 @@
   cursor: not-allowed;
 }
 
-/* Enhanced Button Styling */
-.btn-primary {
+/* Button Styles - Now using shared.css
+ * All button styles (.btn, .btn-primary, .btn-secondary, etc.)
+ * are defined in src/styles/shared.css
+ * Auth-specific override: make buttons full-width
+ */
+.btn-primary,
+.btn-secondary {
   width: 100%;
-  padding: var(--space-4) var(--space-6);
-  background: var(--gradient-primary);
-  color: white;
-  border: none;
-  border-radius: var(--radius-lg);
-  font-size: 1rem;
-  font-weight: var(--font-weight-semibold);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  cursor: pointer;
-  transition: all var(--duration-normal) var(--ease-out);
-  box-shadow: var(--shadow-md);
-  position: relative;
-  overflow: hidden;
 }
 
-.btn-primary::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-  transition: left 0.5s;
-}
-
-.btn-primary:hover:not(:disabled)::before {
-  left: 100%;
-}
-
-.btn-primary:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
-}
-
-.btn-primary:active:not(:disabled) {
-  transform: translateY(0);
-}
-
-.btn-primary:disabled,
-.btn-primary.disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none !important;
-  box-shadow: var(--shadow-sm);
-}
-
-.btn-primary:focus-visible {
-  outline: 3px solid rgba(59, 130, 246, 0.5);
-  outline-offset: 2px;
-}
-
-/* Loading Spinner */
+/* Loading Spinner - Already in shared.css as .spinner */
+/* Keeping local reference for now */
+.loading-spinner {
 .loading-spinner {
   width: 1.25rem;
   height: 1.25rem;
@@ -354,11 +217,6 @@
   border-top: 2px solid white;
   border-radius: 50%;
   animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
 }
 
 /* Error Message */
@@ -516,29 +374,10 @@
 }
 
 
-/* Badge styles */
-.badge {
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.75rem;      /* softer corners */
-  font-size: 0.875rem;         /* slightly smaller */
-  font-weight: 500;            /* medium weight */
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-}
-
-.badge-admin {
-  background: linear-gradient(135deg, #a5b4fc 0%, #6366f1 100%);
-  color: white;
-}
-
-.badge-user {
-  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
-  color: #1e3a8a;
-}
-
-.badge-streepjes {
-  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-  color: #991b1b;
-}
+/* Badge styles - Now using shared.css
+ * All badge styles (.badge, .badge-admin, .badge-user, .badge-streepjes)
+ * are defined in src/styles/shared.css
+ */
 
 /* Toggle switch container */
 .toggle-container {

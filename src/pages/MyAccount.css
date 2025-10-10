@@ -102,24 +102,10 @@
   color: var(--secondary-800);
 }
 
-.pill {
-  display: inline-block;
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-full);
-  font-size: 0.875rem;
-  font-weight: var(--font-weight-medium);
-  width: fit-content;
-}
-
-.pill-admin {
-  background-color: var(--accent-purple-light);
-  color: white;
-}
-
-.pill-user {
-  background-color: var(--secondary-200);
-  color: var(--secondary-700);
-}
+/* Pill styles - Now using shared.css
+ * All pill styles (.pill, .pill-admin, .pill-user)
+ * are defined in src/styles/shared.css
+ */
 
 .streepjes-count {
   font-size: 1.125rem;
@@ -235,24 +221,7 @@
   border: none;
 }
 
-.btn-primary {
-  background: var(--gradient-primary);
-  color: white;
-}
-
-.btn-secondary {
-  background: var(--secondary-100);
-  color: var(--secondary-700);
-  border: 1px solid var(--secondary-300);
-}
-
-.btn-danger {
-  background: var(--accent-red);
-  color: white;
-}
-
-.btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
-}
-
+/* Button Styles - Now using shared.css
+ * All button styles (.btn, .btn-primary, .btn-secondary, .btn-danger, etc.)
+ * are defined in src/styles/shared.css
+ */

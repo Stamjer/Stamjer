@@ -49,25 +49,16 @@
   --secondary-800: #1e293b;
   --secondary-900: #0f172a;
   
-  /* Accent Colors - Updated to use primary blue theme */
-  --accent-green: var(--primary-600);
-  --accent-green-light: var(--primary-500);
+  /* Accent Colors - Simplified (removed unused) */
   --accent-red: #dc2626;
   --accent-red-light: #ef4444;
   --accent-orange: #d97706;
   --accent-orange-light: #f59e0b;
-  --accent-purple: #7c3aed;
-  --accent-purple-light: #8b5cf6;
-  --accent-yellow: #ca8a04;
-  --accent-blue: #0284c7;
   
-  /* Gradients - Enhanced with more variety */
+  /* Gradients - Simplified (removed unused) */
   --gradient-primary: linear-gradient(135deg, var(--primary-600) 0%, var(--primary-800) 100%);
-  --gradient-secondary: linear-gradient(135deg, var(--secondary-100) 0%, var(--secondary-200) 100%);
-  --gradient-accent: linear-gradient(135deg, var(--accent-purple) 0%, var(--primary-600) 100%);
   --gradient-success: linear-gradient(135deg, var(--primary-600) 0%, var(--primary-500) 100%);
   --gradient-danger: linear-gradient(135deg, var(--accent-red) 0%, var(--accent-red-light) 100%);
-  --gradient-warm: linear-gradient(135deg, var(--accent-orange) 0%, var(--accent-yellow) 100%);
   
   /* Shadows - Enhanced depth system */
   --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
@@ -150,33 +141,7 @@
   --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
 }
 
-/* Force light mode - override dark mode preferences */
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* Keep the same light colors even in dark mode */
-    --primary-50: #eff6ff;
-    --primary-100: #dbeafe;
-    --primary-200: #bfdbfe;
-    --primary-300: #93c5fd;
-    --primary-400: #60a5fa;
-    --primary-500: #3b82f6;
-    --primary-600: #2563eb;
-    --primary-700: #1d4ed8;
-    --primary-800: #1e40af;
-    --primary-900: #1e3a8a;
-    
-    --secondary-50: #f8fafc;
-    --secondary-100: #f1f5f9;
-    --secondary-200: #e2e8f0;
-    --secondary-300: #cbd5e1;
-    --secondary-400: #94a3b8;
-    --secondary-500: #64748b;
-    --secondary-600: #475569;
-    --secondary-700: #334155;
-    --secondary-800: #1e293b;
-    --secondary-900: #0f172a;
-  }
-}
+/* Note: App is light mode only. Dark mode override removed for simplicity. */
 
 /* Global Reset and Base Styles */
 *, *::before, *::after {

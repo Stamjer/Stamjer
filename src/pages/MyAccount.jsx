@@ -229,7 +229,7 @@ Als je ${statusText} bent, word je automatisch ${newActiveStatus ? 'aangemeld vo
                 </div>
                 <div className="info-item">
                   <label>Account type</label>
-                  <span className={`pill ${user.isAdmin ? 'pill-admin' : 'pill-user'}`}>
+                  <span className={`account-pill ${user.isAdmin ? 'account-pill-admin' : 'account-pill-user'}`}>
                     {user.isAdmin ? 'Administrator' : 'Gebruiker'}
                   </span>
                 </div>

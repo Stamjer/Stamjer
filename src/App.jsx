@@ -27,11 +27,13 @@ import { APP_VERSION, withSupportContact } from './config/appInfo'
 import ProtectedRoute from './components/ProtectedRoute'
 import { AppErrorBoundary, PageErrorBoundary, setupGlobalErrorHandling } from './components/ErrorBoundary'
 import { ToastProvider } from './hooks/useToast'
+import { CalendarIcon, ClipboardIcon, TrophyIcon, UserIcon, LoginIcon } from './components/icons'
 
 // Query client configuration
 import { queryClient } from './lib/queryClient'
 
-// Import the improved App CSS
+// Import styles
+import './styles/shared.css'
 import './App.css'
 import './components/ErrorBoundary.css'
 import clickSoundUrl from './assets/stamjer.mp3'
@@ -64,40 +66,7 @@ const NAV_ICON_MAP = {
   '/': LoginIcon,
 }
 
-/**
- * Error Boundary Component for handling React errors gracefully
- * Note: This is now replaced by our professional error boundary system
- * but kept for backward compatibility during migration
- */
-class LegacyErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props)
-    this.state = { hasError: false, error: null }
-  }
 
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error }
-  }
-
-  componentDidCatch(error, errorInfo) {
-    console.error('Legacy Error Boundary caught an error:', error, errorInfo)
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="error-boundary">
-          <div className="error-content">
-            <h2>Er is iets misgegaan</h2>
-            <p>{withSupportContact('We konden de applicatie niet laden. Probeer de pagina te vernieuwen.')}</p>
-          </div>
-        </div>
-      )
-    }
-
-    return this.props.children
-  }
-}
 
 /**
  * Main Application Component
@@ -649,103 +618,6 @@ function App() {
   )
 }
 
-
-function CalendarIcon(props) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      {...props}
-    >
-      <rect x="3" y="5" width="18" height="16" rx="2" fill="none" />
-      <path d="M8 3v4M16 3v4M3 11h18M8 15h3M13 15h3M8 18h3" />
-    </svg>
-  )
-}
-
-function ClipboardIcon(props) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      {...props}
-    >
-      <path d="M9 3H7.5A1.5 1.5 0 006 4.5v15A1.5 1.5 0 007.5 21h9A1.5 1.5 0 0018 19.5v-15A1.5 1.5 0 0016.5 3H15" />
-      <path d="M9 3a1.5 1.5 0 003 0 1.5 1.5 0 003 0" />
-      <path d="M9 9h6M9 13h6M9 17h4" />
-    </svg>
-  )
-}
-
-function TrophyIcon(props) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      {...props}
-    >
-      <path d="M7 4h10v2a5 5 0 01-5 5 5 5 0 01-5-5V4z" />
-      <path d="M5 4h2v2a3 3 0 01-3 3H3V6a2 2 0 012-2z" />
-      <path d="M17 4h2a2 2 0 012 2v3h-1a3 3 0 01-3-3V4z" />
-      <path d="M10 17h4a1 1 0 001-1v-2H9v2a1 1 0 001 1z" />
-      <path d="M9 21h6" />
-    </svg>
-  )
-}
-
-function UserIcon(props) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      {...props}
-    >
-      <circle cx="12" cy="8" r="4" />
-      <path d="M5 20a7 7 0 0114 0" />
-    </svg>
-  )
-}
-
-function LoginIcon(props) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      {...props}
-    >
-      <path d="M15 3h3a1 1 0 011 1v16a1 1 0 01-1 1h-3" />
-      <path d="M11 7l-4 5 4 5" />
-      <path d="M7 12h11" />
-    </svg>
-  )
-}
-
-// Export memoized component for performance
 export default React.memo(App)
 
 

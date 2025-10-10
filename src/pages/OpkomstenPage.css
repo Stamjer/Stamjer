@@ -489,90 +489,25 @@
   margin: 0 auto var(--space-4);
 }
 
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
+/* Animations - Now using shared.css */
 
 /* ================================================================
- * MODAL STYLES (for edit form - imported from existing)
- * ================================================================ */
-
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-  animation: fadeIn var(--duration-normal) var(--ease-out);
-}
-
-.modal-content {
-  background: white;
-  border-radius: var(--radius-2xl);
-  box-shadow: var(--shadow-2xl);
-  max-width: 90vw;
-  max-height: 90vh;
-  overflow-y: auto;
-  position: relative;
-  animation: slideInUp var(--duration-normal) var(--ease-out);
-}
+ * MODAL STYLES - Now using shared.css
+ * ================================================================
+ * Base modal styles (.modal-overlay, .modal-content, .modal-header, .modal-body, .modal-footer, .close-btn)
+ * are defined in src/styles/shared.css
+ * Only OpkomstenPage-specific modal customizations below:
+ */
 
 .modal-content-large {
-  width: 100%;
   max-width: 800px;
 }
 
-.close-btn {
-  position: absolute;
-  top: var(--space-4);
-  right: var(--space-4);
-  background: var(--secondary-100);
-  border: none;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-out);
-  z-index: 10;
-}
-
-.close-btn:hover {
-  background: var(--secondary-200);
-  transform: scale(1.1);
-}
-
-.modal-header {
-  padding: var(--space-8) var(--space-8) var(--space-4);
-  border-bottom: 1px solid var(--secondary-200);
-}
-
-.modal-title {
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: var(--font-weight-bold);
-  color: var(--secondary-900);
-}
-
-.modal-body {
-  padding: var(--space-6) var(--space-8);
-}
-
+/* OpkomstenPage modal footer alignment */
 .modal-footer {
-  padding: var(--space-4) var(--space-8) var(--space-8);
-  border-top: 1px solid var(--secondary-200);
-  display: flex;
   justify-content: flex-end;
-  gap: var(--space-3);
 }
+
 
 .modal-btn {
   padding: var(--space-3) var(--space-6);
@@ -674,46 +609,9 @@
 }
 
 /* ================================================================
- * ANIMATIONS
+ * ANIMATIONS - Now using shared.css
+ * All standard animations are defined in src/styles/shared.css
  * ================================================================ */
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes slideInUp {
-  from {
-    opacity: 0;
-    transform: translateY(50px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes slideInRight {
-  from {
-    opacity: 0;
-    transform: translateX(100px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
 
 /* ================================================================
  * FORM STYLES (for edit modal)

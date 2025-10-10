@@ -712,7 +712,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
                   className="checkbox-input"
                 />
                 <span className="checkbox-custom"></span>
-                Tijd Hele dag evenement
+                Hele dag
               </label>
             </div>
 
@@ -867,7 +867,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
               </>
             ) : (
               <>
-                {isEdit ? 'Opslaan' : 'Evenement aanmaken'}
+                {isEdit ? 'Opslaan' : 'Aanmaken'}
               </>
             )}
           </button>
@@ -1309,6 +1309,21 @@ export default function CalendarPage() {
             </CalendarErrorBoundary>
           )}
         </div>
+
+        {/* Mobile Create Event Button - Only visible on mobile for admins */}
+        {isMobile && isAdmin && (
+          <div className="mobile-create-event-wrapper">
+            <button 
+              type="button"
+              className="mobile-create-event-btn"
+              onClick={() => setShowNewForm(true)}
+              aria-label="Nieuw evenement aanmaken"
+            >
+              <span className="mobile-create-event-icon">+</span>
+              <span className="mobile-create-event-text">Nieuw evenement</span>
+            </button>
+          </div>
+        )}
 
         {/* Modals */}
         {selectedEvent && (

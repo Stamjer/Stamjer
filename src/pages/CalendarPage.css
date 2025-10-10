@@ -454,112 +454,34 @@
   color: var(--primary-800) !important;
 }
 
-/* Modal Styles - Enhanced */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(8px);
-  z-index: var(--z-modal);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-4);
-  animation: fadeIn var(--duration-normal) var(--ease-out);
-}
-
-.modal-content {
-  background: white;
-  border-radius: var(--radius-2xl);
-  box-shadow: var(--shadow-2xl);
-  border: 1px solid var(--secondary-200);
-  width: 100%;
-  max-width: 500px;
-  max-height: 90vh;
-  overflow-y: auto;
-  position: relative;
-  animation: slideInUp var(--duration-normal) var(--ease-out);
-  /* Custom scrollbar for modal windows */
-  scrollbar-width: thin;
-  scrollbar-color: var(--secondary-300) transparent;
-  /* Ensure content doesn't get cut off by scrollbar */
-  overflow-x: hidden;
-  /* Add subtle padding to ensure content doesn't touch scrollbar */
-  padding-right: 4px;
-}
+/* Modal Styles - Now using shared.css
+ * Base modal styles (.modal-overlay, .modal-content, .modal-header, .modal-body, .modal-footer, .close-btn)
+ * are defined in src/styles/shared.css
+ * Only CalendarPage-specific modal customizations below:
+ */
 
 .modal-content-large {
   max-width: 600px;
   width: 90vw;
-  overflow-x: hidden;
-  /* Add subtle padding to ensure content doesn't touch scrollbar */
+}
+
+/* Calendar-specific modal scrollbar padding adjustments */
+.modal-content {
   padding-right: 4px;
 }
 
-.close-btn {
-  position: absolute;
-  top: var(--space-4);
-  right: var(--space-4);
-  background: var(--secondary-100);
-  border: none;
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: var(--radius-full);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.25rem;
-  color: var(--secondary-600);
-  cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-out);
-  z-index: 1;
-}
-
-.close-btn:hover {
-  background: var(--secondary-200);
-  color: var(--secondary-800);
-  transform: scale(1.1);
-}
-
-.close-btn:focus-visible {
-  outline: 2px solid var(--primary-500);
-  outline-offset: 2px;
-}
-
 .modal-header {
-  padding: var(--space-8) var(--space-6) var(--space-4);
-  border-bottom: 1px solid var(--secondary-200);
-  background: linear-gradient(135deg, var(--secondary-50) 0%, var(--primary-50) 100%);
   padding-right: calc(var(--space-6) + 4px);
 }
 
-.modal-title {
-  font-size: 1.5rem;
-  font-weight: var(--font-weight-bold);
-  color: var(--secondary-900);
-  margin: 0;
-  padding-right: var(--space-12);
-}
-
 .modal-body {
-  padding: var(--space-6);
   padding-right: calc(var(--space-6) + 4px);
 }
 
 .modal-footer {
-  padding: var(--space-4) var(--space-6) var(--space-6);
-  border-top: 1px solid var(--secondary-200);
-  background: var(--secondary-50);
-  display: flex;
-  gap: var(--space-3);
-  justify-content: flex-end;
   padding-right: calc(var(--space-6) + 4px);
-  /* Put the buttons in the middle of the footer */
-  justify-content: center;
 }
+
 
 /* Event Details */
 .event-details {
@@ -785,51 +707,10 @@
   box-shadow: var(--shadow-md);
 }
 
-/* Animations */
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes slideInUp {
-  from {
-    opacity: 0;
-    transform: translateY(40px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes slideInRight {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-4px); }
-  75% { transform: translateX(4px); }
-}
-
+/* Animations - Now using shared.css
+ * All standard animations (fadeIn, fadeInUp, slideInUp, slideInRight, shake, spin, pulse)
+ * are defined in src/styles/shared.css
+ */
 
 .calendar-wrapper .fc-daygrid-event,
 .calendar-wrapper .fc-event {
@@ -917,6 +798,19 @@
   }
 }
 
+.modal-content .checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  transition: all var(--duration-fast) var(--ease-out);
+  cursor: pointer;
+  font-weight: var(--font-weight-medium);
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
 /* Attendance checkbox disabled state (clarify it cannot be changed) */
 .modal-content .checkbox-input:disabled + .checkbox-custom {
   opacity: 0.5;
@@ -938,108 +832,109 @@
   outline-offset: 2px !important;
 }
 
-/* Force 24-hour format for time inputs */
-input[type="time"] {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-}
-
-/* Force 24-hour format by hiding AM/PM indicators */
-input[type="time"]::-webkit-calendar-picker-indicator {
-  filter: invert(1);
-}
-
-input[type="time"]::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  appearance: none;
-}
-
-input[type="time"]::-webkit-clear-button {
-  -webkit-appearance: none;
-  appearance: none;
-}
-
-/* Override browser default time format */
-input[type="time"]::placeholder {
-  content: "HH:MM";
-}
-
-/* Additional styles for time inputs */
-.form-input[type="time"] {
+/* Professional Date Input Styling */
+.form-input[type="date"] {
   position: relative;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  font-family: var(--font-primary);
+  cursor: pointer;
 }
 
-.form-input[type="time"]::before {
-  content: attr(data-placeholder);
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--secondary-400);
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.2s;
+.form-input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity var(--duration-fast) var(--ease-out);
 }
 
-.form-input[type="time"]:invalid::before {
+.form-input[type="date"]:hover::-webkit-calendar-picker-indicator {
   opacity: 1;
 }
 
-/* Custom 24-hour time input */
+.form-input[type="date"]::-webkit-inner-spin-button {
+  display: none;
+}
+
+.form-input[type="date"]::-webkit-clear-button {
+  display: none;
+}
+
+/* Custom 24-hour time input - Professional Style */
 .time-input-24 {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-3);
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
   border: 2px solid var(--secondary-200);
   border-radius: var(--radius-lg);
   background: white;
-  transition: all var(--duration-fast) var(--ease-out);
-  font-family: 'JetBrains Mono', 'Fira Code', Consolas, 'Courier New', monospace;
+  transition: all var(--duration-normal) var(--ease-out);
+  font-family: var(--font-primary);
   font-size: 1rem;
-  min-height: 48px;
+  min-height: 3.5rem;
+  position: relative;
 }
 
 .time-input-24:focus-within {
   border-color: var(--primary-500);
-  box-shadow: 0 0 0 3px var(--primary-100);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
   outline: none;
+  transform: translateY(-1px);
+}
+
+.time-input-24:hover:not(:focus-within) {
+  border-color: var(--secondary-300);
 }
 
 .time-input-24.error {
-  border-color: var(--accent-red);
-}
-
-.time-input-24.error:focus-within {
   border-color: var(--accent-red);
   box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
 }
 
 .time-select {
-  border: none;
-  background: transparent;
-  font: inherit;
-  color: var(--secondary-900);
+  border: 2px solid var(--secondary-200);
+  background: white;
+  font-family: var(--font-primary);
+  font-size: 1rem;
+  font-weight: var(--font-weight-medium);
+  color: var(--secondary-800);
   cursor: pointer;
   outline: none;
-  min-width: 50px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  min-width: 70px;
   text-align: center;
+  transition: all var(--duration-fast) var(--ease-out);
+  appearance: none;
+  padding-right: 2rem;
+}
+
+.time-select:hover {
+  border-color: var(--secondary-300);
+  background-color: var(--secondary-50);
 }
 
 .time-select:focus {
-  background: var(--primary-50);
-  border-radius: var(--radius-md);
+  border-color: var(--primary-500);
+  background-color: white;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .time-select:disabled {
   cursor: not-allowed;
   opacity: 0.6;
+  background-color: var(--secondary-50);
+  color: var(--secondary-500);
 }
 
 .time-separator {
   font-weight: var(--font-weight-bold);
   color: var(--secondary-600);
-  font-size: 1.2em;
+  font-size: 1.25rem;
   user-select: none;
+  margin: 0 var(--space-1);
 }
 
 /* Opkomstmakers Checkbox Selection */
@@ -1427,4 +1322,89 @@ input[type="time"]::placeholder {
 .calendar-wrapper .fc-event-title,
 .calendar-wrapper .fc-event-time {
   background: transparent !important;
+}
+
+/* Mobile Create Event Button */
+.mobile-create-event-wrapper {
+  display: none;
+  margin-top: var(--space-6);
+  padding: 0 var(--space-2);
+  animation: slideInUp var(--duration-slow) var(--ease-out) 0.4s both;
+}
+
+@media (max-width: 600px) {
+  .mobile-create-event-wrapper {
+    display: block;
+  }
+}
+
+.mobile-create-event-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6);
+  background: var(--gradient-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-xl);
+  font-size: 1.125rem;
+  font-weight: var(--font-weight-bold);
+  font-family: var(--font-primary);
+  cursor: pointer;
+  box-shadow: var(--shadow-lg);
+  transition: all var(--duration-normal) var(--ease-out);
+  position: relative;
+  overflow: hidden;
+}
+
+.mobile-create-event-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  transition: left var(--duration-slower);
+}
+
+.mobile-create-event-btn:hover::before,
+.mobile-create-event-btn:active::before {
+  left: 100%;
+}
+
+.mobile-create-event-btn:active {
+  transform: translateY(1px);
+  box-shadow: var(--shadow-md);
+}
+
+.mobile-create-event-btn:focus-visible {
+  outline: 3px solid rgba(59, 130, 246, 0.5);
+  outline-offset: 2px;
+}
+
+.mobile-create-event-icon {
+  font-size: 1.75rem;
+  line-height: 1;
+  font-weight: var(--font-weight-normal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-full);
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.mobile-create-event-btn:hover .mobile-create-event-icon,
+.mobile-create-event-btn:active .mobile-create-event-icon {
+  background: rgba(255, 255, 255, 0.3);
+  transform: rotate(90deg);
+}
+
+.mobile-create-event-text {
+  letter-spacing: 0.025em;
 }

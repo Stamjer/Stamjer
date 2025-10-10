@@ -2,7 +2,7 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import './index.css'
-import './components/common.css'
+import './styles/shared.css'
 
 // Register service worker for PWA functionality (production only)
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {

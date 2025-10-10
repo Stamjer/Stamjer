@@ -77,14 +77,7 @@
   margin: 0 auto var(--space-4);
 }
 
-/* spin keyframes */
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
-}
-
-
-
+/* Animations - Now using shared.css */
 
 .event-selector {
   margin-bottom: var(--space-8);
@@ -420,29 +413,9 @@
 }
 
 
-
-/* Animations */
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes slideInUp {
-  from {
-    opacity: 0;
-    transform: translateY(40px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
+/* Animations - Now using shared.css
+ * All standard animations are defined in src/styles/shared.css
+ */
 
 /* ================================================================
  * TOAST NOTIFICATIONS
@@ -740,7 +713,7 @@
     border-radius: 999px;
     font-size: 0.8rem;
     color: var(--secondary-700);
-    background: var(--secondary-100);
+    /* background: var(--secondary-100); */
   }
   .pill-yes { background: #dcfce7; color: #166534; }
   .pill-no { background: #fff7ed; color: #9a3412; }
