@@ -160,43 +160,44 @@ export default function StrepenPage() {
     setAttendance(next)
   }, [selectedEvent, users])
 
-  // Toggle only updates local state
-  const handleAttendanceToggle = (u) => {
-    setAttendance(prev => {
-      const next = { ...prev, [u.id]: !prev[u.id] }
-      // aria-live message for accessibility
-      const status = next[u.id] ? 'aanwezig' : 'afwezig'
-      setLiveMsg(`${u.firstName} gemarkeerd als ${status}`)
-      return next
-    })
-  }
-
-  // Explicit save via button
-  const handleSaveAttendance = async () => {
-    if (!selectedEvent) return
-
+  // Toggle updates local state and saves automatically
+  const handleAttendanceToggle = async (u) => {
+    if (isSaving) return // Prevent multiple simultaneous saves
+    
     setIsSaving(true)
+    
+    // Update local state first for immediate UI feedback
+    const newAttendance = { ...attendance, [u.id]: !attendance[u.id] }
+    setAttendance(newAttendance)
+    
+    // aria-live message for accessibility
+    const status = newAttendance[u.id] ? 'aanwezig' : 'afwezig'
+    setLiveMsg(`${u.firstName} gemarkeerd als ${status}`)
+    
     try {
       const res = await fetch(`/api/events/${selectedEvent.id}`, {
         method:  'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ attendance })
+        body:    JSON.stringify({ attendance: newAttendance })
       })
       if (!res.ok) {
         const errText = await res.text()
         throw new Error(errText || 'Save failed')
       }
       await res.json()
-      setSelectedEvent(ev => ({ ...ev, attendance }))
+      setSelectedEvent(ev => ({ ...ev, attendance: newAttendance }))
+      
       // reload streepjes
       const usersRes = await fetch('/api/users/full')
       if (usersRes.ok) {
         const { users: fresh } = await usersRes.json()
         setUsers(fresh)
       }
-      showToast('Aanwezigheid succesvol opgeslagen!', 'success')
+      showToast(`${u.firstName} ${status} - opgeslagen!`, 'success')
     } catch (err) {
       console.error(err)
+      // Revert the local state on error
+      setAttendance(attendance)
       const baseMessage = err?.message ? `Opslaan van aanwezigheid is mislukt: ${err.message}` : 'Opslaan van aanwezigheid is mislukt'
       showToast(baseMessage, 'error')
     } finally {
@@ -232,12 +233,6 @@ export default function StrepenPage() {
     if (!aP && bP) return 1
     return `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`)
   })
-
-  const modifiedCount = sortedUsers.reduce((acc, u) => {
-    const isPart = selectedEvent.participants.includes(u.id)
-    const present = attendance[u.id]
-    return acc + (present === isPart ? 0 : 1)
-  }, 0)
 
   const filteredUsers = sortedUsers.filter(u => {
     const name = `${u.firstName} ${u.lastName || ''}`.toLowerCase()
@@ -308,7 +303,7 @@ export default function StrepenPage() {
                   className={`chip ${showOnlyChanged ? 'active' : ''}`}
                   onClick={() => setShowOnlyChanged(v => !v)}
                 >
-                  Gewijzigd{modifiedCount ? ` (${modifiedCount})` : ''}
+                  Gewijzigd
                 </button>
               </div>
             </div>
@@ -372,7 +367,9 @@ export default function StrepenPage() {
                     <label htmlFor={`toggle-${u.id}`} className="toggle-switch">
                       <div className="switch-ball"></div>
                     </label>
-                    <div className="toggle-label" aria-hidden="true">{present ? 'Aanwezig' : 'Afwezig'}</div>
+                    <div className="toggle-label" aria-hidden="true">
+                      {isSaving ? 'Opslaan...' : (present ? 'Aanwezig' : 'Afwezig')}
+                    </div>
                   </div>
                 </div>
               )
@@ -404,6 +401,7 @@ export default function StrepenPage() {
                 >
                   <div className="cell name">
                     {u.firstName}{!defaultState && <span className="modified-indicator"> *</span>}
+                    {isSaving && <span className="saving-indicator"> (opslaan...)</span>}
                   </div>
                   <div className="cell status">{isPart ? '✅' : '❌'}</div>
                   <div className="cell toggle">
@@ -425,17 +423,6 @@ export default function StrepenPage() {
             })}
           </div>
         )}
-
-        <div className="save-section">
-          <button
-            className="save-button"
-            onClick={handleSaveAttendance}
-            disabled={isSaving}
-            aria-label={modifiedCount ? `Sla ${modifiedCount} wijziging${modifiedCount===1?'':'en'} op` : 'Opslaan'}
-          >
-            {isSaving ? 'Opslaan...' : (modifiedCount ? `Opslaan (${modifiedCount})` : 'Opslaan')}
-          </button>
-        </div>
 
         {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
       </div>

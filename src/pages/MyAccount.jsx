@@ -215,7 +215,7 @@ Als je ${statusText} bent, word je automatisch ${newActiveStatus ? 'aangemeld vo
           {/* Left Column: User Info */}
           <div className="account-card">
             <div className="account-card-header">
-              <h4>Persoonlijke Gegevens</h4>
+              <h4>Persoonlijke gegevens</h4>
             </div>
             <div className="account-card-body">
               <div className="info-grid">

@@ -112,13 +112,34 @@ async function ensureIndexes(db) {
     { keys: { expiresAt: 1 }, options: { expireAfterSeconds: 0, background: true, name: 'resetCodes_ttl_idx' }, description: 'resetCodes TTL' }
   ])
 
-  if (eventsCreated || usersCreated || resetCodesCreated) {
+  // Add indexes for the daily snapshots collection
+  const snapshotsCreated = await ensureCollectionIndexes(db.collection('dailySnapshots'), [
+    { keys: { date: 1 }, options: { unique: true, background: true, name: 'snapshots_date_unique_idx' }, description: 'dailySnapshots.date unique' },
+    { keys: { date: 1 }, options: { expireAfterSeconds: 30 * 24 * 60 * 60, background: true, name: 'snapshots_ttl_idx' }, description: 'dailySnapshots TTL (30 days)' }
+  ])
+
+  if (eventsCreated || usersCreated || resetCodesCreated || snapshotsCreated) {
     infoLog('[indexes] Created or verified MongoDB indexes')
   }
 }
 
 async function ensureCollectionIndexes(collection, definitions) {
-  const existingIndexes = await collection.indexes()
+  let existingIndexes = []
+  
+  try {
+    // Try to get existing indexes, but handle the case where collection doesn't exist yet
+    existingIndexes = await collection.indexes()
+  } catch (error) {
+    // If collection doesn't exist, we'll create it when we create the first index
+    if (error.codeName === 'NamespaceNotFound' || error.code === 26) {
+      debugLog(`[indexes] Collection ${collection.collectionName} doesn't exist yet, will be created with first index`)
+      existingIndexes = []
+    } else {
+      warnLog(`[indexes] Error getting indexes for ${collection.collectionName}: ${error.message}`)
+      return false
+    }
+  }
+  
   let createdAny = false
 
   for (const { keys, options = {}, description } of definitions) {
@@ -190,6 +211,7 @@ async function loadEvents() {
 
 async function saveUser(user) {
   const db = await getDb()
+  
   await db.collection('users').updateOne(
     { id: user.id },
     { $set: user },
@@ -235,10 +257,10 @@ async function cleanupExpiredResetCodes() {
     })
     
     if (result.deletedCount > 0) {
-      infoLog(`🧹 Cleaned up ${result.deletedCount} expired reset codes`)
+      infoLog(`Cleaned up ${result.deletedCount} expired reset codes`)
     }
   } catch (error) {
-    warnLog('⚠️  Warning: Could not clean up expired reset codes:', error.message)
+    warnLog('Warning: Could not clean up expired reset codes:', error.message)
   }
 }
 
@@ -249,6 +271,7 @@ async function deleteUserById(id) {
 
 async function saveEvent(event) {
   const db = await getDb()
+  
   await db.collection('events').updateOne(
     { id: event.id },
     { $set: event },
@@ -259,6 +282,519 @@ async function saveEvent(event) {
 async function deleteEventById(id) {
   const db = await getDb()
   await db.collection('events').deleteOne({ id })
+}
+
+// =================================
+// DAILY SNAPSHOT SYSTEM
+// =================================
+
+/**
+ * Creates a snapshot of the current database state
+ * @returns {Object} Object containing users and events arrays
+ */
+async function createDatabaseSnapshot() {
+  try {
+    const db = await getDb()
+    
+    // Get all users and events (without MongoDB's _id field)
+    const users = await db.collection('users')
+      .find({})
+      .project({ _id: 0 })
+      .toArray()
+    
+    const events = await db.collection('events')
+      .find({})
+      .project({ _id: 0 })
+      .toArray()
+    
+    return {
+      users: users.sort((a, b) => a.id - b.id), // Sort for consistent comparison
+      events: events.sort((a, b) => a.id.localeCompare(b.id))
+    }
+  } catch (error) {
+    console.error('Failed to create database snapshot:', error)
+    logSystemError(error, { action: 'create-database-snapshot', status: 500 })
+    return null
+  }
+}
+
+/**
+ * Saves a daily snapshot to the database
+ * @param {string} date - Date in YYYY-MM-DD format
+ * @param {Object} snapshot - Database snapshot containing users and events
+ */
+async function saveDailySnapshot(date, snapshot) {
+  try {
+    const db = await getDb()
+    await db.collection('dailySnapshots').updateOne(
+      { date },
+      { 
+        $set: { 
+          date,
+          snapshot,
+          createdAt: new Date()
+        } 
+      },
+      { upsert: true }
+    )
+    debugLog('Daily snapshot saved:', { date })
+  } catch (error) {
+    console.error('Failed to save daily snapshot:', error)
+    logSystemError(error, { action: 'save-daily-snapshot', status: 500 })
+  }
+}
+
+/**
+ * Gets a daily snapshot from the database
+ * @param {string} date - Date in YYYY-MM-DD format
+ * @returns {Object|null} Snapshot object or null if not found
+ */
+async function getDailySnapshot(date) {
+  try {
+    const db = await getDb()
+    const record = await db.collection('dailySnapshots').findOne({ date })
+    return record ? record.snapshot : null
+  } catch (error) {
+    console.error('Failed to get daily snapshot:', error)
+    logSystemError(error, { action: 'get-daily-snapshot', status: 500 })
+    return null
+  }
+}
+
+/**
+ * Compares two snapshots and returns the differences
+ * @param {Object} yesterday - Yesterday's snapshot
+ * @param {Object} today - Today's snapshot
+ * @returns {Object} Differences between snapshots
+ */
+function compareSnapshots(yesterday, today) {
+  const changes = {
+    users: { created: [], updated: [], deleted: [] },
+    events: { created: [], updated: [], deleted: [] }
+  }
+
+  if (!yesterday || !today) {
+    return changes
+  }
+
+  // Compare users
+  const yesterdayUsers = new Map(yesterday.users.map(u => [u.id, u]))
+  const todayUsers = new Map(today.users.map(u => [u.id, u]))
+
+  // Find new users (created)
+  for (const [id, user] of todayUsers) {
+    if (!yesterdayUsers.has(id)) {
+      changes.users.created.push(user)
+    }
+  }
+
+  // Find deleted users
+  for (const [id, user] of yesterdayUsers) {
+    if (!todayUsers.has(id)) {
+      changes.users.deleted.push(user)
+    }
+  }
+
+  // Find updated users
+  for (const [id, todayUser] of todayUsers) {
+    const yesterdayUser = yesterdayUsers.get(id)
+    if (yesterdayUser && !deepEqual(yesterdayUser, todayUser)) {
+      changes.users.updated.push({
+        before: yesterdayUser,
+        after: todayUser,
+        changes: findChanges(yesterdayUser, todayUser)
+      })
+    }
+  }
+
+  // Compare events
+  const yesterdayEvents = new Map(yesterday.events.map(e => [e.id, e]))
+  const todayEvents = new Map(today.events.map(e => [e.id, e]))
+
+  // Find new events (created)
+  for (const [id, event] of todayEvents) {
+    if (!yesterdayEvents.has(id)) {
+      changes.events.created.push(event)
+    }
+  }
+
+  // Find deleted events
+  for (const [id, event] of yesterdayEvents) {
+    if (!todayEvents.has(id)) {
+      changes.events.deleted.push(event)
+    }
+  }
+
+  // Find updated events
+  for (const [id, todayEvent] of todayEvents) {
+    const yesterdayEvent = yesterdayEvents.get(id)
+    if (yesterdayEvent && !deepEqual(yesterdayEvent, todayEvent)) {
+      changes.events.updated.push({
+        before: yesterdayEvent,
+        after: todayEvent,
+        changes: findChanges(yesterdayEvent, todayEvent)
+      })
+    }
+  }
+
+  return changes
+}
+
+/**
+ * Deep equality check for two objects
+ * @param {any} obj1 
+ * @param {any} obj2 
+ * @returns {boolean}
+ */
+function deepEqual(obj1, obj2) {
+  if (obj1 === obj2) return true
+  if (obj1 == null || obj2 == null) return false
+  if (typeof obj1 !== typeof obj2) return false
+  
+  if (typeof obj1 === 'object') {
+    const keys1 = Object.keys(obj1)
+    const keys2 = Object.keys(obj2)
+    
+    if (keys1.length !== keys2.length) return false
+    
+    for (const key of keys1) {
+      if (!keys2.includes(key)) return false
+      if (!deepEqual(obj1[key], obj2[key])) return false
+    }
+    
+    return true
+  }
+  
+  return false
+}
+
+/**
+ * Finds specific changes between two objects
+ * @param {Object} before 
+ * @param {Object} after 
+ * @returns {Object} Changes object
+ */
+function findChanges(before, after) {
+  const changes = {}
+  const allKeys = new Set([...Object.keys(before), ...Object.keys(after)])
+  
+  for (const key of allKeys) {
+    if (key === 'password') continue // Skip password field for privacy
+    
+    if (before[key] !== after[key]) {
+      changes[key] = { from: before[key], to: after[key] }
+    }
+  }
+  
+  return changes
+}
+
+/**
+ * Checks if there are any net changes in the comparison result
+ * @param {Object} changes - Changes object from compareSnapshots
+ * @returns {boolean} True if there are net changes
+ */
+function hasNetChanges(changes) {
+  return (
+    changes.users.created.length > 0 ||
+    changes.users.updated.length > 0 ||
+    changes.users.deleted.length > 0 ||
+    changes.events.created.length > 0 ||
+    changes.events.updated.length > 0 ||
+    changes.events.deleted.length > 0
+  )
+}
+
+/**
+ * Formats changes for email notification
+ * @param {Object} changes - Changes object from compareSnapshots
+ * @returns {Object|null} Email content or null if no changes
+ */
+function formatChangesSummary(changes) {
+  if (!hasNetChanges(changes)) {
+    return null // No email should be sent
+  }
+
+  const today = new Date().toLocaleDateString('nl-NL', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })
+
+  const sections = []
+  const htmlSections = []
+
+  // Users section
+  const totalUserChanges = changes.users.created.length + changes.users.updated.length + changes.users.deleted.length
+  if (totalUserChanges > 0) {
+    sections.push(`GEBRUIKERS (${totalUserChanges} wijzigingen):`)
+    htmlSections.push(`<h3>Gebruikers (${totalUserChanges} wijzigingen)</h3>`)
+    
+    if (changes.users.created.length > 0) {
+      sections.push(`  Nieuw: ${changes.users.created.length} gebruiker(s)`)
+      changes.users.created.forEach(user => {
+        sections.push(`    - ${user.firstName || ''} ${user.lastName || ''} (${user.email || user.id})`)
+      })
+    }
+    
+    if (changes.users.updated.length > 0) {
+      sections.push(`  Bijgewerkt: ${changes.users.updated.length} gebruiker(s)`)
+      changes.users.updated.forEach(change => {
+        const user = change.after
+        const changedFields = Object.keys(change.changes).filter(key => key !== 'password')
+        sections.push(`    - ${user.firstName || ''} ${user.lastName || ''}: ${changedFields.join(', ') || 'profiel bijgewerkt'}`)
+      })
+    }
+    
+    if (changes.users.deleted.length > 0) {
+      sections.push(`  Verwijderd: ${changes.users.deleted.length} gebruiker(s)`)
+      changes.users.deleted.forEach(user => {
+        sections.push(`    - ${user.email || user.id}`)
+      })
+    }
+    sections.push('')
+  }
+
+  // Events section
+  const totalEventChanges = changes.events.created.length + changes.events.updated.length + changes.events.deleted.length
+  if (totalEventChanges > 0) {
+    sections.push(`EVENEMENTEN (${totalEventChanges} wijzigingen):`)
+    htmlSections.push(`<h3>Evenementen (${totalEventChanges} wijzigingen)</h3>`)
+    
+    if (changes.events.created.length > 0) {
+      sections.push(`  Nieuw: ${changes.events.created.length} evenement(en)`)
+      changes.events.created.forEach(event => {
+        const eventDate = event.start ? new Date(event.start).toLocaleDateString('nl-NL') : ''
+        sections.push(`    - ${event.title || event.id} ${eventDate ? `(${eventDate})` : ''}`)
+      })
+    }
+    
+    if (changes.events.updated.length > 0) {
+      sections.push(`  Bijgewerkt: ${changes.events.updated.length} evenement(en)`)
+      changes.events.updated.forEach(change => {
+        const event = change.after
+        sections.push(`    - ${event.title || event.id}`)
+      })
+    }
+    
+    if (changes.events.deleted.length > 0) {
+      sections.push(`  Verwijderd: ${changes.events.deleted.length} evenement(en)`)
+      changes.events.deleted.forEach(event => {
+        sections.push(`    - ${event.title || event.id}`)
+      })
+    }
+    sections.push('')
+  }
+
+  // Create detailed HTML table
+  const htmlContent = htmlSections.join('\n') + createDetailedHtmlTable(changes)
+
+  const totalChanges = totalUserChanges + totalEventChanges
+
+  const text = [
+    `Stamjer Database Wijzigingen - ${today}`,
+    '',
+    `Er zijn ${totalChanges} netto wijzigingen gedetecteerd in vergelijking met gisteren:`,
+    '',
+    ...sections,
+    'Deze e-mail is automatisch gegenereerd door het Stamjer systeem.'
+  ].join('\n')
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto;">
+      <h2 style="color: #1e40af;">Stamjer Database Wijzigingen - ${today}</h2>
+      <p>Er zijn <strong>${totalChanges} netto wijzigingen</strong> gedetecteerd in vergelijking met gisteren:</p>
+      ${htmlContent}
+      <hr style="margin: 20px 0;">
+      <p style="font-size: 12px; color: #666; text-align: center;">
+        Deze e-mail is automatisch gegenereerd door het Stamjer systeem.
+      </p>
+    </div>
+  `
+
+  return {
+    subject: `Stamjer Database Wijzigingen - ${today} (${totalChanges} wijzigingen)`,
+    text,
+    html
+  }
+}
+
+/**
+ * Creates detailed HTML table for changes
+ * @param {Object} changes 
+ * @returns {string} HTML table
+ */
+function createDetailedHtmlTable(changes) {
+  const rows = []
+
+  // Add user changes
+  changes.users.created.forEach(user => {
+    rows.push({
+      type: 'Gebruiker',
+      action: 'Nieuw',
+      details: `${user.firstName || ''} ${user.lastName || ''} (${user.email || user.id})`
+    })
+  })
+
+  changes.users.updated.forEach(change => {
+    const user = change.after
+    const changedFields = Object.keys(change.changes).filter(key => key !== 'password')
+    rows.push({
+      type: 'Gebruiker',
+      action: 'Bijgewerkt',
+      details: `${user.firstName || ''} ${user.lastName || ''}: ${changedFields.join(', ')}`
+    })
+  })
+
+  changes.users.deleted.forEach(user => {
+    rows.push({
+      type: 'Gebruiker',
+      action: 'Verwijderd',
+      details: `${user.firstName || ''} ${user.lastName || ''} (${user.email || user.id})`
+    })
+  })
+
+  // Add event changes
+  changes.events.created.forEach(event => {
+    const eventDate = event.start ? new Date(event.start).toLocaleDateString('nl-NL') : ''
+    rows.push({
+      type: 'Evenement',
+      action: 'Nieuw',
+      details: `${event.title || event.id} ${eventDate ? `(${eventDate})` : ''}`
+    })
+  })
+
+  changes.events.updated.forEach(change => {
+    const event = change.after
+    rows.push({
+      type: 'Evenement',
+      action: 'Bijgewerkt',
+      details: `${event.title || event.id}`
+    })
+  })
+
+  changes.events.deleted.forEach(event => {
+    const eventDate = event.start ? new Date(event.start).toLocaleDateString('nl-NL') : ''
+    rows.push({
+      type: 'Evenement',
+      action: 'Verwijderd',
+      details: `${event.title || event.id} ${eventDate ? `(${eventDate})` : ''}`
+    })
+  })
+
+  if (rows.length === 0) {
+    return ''
+  }
+
+  return `
+    <h3>Gedetailleerd overzicht</h3>
+    <table style="border-collapse: collapse; width: 100%; margin-top: 10px;">
+      <thead>
+        <tr style="background-color: #f5f5f5;">
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Type</th>
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Actie</th>
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(row => `
+          <tr>
+            <td style="border: 1px solid #ddd; padding: 8px;">${row.type}</td>
+            <td style="border: 1px solid #ddd; padding: 8px;">${row.action}</td>
+            <td style="border: 1px solid #ddd; padding: 8px;">${row.details}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `
+}
+
+/**
+ * Performs daily snapshot and comparison, sends email if there are changes
+ */
+async function performDailySnapshotAndComparison() {
+  try {
+    debugLog('Starting daily snapshot and comparison')
+    
+    // Create today's snapshot
+    const todaySnapshot = await createDatabaseSnapshot()
+    if (!todaySnapshot) {
+      warnLog('Failed to create today\'s snapshot, skipping comparison')
+      return
+    }
+
+    // Get today's and yesterday's date strings
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+    
+    const todayStr = today.toISOString().split('T')[0] // YYYY-MM-DD
+    const yesterdayStr = yesterday.toISOString().split('T')[0]
+
+    // Get yesterday's snapshot
+    const yesterdaySnapshot = await getDailySnapshot(yesterdayStr)
+
+    // Save today's snapshot
+    await saveDailySnapshot(todayStr, todaySnapshot)
+
+    // Compare snapshots if we have yesterday's data
+    if (yesterdaySnapshot) {
+      const changes = compareSnapshots(yesterdaySnapshot, todaySnapshot)
+      const summary = formatChangesSummary(changes)
+      
+      if (summary) {
+        // Send email notification
+        if (!transporter) {
+          warnLog('Daily changes summary skipped: transporter not available')
+          return
+        }
+
+        await transporter.sendMail({
+          from: process.env.SMTP_FROM || 'stamjer.mpd@gmail.com',
+          to: 'stamjer.mpd@gmail.com',
+          subject: summary.subject,
+          text: summary.text,
+          html: summary.html
+        })
+
+        const totalChanges = hasNetChanges(changes) ? 
+          changes.users.created.length + changes.users.updated.length + changes.users.deleted.length +
+          changes.events.created.length + changes.events.updated.length + changes.events.deleted.length : 0
+
+        infoLog(`Daily changes summary sent: ${totalChanges} net changes reported`)
+        logEvent({ action: 'daily-changes-summary-sent', metadata: { changesCount: totalChanges } })
+      } else {
+        debugLog('No net changes detected, skipping email notification')
+      }
+    } else {
+      infoLog('No previous snapshot found, daily comparison will start tomorrow')
+    }
+
+  } catch (error) {
+    console.error('Failed to perform daily snapshot and comparison:', error)
+    logSystemError(error, { action: 'perform-daily-snapshot-comparison', status: 500 })
+  }
+}
+
+/**
+ * Schedules the daily snapshot and comparison to run at midnight
+ */
+function scheduleDailySnapshot() {
+  const now = new Date()
+  const tomorrow = new Date(now)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  tomorrow.setHours(0, 0, 0, 0) // Set to midnight
+  
+  const msUntilMidnight = tomorrow.getTime() - now.getTime()
+  
+  setTimeout(() => {
+    performDailySnapshotAndComparison()
+    // Schedule the next run (every 24 hours)
+    setInterval(performDailySnapshotAndComparison, 24 * 60 * 60 * 1000)
+  }, msUntilMidnight)
+  
+  infoLog(`Daily snapshot and comparison scheduled for midnight (in ${Math.round(msUntilMidnight / 1000 / 60)} minutes)`)
 }
 
 // E-mail setup
@@ -354,6 +890,38 @@ configureDailyReport({
   }
 })
 await cleanupExpiredResetCodes() // Clean up old reset codes on startup
+scheduleDailySnapshot() // Initialize daily database snapshot and comparison system
+
+// One-time cleanup: Remove old changeLog collection if it exists
+try {
+  const db = await getDb()
+  const collections = await db.listCollections({ name: 'changeLog' }).toArray()
+  if (collections.length > 0) {
+    await db.collection('changeLog').drop()
+    infoLog('Removed old changeLog collection as it is no longer needed')
+  }
+} catch (error) {
+  // Ignore errors if collection doesn't exist
+  if (error.codeName !== 'NamespaceNotFound') {
+    warnLog('Failed to remove old changeLog collection:', error.message)
+  }
+}
+
+// Create initial snapshot if it doesn't exist for today
+try {
+  const today = new Date().toISOString().split('T')[0]
+  const existingSnapshot = await getDailySnapshot(today)
+  if (!existingSnapshot) {
+    const initialSnapshot = await createDatabaseSnapshot()
+    if (initialSnapshot) {
+      await saveDailySnapshot(today, initialSnapshot)
+      infoLog('Created initial database snapshot for today')
+    }
+  }
+} catch (error) {
+  warnLog('Failed to create initial snapshot:', error.message)
+}
+
 logEvent({ action: 'server-start', metadata: { environment: process.env.NODE_ENV || 'development' } })
 
 // Express-app
@@ -477,14 +1045,13 @@ apiRouter.get('/users/full', (req, res) => {
 async function sendActiveStatusChangeEmail(user, newActiveStatus) {
   try {
     const statusText = newActiveStatus ? 'actief' : 'inactief'
-    const statusEmoji = newActiveStatus ? '✅' : '❌'
     
     await transporter.sendMail({
       from: process.env.SMTP_FROM || 'stamjer.mpd@gmail.coml',
       to: 'stamjer.mpd@gmail.com',
       subject: `Stamjer - Status wijziging: ${user.firstName} ${user.lastName}`,
       html: `
-        <h2>${statusEmoji} Status wijziging</h2>
+        <h2>Status wijziging</h2>
         <p><strong>${user.firstName} ${user.lastName}</strong> heeft zijn/haar status gewijzigd.</p>
         
         <table style="border-collapse: collapse; width: 100%; max-width: 400px;">
@@ -498,7 +1065,7 @@ async function sendActiveStatusChangeEmail(user, newActiveStatus) {
           </tr>
           <tr>
             <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Nieuwe status:</td>
-            <td style="padding: 8px; border: 1px solid #ddd;">${statusEmoji} ${statusText}</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${statusText}</td>
           </tr>
           <tr>
             <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Datum/tijd:</td>
@@ -525,7 +1092,8 @@ apiRouter.put('/user/profile', async (req, res) => {
     const idx = users.findIndex(u => u.id === uid)
     if (idx < 0) return res.status(404).json({ error: 'Gebruiker niet gevonden' })
     
-    // Store previous active status to check if it changed
+    // Store previous state for change tracking
+    const previousUser = { ...users[idx] }
     const previousActiveStatus = users[idx].active
     
     if (typeof active === 'boolean') {
@@ -636,9 +1204,34 @@ apiRouter.put('/events/:id/attendance', async (req, res) => {
     if (!ev.participants) ev.participants = []
     const uid = parseInt(userId, 10)
     const idx = ev.participants.indexOf(uid)
-    if (attending && idx < 0) ev.participants.push(uid)
-    if (!attending && idx >= 0) ev.participants.splice(idx, 1)
+    
+    // Track the change for logging
+    let changeDetails = {
+      title: ev.title,
+      start: ev.start,
+      participantId: uid,
+      action: attending ? 'joined' : 'left'
+    }
+    
+    if (attending && idx < 0) {
+      ev.participants.push(uid)
+      // Find user for logging
+      const user = users.find(u => u.id === uid)
+      if (user) {
+        changeDetails.participantName = `${user.firstName} ${user.lastName}`
+      }
+    }
+    if (!attending && idx >= 0) {
+      ev.participants.splice(idx, 1)
+      // Find user for logging
+      const user = users.find(u => u.id === uid)
+      if (user) {
+        changeDetails.participantName = `${user.firstName} ${user.lastName}`
+      }
+    }
+    
     await saveEvent(ev)
+    
     res.json({ msg: 'Aanwezigheid bijgewerkt', event: ev })
   } catch (err) {
     console.error(err)
@@ -702,10 +1295,24 @@ apiRouter.post('/forgot-password', async (req, res) => {
       
       await transporter.sendMail({
         from: process.env.SMTP_FROM || 'stamjer.mpd@gmail.com',
-        to: u.email, // Use original email for sending
-        subject: 'Stamjer wachtwoordherstelcode',
-        html: `<p>Je Stamjer-wachtwoordherstelcode: <strong>${code}</strong></p>`
+        to: u.email,
+        subject: 'Herstel je Stamjer-wachtwoord',
+        html: `
+          <div style="font-family: Arial, sans-serif; color: #222; background-color: #f9f9f9; padding: 20px; border-radius: 8px; max-width: 500px;">
+            <h2 style="color: #1e40af; text-align: center;">Wachtwoordherstel Stamjer</h2>
+            <p>Hallo,</p>
+            <p>Je hebt aangegeven je Stamjer-wachtwoord te willen herstellen. Gebruik onderstaande code om verder te gaan:</p>
+            <p style="font-size: 20px; font-weight: bold; text-align: center; color: #2563eb; background: #eef2ff; padding: 10px; border-radius: 6px;">${code}</p>
+            <p>De code is geldig gedurende <strong>10 minuten</strong>. Vul deze in op de herstelpagina om een nieuw wachtwoord in te stellen.</p>
+            <p>Heb je dit verzoek niet zelf gedaan? Dan kun je deze e-mail negeren.</p>
+            <hr style="margin: 20px 0;">
+            <p style="font-size: 12px; color: #666; text-align: center;">
+              Dit bericht is automatisch verzonden door Stamjer. Reageren op deze e-mail is niet nodig.
+            </p>
+          </div>
+        `
       })
+
     }
     res.json({ msg: generic })
   } catch (err) {
@@ -796,6 +1403,22 @@ apiRouter.post('/change-password', async (req, res) => {
     console.error(err)
     logSystemError(err, { action: 'POST /api/change-password', status: 500, metadata: req.body })
     res.status(500).json({ msg: 'Wijzigen mislukt' })
+  }
+})
+
+// Manual trigger for daily snapshot comparison (admin only, for testing)
+apiRouter.post('/admin/trigger-daily-snapshot', async (req, res) => {
+  try {
+    const { userId } = req.body
+    if (!userId) return res.status(401).json({ msg: 'Authenticatie vereist' })
+    if (!isUserAdmin(userId)) return res.status(403).json({ msg: 'Alleen beheerders' })
+    
+    await performDailySnapshotAndComparison()
+    res.json({ msg: 'Daily snapshot comparison triggered successfully' })
+  } catch (err) {
+    console.error(err)
+    logSystemError(err, { action: 'POST /api/admin/trigger-daily-snapshot', status: 500, metadata: req.body })
+    res.status(500).json({ msg: 'Failed to trigger daily snapshot comparison' })
   }
 })
 

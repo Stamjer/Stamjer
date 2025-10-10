@@ -39,7 +39,7 @@ export default function ForgotPassword() {
       await forgotPassword(normalizedEmail)
       setEmail(normalizedEmail) // Store normalized email for later use
       setStep('reset')
-      setSuccess('Herstelcode verzonden naar je e-mailadres.')
+      // setSuccess('Herstelcode verzonden naar je e-mailadres.')
     } catch (err) {
       console.error('Forgot password error:', err) // Debug log
       setError(withSupportContact(err.message || 'Er is een fout opgetreden bij het verzenden van de herstelcode.'))
