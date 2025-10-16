@@ -69,6 +69,7 @@ Required unless noted otherwise:
 - SMTP_PASS — optional; SMTP password/app password
 - SMTP_FROM — optional; From address for outgoing emails
 - DAILY_LOG_EMAIL — optional; recipient for daily log summaries
+- CRON_SECRET — optional; shared secret for triggering scheduled jobs outside Vercel Cron
 
 ## Project Structure
 
@@ -131,6 +132,10 @@ This repo includes vercel.json:
 - Routes:
    - /api/(.*) → api/index.js
    - All other paths → index.html (SPA fallback)
+- Scheduled Cron:
+   - /api/cron-daily triggered via Vercel Cron at 05:00 UTC (adjust in vercel.json as needed)
+
+When using Vercel Cron, the platform adds the `x-vercel-cron` header automatically. If you trigger the cron endpoint manually (e.g. from a CI job), provide `CRON_SECRET` either as a query parameter `?secret=...` or a `Bearer` token in the `Authorization` header to authorize the request.
 
 Set the required environment variables on Vercel (MONGODB_URI, CLIENT_ORIGIN, NODE_ENV, SMTP_* as needed).
 

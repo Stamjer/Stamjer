@@ -184,6 +184,12 @@ export function useCreateEvent(options = {}) {
       // Get current events
       const previousEvents = queryClient.getQueryData(queryKeys.events.lists()) || []
 
+      const optimisticParticipants = Array.isArray(eventData.participants)
+        ? eventData.participants
+            .map(id => parseInt(id, 10))
+            .filter(Number.isFinite)
+        : []
+
       // Create optimistic event
       const optimisticEvent = {
         id: `temp-${Date.now()}`, // Temporary ID
@@ -196,9 +202,7 @@ export function useCreateEvent(options = {}) {
           description: eventData.description,
           isOpkomst: eventData.isOpkomst,
           opkomstmakers: eventData.opkomstmakers,
-          participants: eventData.isOpkomst && eventData.title === 'Stam opkomst' ? 
-            previousEvents.filter(e => e.extendedProps?.participants)
-              .flatMap(e => e.extendedProps.participants || []) : []
+          participants: optimisticParticipants
         },
       }
 

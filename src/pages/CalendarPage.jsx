@@ -469,7 +469,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
           newData.title = 'Opkomst'
           newData.startTime = '20:30'
           newData.endTime = '22:30'
-          newData.location = 'Clubhuis Scouting Marco Polo Delft'
+          newData.location = 'Clubhuis Scouting MPD'
         } else {
           newData.title = ''
           newData.opkomstmakers = []
@@ -616,6 +616,14 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
         description: description.trim(),
         isOpkomst: formData.isOpkomst,
         opkomstmakers: opkomstmakersString,
+      }
+
+      if (!isEdit && formData.isOpkomst) {
+        const activeParticipantIds = users
+          .filter(user => Boolean(user?.active))
+          .map(user => parseInt(user.id, 10))
+          .filter(Number.isFinite)
+        eventData.participants = activeParticipantIds
       }
 
       if (isEdit) {

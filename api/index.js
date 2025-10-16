@@ -209,6 +209,65 @@ async function loadEvents() {
   infoLog(`Loaded ${events.length} events from MongoDB`)
 }
 
+async function syncUserAttendanceForFutureOpkomsten(userId, shouldBePresent) {
+  const uid = parseInt(userId, 10)
+  if (!Number.isInteger(uid)) {
+    return { updatedEvents: 0 }
+  }
+
+  const now = new Date()
+  let updatedEvents = 0
+  const saveOperations = []
+
+  events.forEach(event => {
+    if (!event || !event.isOpkomst) return
+    if (!event.start) return
+
+    const eventStart = new Date(event.start)
+    if (Number.isNaN(eventStart.getTime())) return
+    if (eventStart <= now) return
+
+    const existingParticipants = Array.isArray(event.participants)
+      ? event.participants
+          .map(participantId => parseInt(participantId, 10))
+          .filter(Number.isFinite)
+      : []
+
+    const uniqueParticipants = Array.from(new Set(existingParticipants)).sort((a, b) => a - b)
+    const hasUser = uniqueParticipants.includes(uid)
+
+    if (shouldBePresent && !hasUser) {
+      uniqueParticipants.push(uid)
+      uniqueParticipants.sort((a, b) => a - b)
+      event.participants = uniqueParticipants
+      saveOperations.push(saveEvent(event))
+      updatedEvents++
+      return
+    }
+
+    if (!shouldBePresent && hasUser) {
+      event.participants = uniqueParticipants.filter(id => id !== uid)
+      saveOperations.push(saveEvent(event))
+      updatedEvents++
+      return
+    }
+
+    // Ensure participants array is normalized even when no changes are required
+    event.participants = uniqueParticipants
+  })
+
+  if (saveOperations.length > 0) {
+    await Promise.all(saveOperations)
+    logEvent('attendance-auto-sync', {
+      userId: uid,
+      active: shouldBePresent,
+      updatedEvents
+    })
+  }
+
+  return { updatedEvents }
+}
+
 async function saveUser(user) {
   const db = await getDb()
   
@@ -713,7 +772,7 @@ function createDetailedHtmlTable(changes) {
 /**
  * Performs daily snapshot and comparison, sends email if there are changes
  */
-async function performDailySnapshotAndComparison() {
+export async function performDailySnapshotAndComparison() {
   try {
     debugLog('Starting daily snapshot and comparison')
     
@@ -1016,7 +1075,8 @@ apiRouter.get('/users', async (req, res) => {
       firstName: u.firstName,
       lastName: u.lastName,
       email: u.email,
-      role: u.role
+      role: u.role,
+      active: Boolean(u.active)
     }))
     res.json(safeUsers)
   } catch (err) {
@@ -1092,21 +1152,26 @@ apiRouter.put('/user/profile', async (req, res) => {
     const idx = users.findIndex(u => u.id === uid)
     if (idx < 0) return res.status(404).json({ error: 'Gebruiker niet gevonden' })
     
-    // Store previous state for change tracking
-    const previousUser = { ...users[idx] }
     const previousActiveStatus = users[idx].active
     
+    let attendanceSync = { updatedEvents: 0 }
+
     if (typeof active === 'boolean') {
       users[idx].active = active
       
       // Send email notification if active status changed
       if (previousActiveStatus !== active) {
+        attendanceSync = await syncUserAttendanceForFutureOpkomsten(uid, active)
         await sendActiveStatusChangeEmail(users[idx], active)
       }
     }
     
     await saveUser(users[idx])
-    res.json({ user: users[idx], msg: 'Profiel succesvol bijgewerkt' })
+    res.json({ 
+      user: users[idx], 
+      msg: 'Profiel succesvol bijgewerkt',
+      attendanceUpdates: attendanceSync.updatedEvents
+    })
   } catch (err) {
     console.error(err)
     logSystemError(err, { action: 'PUT /api/user/profile', status: 500, metadata: req.body })
@@ -1130,13 +1195,21 @@ apiRouter.post('/events', async (req, res) => {
       title, start, end, allDay,
       location, description,
       isOpkomst, opkomstmakers,
-      userId
+      userId,
+      participants: requestedParticipants = []
     } = req.body
     if (!userId) return res.status(401).json({ msg: 'Authenticatie vereist' })
     if (!isUserAdmin(userId)) return res.status(403).json({ msg: 'Alleen beheerders' })
     if (!title || !start) return res.status(400).json({ msg: 'Titel en startdatum zijn vereist' })
 
+    const sanitizedParticipants = Array.isArray(requestedParticipants)
+      ? requestedParticipants
+          .map(pid => parseInt(pid, 10))
+          .filter(Number.isFinite)
+      : []
+
     const id = Math.random().toString(36).substr(2, 6)
+    const isOpkomstFlag = !!isOpkomst
     const newEv = {
       id,
       title,
@@ -1145,13 +1218,27 @@ apiRouter.post('/events', async (req, res) => {
       allDay: !!allDay,
       location: location || '',
       description: description || '',
-      isOpkomst: !!isOpkomst,
+      isOpkomst: isOpkomstFlag,
       opkomstmakers: opkomstmakers || '',
-      participants: []
+      participants: sanitizedParticipants
     }
-    if (isOpkomst && title === 'Stam opkomst') {
-      newEv.participants = users.filter(u => u.active).map(u => u.id)
+
+    if (isOpkomstFlag) {
+      if (!users || users.length === 0) {
+        await loadUsers()
+      }
+      const activeUserIds = users
+        .filter(u => u.active)
+        .map(u => u.id)
+        .filter(Number.isFinite)
+
+      const combinedParticipants = Array.from(
+        new Set([...sanitizedParticipants, ...activeUserIds])
+      ).sort((a, b) => a - b)
+
+      newEv.participants = combinedParticipants
     }
+
     events.push(newEv)
     await saveEvent(newEv)
     res.json(newEv)

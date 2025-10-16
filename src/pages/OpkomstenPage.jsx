@@ -204,7 +204,7 @@ function OpkomstEditForm({ event, onClose, onSave, users = [], currentUser = nul
     endDate: event?.end || new Date().toISOString().slice(0, 10),
     endTime: event?.endTime || '22:30',
     isAllDay: event?.allDay || false,
-    location: event?.location || 'Scouting Marco Polo Delft',
+    location: event?.location || 'Clubhuis Scouting MPD',
     description: event?.description || '',
     isOpkomst: true, // Always true for opkomst events
     opkomstmakers: initializeOpkomstmakers()
@@ -752,7 +752,7 @@ export default function OpkomstenPage() {
             start: "2025-07-04T20:30",
             end: "2025-07-04T22:30",
             allDay: false,
-            location: "Scouting Marco Polo Delft",
+            location: "Clubhuis Scouting MPD",
             description: "Test opkomst",
             isOpkomst: true,
             opkomstmakers: "Test Maker",
@@ -764,7 +764,7 @@ export default function OpkomstenPage() {
             start: "2025-07-11T20:30",
             end: "2025-07-11T22:30",
             allDay: false,
-            location: "Scouting Marco Polo Delft",
+            location: "Clubhuis Scouting MPD",
             description: "Another test opkomst",
             isOpkomst: true,
             opkomstmakers: "Another Maker",

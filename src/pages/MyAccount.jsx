@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { withSupportContact } from '../config/appInfo'
 import { changePassword, updateUserProfile } from '../services/api'
+import { invalidateEvents, invalidateUsers } from '../lib/queryClient'
 import './MyAccount.css'
 import './Auth.css'
 
@@ -150,13 +151,19 @@ export default function MyAccount({ user: userProp, onLogout }) {
   }
 
   const handleActiveStatusChange = async (newActiveStatus) => {
-    const statusText = newActiveStatus ? 'actief' : 'inactief';
+    const previousStatus = activeStatus
+    const statusText = newActiveStatus ? 'actief' : 'inactief'
+    const presenceText = newActiveStatus ? 'aanwezig' : 'afwezig'
     const confirmationMessage = `Weet je zeker dat je je status wilt wijzigen naar "${statusText}"?
 
-Als je ${statusText} bent, word je automatisch ${newActiveStatus ? 'aangemeld voor' : 'afgemeld van'} alle toekomstige opkomsten.`;
+Als je ${statusText} bent, word je automatisch voor nieuwe opkomst op ${presenceText} gezet.
+
+Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als ${presenceText} gemarkeerd!`
 
     if (!window.confirm(confirmationMessage)) {
-      return; // User cancelled the action
+      // Ensure toggle reflects the actual stored state when user cancels
+      setActiveStatus(previousStatus)
+      return
     }
 
     console.log('MyAccount - handleActiveStatusChange called with:', newActiveStatus)
@@ -185,15 +192,31 @@ Als je ${statusText} bent, word je automatisch ${newActiveStatus ? 'aangemeld vo
 
       console.log('MyAccount - API response:', response)
 
+      if (previousStatus !== newActiveStatus) {
+        try {
+          await Promise.all([invalidateEvents(), invalidateUsers()])
+        } catch (cacheError) {
+          console.warn('MyAccount - Kon cache niet ongeldig maken:', cacheError)
+        }
+      }
+
       // Update local state
       setActiveStatus(newActiveStatus)
       
       // Update user data in localStorage
       const updatedUser = { ...user, active: newActiveStatus }
       localStorage.setItem('user', JSON.stringify(updatedUser))
+      sessionStorage.setItem('user', JSON.stringify(updatedUser))
+
+      const attendanceUpdates = Number.isFinite(response?.attendanceUpdates)
+        ? response.attendanceUpdates
+        : 0
+      const attendanceMessage = attendanceUpdates > 0
+        ? ` ${attendanceUpdates} toekomstige opkomsten zijn ${newActiveStatus ? 'als aanwezig' : 'als afwezig'} voor je ingesteld.`
+        : ''
       
       // Show success message - includes notification about email being sent
-      setMessage(`Status succesvol bijgewerkt naar ${statusText}.`)
+      setMessage(`Status succesvol bijgewerkt naar ${statusText}.${attendanceMessage}`)
     } catch (err) {
       console.error('MyAccount - Error updating active status:', err)
       setError(withSupportContact(err.message || 'Er is een fout opgetreden bij het bijwerken van je status.'))

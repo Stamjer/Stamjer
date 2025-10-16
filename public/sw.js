@@ -3,7 +3,7 @@
  * Provides offline functionality and caching for mobile users
  */
 
-const CACHE_NAME = 'stamjer-v1.5.2'
+const CACHE_NAME = 'stamjer-v1.5.3'
 const STATIC_CACHE_NAME = 'stamjer-static'
 const DYNAMIC_CACHE_NAME = 'stamjer-dynamic'
 
