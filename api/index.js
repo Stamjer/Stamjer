@@ -56,6 +56,9 @@ const debugLog = (...args) => {
 const infoLog = (...args) => console.info(...args)
 const warnLog = (...args) => console.warn(...args)
 const DAILY_LOG_EMAIL = process.env.DAILY_LOG_EMAIL || 'stamjer.mpd@gmail.com'
+const DAILY_CHANGE_EMAIL = process.env.DAILY_CHANGE_EMAIL || DAILY_LOG_EMAIL
+const SNAPSHOT_RETENTION_DAYS = Math.max(parseInt(process.env.DAILY_SNAPSHOT_RETENTION_DAYS, 10) || 7, 1)
+const SNAPSHOT_TTL_SECONDS = SNAPSHOT_RETENTION_DAYS * 24 * 60 * 60
 
 function maskEmail(email = '') {
   if (typeof email !== 'string') return ''
@@ -113,9 +116,12 @@ async function ensureIndexes(db) {
   ])
 
   // Add indexes for the daily snapshots collection
-  const snapshotsCreated = await ensureCollectionIndexes(db.collection('dailySnapshots'), [
+  const dailySnapshotsCollection = db.collection('dailySnapshots')
+  await dropObsoleteSnapshotIndexes(dailySnapshotsCollection)
+
+  const snapshotsCreated = await ensureCollectionIndexes(dailySnapshotsCollection, [
     { keys: { date: 1 }, options: { unique: true, background: true, name: 'snapshots_date_unique_idx' }, description: 'dailySnapshots.date unique' },
-    { keys: { date: 1 }, options: { expireAfterSeconds: 30 * 24 * 60 * 60, background: true, name: 'snapshots_ttl_idx' }, description: 'dailySnapshots TTL (30 days)' }
+    { keys: { createdAt: 1 }, options: { expireAfterSeconds: SNAPSHOT_TTL_SECONDS, background: true, name: 'snapshots_createdAt_ttl_idx' }, description: `dailySnapshots TTL (${SNAPSHOT_RETENTION_DAYS} dagen)` }
   ])
 
   if (eventsCreated || usersCreated || resetCodesCreated || snapshotsCreated) {
@@ -180,8 +186,40 @@ async function ensureCollectionIndexes(collection, definitions) {
   return createdAny
 }
 
+async function dropObsoleteSnapshotIndexes(collection) {
+  try {
+    const existingIndexes = await collection.indexes()
+    const obsoleteIndexes = existingIndexes.filter((idx) => idx.name === 'snapshots_ttl_idx' && isSameIndexKey(idx.key, { date: 1 }))
+
+    for (const index of obsoleteIndexes) {
+      try {
+        await collection.dropIndex(index.name)
+        infoLog('[indexes] Dropped obsolete dailySnapshots TTL index on date field')
+      } catch (dropError) {
+        warnLog(`[indexes] Failed to drop obsolete dailySnapshots TTL index: ${dropError.message}`)
+      }
+    }
+  } catch (error) {
+    if (error.codeName === 'NamespaceNotFound' || error.code === 26) {
+      return
+    }
+    warnLog(`[indexes] Error while inspecting dailySnapshots indexes: ${error.message}`)
+  }
+}
+
 function isSameIndexKey(a, b) {
   return JSON.stringify(a) === JSON.stringify(b)
+}
+
+function parseBoolean(value, defaultValue = false) {
+  if (value === undefined || value === null || value === '') {
+    return defaultValue
+  }
+
+  const normalized = String(value).trim().toLowerCase()
+  if (['1', 'true', 'yes', 'on', 'y', 't'].includes(normalized)) return true
+  if (['0', 'false', 'no', 'off', 'n', 'f'].includes(normalized)) return false
+  return defaultValue
 }
 
 // Tussenopslag gebruikers en evenementen
@@ -320,6 +358,28 @@ async function cleanupExpiredResetCodes() {
     }
   } catch (error) {
     warnLog('Warning: Could not clean up expired reset codes:', error.message)
+  }
+}
+
+async function cleanupOldSnapshots() {
+  try {
+    const db = await getDb()
+    const cutoffMillis = Date.now() - SNAPSHOT_TTL_SECONDS * 1000
+    const cutoffDate = new Date(cutoffMillis)
+    const cutoffIsoDate = new Date(cutoffMillis).toISOString().split('T')[0]
+
+    const result = await db.collection('dailySnapshots').deleteMany({
+      $or: [
+        { createdAt: { $lt: cutoffDate } },
+        { createdAt: { $exists: false }, date: { $lt: cutoffIsoDate } }
+      ]
+    })
+
+    if (result.deletedCount > 0) {
+      infoLog(`[snapshots] Removed ${result.deletedCount} daily snapshots ouder dan ${SNAPSHOT_RETENTION_DAYS} dagen`)
+    }
+  } catch (error) {
+    warnLog(`[snapshots] Failed to clean up old snapshots: ${error.message}`)
   }
 }
 
@@ -795,7 +855,8 @@ export async function performDailySnapshotAndComparison() {
     const yesterdaySnapshot = await getDailySnapshot(yesterdayStr)
 
     // Save today's snapshot
-    await saveDailySnapshot(todayStr, todaySnapshot)
+  await saveDailySnapshot(todayStr, todaySnapshot)
+  await cleanupOldSnapshots()
 
     // Compare snapshots if we have yesterday's data
     if (yesterdaySnapshot) {
@@ -804,14 +865,15 @@ export async function performDailySnapshotAndComparison() {
       
       if (summary) {
         // Send email notification
-        if (!transporter) {
+        const mailer = await ensureMailerTransport()
+        if (!mailer) {
           warnLog('Daily changes summary skipped: transporter not available')
           return
         }
 
-        await transporter.sendMail({
+        await mailer.sendMail({
           from: process.env.SMTP_FROM || 'stamjer.mpd@gmail.com',
-          to: 'stamjer.mpd@gmail.com',
+          to: DAILY_CHANGE_EMAIL,
           subject: summary.subject,
           text: summary.text,
           html: summary.html
@@ -821,7 +883,7 @@ export async function performDailySnapshotAndComparison() {
           changes.users.created.length + changes.users.updated.length + changes.users.deleted.length +
           changes.events.created.length + changes.events.updated.length + changes.events.deleted.length : 0
 
-        infoLog(`Daily changes summary sent: ${totalChanges} net changes reported`)
+  infoLog(`Daily changes summary sent: ${totalChanges} net changes reported`)
         logEvent({ action: 'daily-changes-summary-sent', metadata: { changesCount: totalChanges } })
       } else {
         debugLog('No net changes detected, skipping email notification')
@@ -858,34 +920,100 @@ function scheduleDailySnapshot() {
 
 // E-mail setup
 let transporter
-async function initMailer() {
-  try {
-    if (process.env.SMTP_SERVICE) {
-      transporter = nodemailer.createTransport({
-        service: process.env.SMTP_SERVICE,
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS
-        },
-        tls: { rejectUnauthorized: false }
-      })
-    } else {
-      const testAccount = await nodemailer.createTestAccount()
-      transporter = nodemailer.createTransport({
-        host: 'smtp.ethereal.email',
-        port: 587,
-        secure: false,
-        auth: {
-          user: testAccount.user,
-          pass: testAccount.pass
-        }
-      })
+let transporterInitPromise = null
+
+async function createMailerTransport() {
+  const host = process.env.SMTP_HOST
+  const service = process.env.SMTP_SERVICE
+  const user = process.env.SMTP_USER
+  const pass = process.env.SMTP_PASS
+
+  if (host) {
+    const portEnv = parseInt(process.env.SMTP_PORT, 10)
+    const port = Number.isFinite(portEnv) ? portEnv : 587
+    const secure = parseBoolean(process.env.SMTP_SECURE, port === 465)
+    const rejectUnauthorized = parseBoolean(process.env.SMTP_REJECT_UNAUTHORIZED, false)
+
+    const transportOptions = {
+      host,
+      port,
+      secure
     }
-    infoLog('Mail transporter initialised')
-  } catch (err) {
-    console.error('❌ Initialisatie mailer mislukt:', err)
-    logSystemError(err, { action: 'initMailer', status: 500 })
+
+    if (user && pass) {
+      transportOptions.auth = { user, pass }
+    } else {
+      warnLog('[mail] SMTP_HOST is ingesteld maar ontbrekende SMTP_USER/SMTP_PASS; probeer verbinding zonder authenticatie')
+    }
+
+    if (!rejectUnauthorized) {
+      transportOptions.tls = { rejectUnauthorized: false }
+    }
+
+    return nodemailer.createTransport(transportOptions)
   }
+
+  if (service) {
+    const transportOptions = {
+      service,
+      auth: user && pass ? { user, pass } : undefined,
+      tls: { rejectUnauthorized: parseBoolean(process.env.SMTP_REJECT_UNAUTHORIZED, false) }
+    }
+
+    if (!transportOptions.auth) {
+      warnLog(`[mail] SMTP_SERVICE=${service} geconfigureerd zonder inloggegevens; e-mails kunnen mogelijk niet verstuurd worden`)
+    }
+
+    return nodemailer.createTransport(transportOptions)
+  }
+
+  const testAccount = await nodemailer.createTestAccount()
+  infoLog(`[mail] Gebruik Ethereal test inbox ${testAccount.user} voor uitgaande e-mail`)
+
+  return nodemailer.createTransport({
+    host: 'smtp.ethereal.email',
+    port: 587,
+    secure: false,
+    auth: {
+      user: testAccount.user,
+      pass: testAccount.pass
+    }
+  })
+}
+
+async function ensureMailerTransport() {
+  if (transporter) {
+    return transporter
+  }
+
+  if (!transporterInitPromise) {
+    transporterInitPromise = (async () => {
+      try {
+        const mailer = await createMailerTransport()
+        transporter = mailer
+
+        if (transporter) {
+          try {
+            await transporter.verify()
+          } catch (verifyError) {
+            warnLog(`[mail] Verificatie van mailtransporter gaf waarschuwing: ${verifyError.message}`)
+          }
+          infoLog('[mail] Mail transporter initialised')
+        }
+
+        return transporter
+      } catch (error) {
+        transporter = null
+        console.error('❌ Initialisatie mailer mislukt:', error)
+        logSystemError(error, { action: 'initMailer', status: 500 })
+        return null
+      } finally {
+        transporterInitPromise = null
+      }
+    })()
+  }
+
+  return transporterInitPromise
 }
 
 // Hulpfuncties
@@ -927,15 +1055,16 @@ function calculateStreepjes() {
 // Cold start
 await loadUsers()
 await loadEvents()
-await initMailer()
+await ensureMailerTransport()
 configureDailyReport({
   sendEmail: async ({ subject, text, html }) => {
-    if (!transporter) {
+    const mailer = await ensureMailerTransport()
+    if (!mailer) {
       warnLog('Daily report overgeslagen: transporter niet beschikbaar')
       return
     }
     try {
-      await transporter.sendMail({
+      await mailer.sendMail({
         from: process.env.SMTP_FROM || 'stamjer.mpd@gmail.com',
         to: DAILY_LOG_EMAIL,
         subject,
@@ -949,6 +1078,7 @@ configureDailyReport({
   }
 })
 await cleanupExpiredResetCodes() // Clean up old reset codes on startup
+await cleanupOldSnapshots() // Remove stale daily snapshots on startup
 scheduleDailySnapshot() // Initialize daily database snapshot and comparison system
 
 // One-time cleanup: Remove old changeLog collection if it exists
@@ -1105,10 +1235,16 @@ apiRouter.get('/users/full', (req, res) => {
 async function sendActiveStatusChangeEmail(user, newActiveStatus) {
   try {
     const statusText = newActiveStatus ? 'actief' : 'inactief'
-    
-    await transporter.sendMail({
-      from: process.env.SMTP_FROM || 'stamjer.mpd@gmail.coml',
-      to: 'stamjer.mpd@gmail.com',
+
+    const mailer = await ensureMailerTransport()
+    if (!mailer) {
+      warnLog('Status change notification skipped: transporter niet beschikbaar')
+      return
+    }
+
+    await mailer.sendMail({
+      from: process.env.SMTP_FROM || 'stamjer.mpd@gmail.com',
+      to: DAILY_CHANGE_EMAIL,
       subject: `Stamjer - Status wijziging: ${user.firstName} ${user.lastName}`,
       html: `
         <h2>Status wijziging</h2>
@@ -1380,7 +1516,11 @@ apiRouter.post('/forgot-password', async (req, res) => {
       debugLog('Issued password reset code', { email: maskEmail(rawEmail) })
       debugLog('Stored password reset code with expiry', { email: maskEmail(rawEmail), expiresAt })
       
-      await transporter.sendMail({
+      const mailer = await ensureMailerTransport()
+      if (!mailer) {
+        warnLog('Herstelcode e-mail overgeslagen: transporter niet beschikbaar')
+      } else {
+        await mailer.sendMail({
         from: process.env.SMTP_FROM || 'stamjer.mpd@gmail.com',
         to: u.email,
         subject: 'Herstel je Stamjer-wachtwoord',
@@ -1398,7 +1538,8 @@ apiRouter.post('/forgot-password', async (req, res) => {
             </p>
           </div>
         `
-      })
+        })
+      }
 
     }
     res.json({ msg: generic })

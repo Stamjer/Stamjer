@@ -37,10 +37,16 @@
 .auth-card {
   position: relative;
   z-index: 1;
-  width: 100%;
-  background: rgba(255, 255, 255, 0.95);
+  /* background: rgba(255, 255, 255, 0.95); */
   backdrop-filter: blur(20px);
   overflow: hidden;
+
+  background: white;
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--secondary-200);
+  overflow: hidden;
+  transition: all var(--duration-normal) var(--ease-out);
   animation: slideInUp var(--duration-slow) var(--ease-out);
 }
 
@@ -54,6 +60,7 @@
   text-align: center;
   background: transparent;
   border-bottom: 1px solid var(--secondary-100);
+  padding: var(--space-6);
 }
 
 .auth-logo {
@@ -83,7 +90,7 @@
 
 /* Auth Body */
 .auth-body {
-  padding: var(--space-2) var(--space-2) var(--space-2);
+  padding: var(--space-6);
 }
 
 /* Enhanced Form Styling */
@@ -201,6 +208,7 @@
   width: 100%;
   /* Make the edges round */
   border-radius: var(--radius-lg);
+  padding: 0.5rem;
 }
 
 /* Loading Spinner - Already in shared.css as .spinner */

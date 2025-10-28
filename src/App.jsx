@@ -590,6 +590,7 @@ function App() {
                       `bottom-nav-link${isActive ? ' is-active' : ''}`
                     }
                     aria-label={item.label}
+                    data-label={item.label}
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
                     {Icon && (
@@ -597,7 +598,9 @@ function App() {
                         <Icon />
                       </span>
                     )}
-                    <span className="bottom-nav-label">{item.label}</span>
+                    <span className="bottom-nav-label" aria-hidden="true">
+                      {item.label}
+                    </span>
                   </NavLink>
                 )
               })}
