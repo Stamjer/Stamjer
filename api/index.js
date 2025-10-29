@@ -1119,9 +1119,29 @@ const __dirname = dirname(__filename)
 
 const app = express()
 
-const allowedOriginEnv = process.env.CLIENT_ORIGIN || ''
-const configuredOrigins = allowedOriginEnv.split(',').map(origin => origin.trim()).filter(Boolean)
+function parseOrigins(value = '') {
+  return value
+    .split(',')
+    .map(origin => origin.trim())
+    .filter(Boolean)
+}
+
+const defaultProductionOrigins = ['https://stamjer.nl', 'https://www.stamjer.nl']
+const envConfiguredOrigins = Array.from(new Set([
+  ...parseOrigins(process.env.CLIENT_ORIGIN || ''),
+  ...parseOrigins(process.env.ADDITIONAL_CORS_ORIGINS || '')
+]))
 const fallbackOrigins = ['http://localhost:5173', 'http://localhost:4173']
+
+defaultProductionOrigins.forEach((origin) => {
+  if (!fallbackOrigins.includes(origin)) {
+    fallbackOrigins.push(origin)
+  }
+})
+
+const configuredOrigins = envConfiguredOrigins.length > 0
+  ? Array.from(new Set([...envConfiguredOrigins, ...defaultProductionOrigins]))
+  : []
 
 // Add Vercel URLs to fallback origins
 if (process.env.VERCEL_URL) {
