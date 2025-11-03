@@ -1,0 +1,76 @@
+/**
+ * ================================================================
+ * CALENDAR SUBSCRIPTION STYLES
+ * ================================================================
+ * Only unique styles - reuses setting-item classes from MyAccount.css
+ */
+
+.calendar-subscription-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--primary-600);
+  font-size: 0.875rem;
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  text-align: left;
+  transition: color var(--duration-fast) var(--ease-out);
+  margin-top: var(--space-1);
+}
+
+.calendar-subscription-toggle:hover {
+  color: var(--primary-700);
+}
+
+.calendar-subscription-instructions {
+  background: var(--secondary-50);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  border: 1px solid var(--secondary-200);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.instruction-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.instruction-section strong {
+  color: var(--secondary-800);
+  font-size: 0.875rem;
+  font-weight: var(--font-weight-semibold);
+}
+
+.instruction-section ol {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.instruction-section li {
+  font-size: 0.8125rem;
+  color: var(--secondary-700);
+  line-height: 1.4;
+}
+
+.instruction-note {
+  font-size: 0.8125rem;
+  color: var(--secondary-600);
+  background: white;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  border-left: 2px solid var(--primary-500);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.instruction-note strong {
+  color: var(--secondary-800);
+}
+

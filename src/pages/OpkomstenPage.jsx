@@ -1246,8 +1246,12 @@ export default function OpkomstenPage() {
                           <div style={{ fontSize: '0.7rem', fontWeight: 'var(--font-weight-semibold)', color: 'var(--secondary-600)', marginBottom: 'var(--space-1)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                             Opkomstmakers
                           </div>
-                          <div className="opkomstmakers-content">
-                            {event.opkomstmakers.split(',').map((maker, index) => maker.trim()).join(' & ')}
+                          <div className="opkomst-list__makers-badges">
+                            {event.opkomstmakers.split(',').map((maker, index) => (
+                              <span key={index} className="opkomst-list__maker-pill">
+                                {maker.trim()}
+                              </span>
+                            ))}
                           </div>
                         </div>
                       )}

@@ -32,6 +32,7 @@ import { fileURLToPath } from 'url'
 import { dirname } from 'path'
 import { MongoClient } from 'mongodb'
 import { createRequestLogger, configureDailyReport, logError as logSystemError, logEvent } from './logger.js'
+import { createICalendarHandler } from './icalendar.js'
 
 // MongoDB setup
 const uri = process.env.MONGODB_URI
@@ -1669,6 +1670,12 @@ apiRouter.post('/admin/trigger-daily-snapshot', async (req, res) => {
     res.status(500).json({ msg: 'Failed to trigger daily snapshot comparison' })
   }
 })
+
+// iCalendar feed endpoint
+apiRouter.get('/calendar.ics', createICalendarHandler(async () => {
+  // Return events from in-memory cache (kept in sync with database)
+  return events
+}))
 
 // API-mounting
 app.use('/api', apiRouter)
