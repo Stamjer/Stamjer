@@ -19,7 +19,7 @@ import React, { useState } from 'react'
 import './CalendarSubscription.css'
 
 // Toggle this to show/hide for all users
-const ADMIN_ONLY = true
+const ADMIN_ONLY = false
 
 export default function CalendarSubscription({ user }) {
   const [copied, setCopied] = useState(false)

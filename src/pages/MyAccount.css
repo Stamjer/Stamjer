@@ -252,7 +252,6 @@
   border: 1px solid var(--secondary-200);
   border-radius: var(--radius-lg);
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.8) 100%);
-  /* cursor: pointer; */
   text-align: left;
   transition: transform var(--duration-fast) var(--ease-out),
     box-shadow var(--duration-fast) var(--ease-out),
@@ -263,6 +262,7 @@
   appearance: none;
   -webkit-appearance: none;
   box-shadow: var(--shadow-sm);
+  padding: var(--space-3);
 }
 
 .opkomst-list__item:hover,
@@ -283,7 +283,6 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  /* gap: var(--space-2); */
 }
 
 .opkomst-list__title {
@@ -384,3 +383,16 @@
  * All button styles (.btn, .btn-primary, .btn-secondary, .btn-danger, etc.)
  * are defined in src/styles/shared.css
  */
+
+/* Calendar Subscription Card Styling */
+.account-card-calendar {
+  grid-column: 1 / -1;
+}
+
+.account-card-calendar .account-card-body {
+  padding: 0;
+}
+
+.account-card-calendar .calendar-subscription {
+  margin: 0;
+}
