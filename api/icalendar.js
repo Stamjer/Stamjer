@@ -162,27 +162,25 @@ function generateVEvent(event) {
     lines.push(foldLine(`SUMMARY:${summary}`))
   }
   
-  // DESCRIPTION
-  let description = ''
-  if (event.description) {
-    description = event.description
+  // LOCATION (separate field, not in description)
+  if (event.location) {
+    const location = escapeText(event.location)
+    lines.push(foldLine(`LOCATION:${location}`))
   }
   
-  // Add location to description if present
-  if (event.location) {
-    if (description) {
-      description += `\\n\\nLocatie: ${event.location}`
-    } else {
-      description = `Locatie: ${event.location}`
-    }
+  // DESCRIPTION (build from description and opkomstmakers only)
+  let description = ''
+  
+  if (event.description) {
+    description = event.description
   }
   
   // Add opkomstmakers to description if it's an opkomst
   if (event.isOpkomst && event.opkomstmakers) {
     if (description) {
-      description += `\\n\\nOpkomstmakers: ${event.opkomstmakers}`
+      description += '\n\nOpkomstmakers: ' + event.opkomstmakers
     } else {
-      description = `Opkomstmakers: ${event.opkomstmakers}`
+      description = 'Opkomstmakers: ' + event.opkomstmakers
     }
   }
   
