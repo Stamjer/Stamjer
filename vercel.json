@@ -1,19 +1,10 @@
 {
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": { "distDir": "dist" }
-    },
-    {
-      "src": "api/index.js",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    { "src": "/api/(.*)", "dest": "api/index.js" },
-    { "handle": "filesystem" },
-    { "src": "/.*", "dest": "/index.html" }
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/api/cron-daily", "destination": "/api/cron-daily" },
+    { "source": "/api/:path*", "destination": "/api/index" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
   "crons": [
     {

@@ -27,7 +27,7 @@ import { APP_VERSION, withSupportContact } from './config/appInfo'
 import ProtectedRoute from './components/ProtectedRoute'
 import { AppErrorBoundary, PageErrorBoundary, setupGlobalErrorHandling } from './components/ErrorBoundary'
 import { ToastProvider } from './hooks/useToast'
-import { CalendarIcon, ClipboardIcon, TrophyIcon, UserIcon, LoginIcon } from './components/icons'
+import { CalendarIcon, ClipboardIcon, EuroIcon, TrophyIcon, UserIcon, LoginIcon } from './components/icons'
 
 // Query client configuration
 import { queryClient } from './lib/queryClient'
@@ -45,6 +45,7 @@ const CalendarPage = lazy(() => import('./pages/CalendarPage'))
 const OpkomstenPage = lazy(() => import('./pages/OpkomstenPage'))
 const MyAccount = lazy(() => import('./pages/MyAccount'))
 const StrepenPage = lazy(() => import('./pages/StrepenPage'))
+const PaymentRequestPage = lazy(() => import('./pages/PaymentRequestPage'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 
 const ROUTE_LABELS = {
@@ -53,6 +54,7 @@ const ROUTE_LABELS = {
   '/forgot-password': 'Wachtwoord herstellen',
   '/kalender': 'Kalender',
   '/opkomsten': 'Opkomsten',
+  '/declaraties': 'Declaraties',
   '/strepen': 'Strepen',
   '/account': 'Account',
 }
@@ -60,6 +62,7 @@ const ROUTE_LABELS = {
 const NAV_ICON_MAP = {
   '/kalender': CalendarIcon,
   '/opkomsten': ClipboardIcon,
+  '/declaraties': EuroIcon,
   '/strepen': TrophyIcon,
   '/account': UserIcon,
   '/login': LoginIcon,
@@ -291,6 +294,12 @@ function App() {
         icon: NAV_ICON_MAP['/opkomsten'],
         variant: 'secondary',
       },
+      {
+        to: '/declaraties',
+        label: ROUTE_LABELS['/declaraties'],
+        icon: NAV_ICON_MAP['/declaraties'],
+        variant: 'secondary',
+      },
     ]
 
     if (user?.isAdmin) {
@@ -336,6 +345,11 @@ function App() {
         to: '/opkomsten',
         label: ROUTE_LABELS['/opkomsten'],
         icon: NAV_ICON_MAP['/opkomsten'],
+      },
+      {
+        to: '/declaraties',
+        label: ROUTE_LABELS['/declaraties'],
+        icon: NAV_ICON_MAP['/declaraties'],
       },
     ]
 
@@ -437,7 +451,7 @@ function App() {
                       }
                     }}
                   />
-                  <span className="nav-title">Stamjer</span>
+                  <h1 className="nav-title">{ROUTE_LABELS[normalizedPathname] || 'Stamjer'}</h1>
                   <span
                     className="nav-version"
                     aria-label={`Applicatie versie ${APP_VERSION}`}
@@ -551,6 +565,13 @@ function App() {
                   <ProtectedRoute user={user}>
                     <PageErrorBoundary pageName="Opkomsten">
                       <OpkomstenPage />
+                    </PageErrorBoundary>
+                  </ProtectedRoute>
+                } />
+                <Route path="/declaraties" element={
+                  <ProtectedRoute user={user}>
+                    <PageErrorBoundary pageName="Declaraties">
+                      <PaymentRequestPage user={user} />
                     </PageErrorBoundary>
                   </ProtectedRoute>
                 } />

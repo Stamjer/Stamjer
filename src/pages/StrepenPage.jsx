@@ -250,9 +250,9 @@ export default function StrepenPage() {
         {/* aria-live region for toggle feedback */}
         <div className="visually-hidden" aria-live="polite">{liveMsg}</div>
 
-        <header className="strepen-header">
+        {/* <header className="strepen-header">
           <h1>Strepen</h1>
-        </header>
+        </header> */}
 
         {/* Mobile header with selector + filters */}
         {isMobile ? (

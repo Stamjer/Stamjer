@@ -320,17 +320,30 @@
 .nav-title {
   font-size: 1.6rem;
   font-weight: var(--font-weight-extrabold);
-  background: var(--gradient-primary);
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 50%, #3b82f6 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.1);
-  letter-spacing: -0.5px;
+  letter-spacing: -0.02em;
   transition: all var(--duration-normal) var(--ease-out);
+  margin: 0;
+  line-height: 1.2;
+}
+
+@media (min-width: 768px) {
+  .nav-title {
+    font-size: 1.9rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .nav-title {
+    font-size: 2.2rem;
+  }
 }
 
 .nav-brand:hover .nav-title {
-  text-shadow: 2px 2px 6px rgba(29, 78, 216, 0.2);
+  filter: brightness(1.1);
 }
 
 .nav-version {
@@ -571,10 +584,11 @@
     position: fixed;
     left: 50%;
     right: auto;
-    bottom: calc(env(safe-area-inset-bottom, 0));
+    bottom: 0;
     transform: translateX(-50%);
     width: min(420px, calc(100%));
     padding: 0.6rem 0.7rem;
+    padding-bottom: max(0.6rem, env(safe-area-inset-bottom, 0));
     background: rgba(255, 255, 255, 0.85);
     border: 1px solid rgba(148, 163, 184, 0.28);
     backdrop-filter: blur(16px);
@@ -586,6 +600,10 @@
     align-items: center;
     gap: 0.3rem;
     z-index: 90;
+    /* Prevent iOS Safari from causing layout shifts */
+    -webkit-transform: translateX(-50%) translateZ(0);
+    transform: translateX(-50%) translateZ(0);
+    will-change: transform;
   }
 
   .bottom-nav-link {
@@ -1364,8 +1382,8 @@ textarea:focus-visible {
   box-shadow: var(--shadow-lg);
 }
 
+/* h1 styles now handled by shared.css */
 .not-found-content h1 {
-  font-size: 2.5rem;
   margin-bottom: 1rem;
 }
 
@@ -1399,10 +1417,13 @@ textarea:focus-visible {
 @media (max-width: 600px) {
   .app-container {
     min-height: 100dvh;
+    /* Fix for iOS Safari viewport issues */
+    min-height: -webkit-fill-available;
   }
 
   main#main {
-    padding: 1rem 0.9rem calc(5rem + env(safe-area-inset-bottom, 0.85rem));
+    padding: 1rem 0.9rem 5rem;
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0.85rem));
   }
 
   .page-header {

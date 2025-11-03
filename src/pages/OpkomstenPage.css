@@ -42,13 +42,8 @@
   animation: fadeInUp var(--duration-slow) var(--ease-out);
 }
 
+/* h1 styles now handled by shared.css */
 .opkomsten-title {
-  font-size: 2.5rem;
-  font-weight: var(--font-weight-bold);
-  background: var(--gradient-primary);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
   margin-bottom: var(--space-1);
   line-height: 1.2;
 }

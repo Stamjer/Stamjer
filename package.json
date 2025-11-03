@@ -1,6 +1,6 @@
 {
   "name": "stamjer",
-  "version": "1.6.2",
+  "version": "1.7.0",
   "description": "Een professionele React + Vite kalender applicatie met gebruikersauthenticatie en evenementbeheer",
   "private": true,
   "type": "module",
@@ -41,6 +41,7 @@
     "express-static-gzip": "^3.0.0",
     "mongodb": "^6.17.0",
     "nodemailer": "^7.0.4",
+    "pdf-lib": "^1.17.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.6.2",

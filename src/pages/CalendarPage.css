@@ -15,7 +15,6 @@
   padding: var(--space-4) var(--space-2);
   background: linear-gradient(135deg, var(--secondary-50) 0%, var(--primary-50) 100%);
   min-height: 100vh;
-  margin-bottom: var(--space-8);
 }
 
 @media (min-width: 768px) {
@@ -30,22 +29,7 @@
   animation: fadeInUp var(--duration-slow) var(--ease-out);
 }
 
-.calendar-title {
-  font-size: 2.5rem;
-  font-weight: var(--font-weight-bold);
-  background: var(--gradient-primary);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  margin-bottom: var(--space-2);
-  line-height: 1.2;
-}
-
-@media (min-width: 768px) {
-  .calendar-title {
-    font-size: 3rem;
-  }
-}
+/* h1 styles now handled by shared.css */
 
 .calendar-subtitle {
   color: var(--secondary-600);
@@ -1274,7 +1258,7 @@
   }
 
   .calendar-header {
-    margin-bottom: var(--space-2);
+    margin-bottom: var(--space-0);
   }
 
   .calendar-title {

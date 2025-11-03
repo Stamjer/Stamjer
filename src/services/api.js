@@ -417,6 +417,27 @@ export async function updateUserProfile(profileData) {
 }
 
 // ================================================================
+// PAYMENT REQUESTS API
+// ================================================================
+
+/**
+ * Submit an expense reimbursement request
+ * @param {Object} requestData - Payment request payload
+ * @returns {Promise<Object>} Submission result
+ */
+export async function submitPaymentRequest(requestData) {
+  if (!requestData) {
+    throw new Error('Aanvraaggegevens ontbreken')
+  }
+
+  return request('/payment-requests', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(requestData)
+  }, 60000)
+}
+
+// ================================================================
 // UTILITY EXPORTS
 // ================================================================
 
@@ -467,6 +488,9 @@ export default {
   getUsersFull,
   getUserProfile,
   updateUserProfile,
+
+  // Payment requests
+  submitPaymentRequest,
   
   // Utilities
   isOnline,

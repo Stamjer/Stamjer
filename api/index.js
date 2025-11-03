@@ -27,6 +27,7 @@ import nodemailer from 'nodemailer'
 import validator from 'validator'
 import bcrypt from 'bcrypt'
 import path from 'path'
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import expressStaticGzip from 'express-static-gzip'
 import { fileURLToPath } from 'url'
 import { dirname } from 'path'
@@ -60,6 +61,10 @@ const DAILY_LOG_EMAIL = process.env.DAILY_LOG_EMAIL || 'stamjer.mpd@gmail.com'
 const DAILY_CHANGE_EMAIL = process.env.DAILY_CHANGE_EMAIL || DAILY_LOG_EMAIL
 const SNAPSHOT_RETENTION_DAYS = Math.max(parseInt(process.env.DAILY_SNAPSHOT_RETENTION_DAYS, 10) || 7, 1)
 const SNAPSHOT_TTL_SECONDS = SNAPSHOT_RETENTION_DAYS * 24 * 60 * 60
+const PAYMENT_REQUEST_EMAIL = process.env.PAYMENT_REQUEST_EMAIL || 'stamjer.mpd@gmail.com'
+const PAYMENT_REQUEST_ATTACHMENT_LIMIT = Math.max(parseInt(process.env.PAYMENT_REQUEST_ATTACHMENT_LIMIT, 10) || 3, 0)
+const PAYMENT_REQUEST_ATTACHMENT_SIZE_LIMIT = Math.max(parseInt(process.env.PAYMENT_REQUEST_ATTACHMENT_SIZE_LIMIT, 10) || 5, 1) * 1024 * 1024
+const PAYMENT_REQUEST_TOTAL_SIZE_LIMIT = Math.max(parseInt(process.env.PAYMENT_REQUEST_TOTAL_SIZE_LIMIT, 10) || 15, 1) * 1024 * 1024
 
 function maskEmail(email = '') {
   if (typeof email !== 'string') return ''
@@ -835,14 +840,16 @@ function createDetailedHtmlTable(changes) {
  */
 export async function performDailySnapshotAndComparison() {
   try {
+    infoLog('[Daily Snapshot] Starting daily snapshot and comparison process')
     debugLog('Starting daily snapshot and comparison')
     
     // Create today's snapshot
     const todaySnapshot = await createDatabaseSnapshot()
     if (!todaySnapshot) {
-      warnLog('Failed to create today\'s snapshot, skipping comparison')
+      warnLog('[Daily Snapshot] Failed to create today\'s snapshot, skipping comparison')
       return
     }
+    infoLog('[Daily Snapshot] Today\'s snapshot created successfully')
 
     // Get today's and yesterday's date strings
     const today = new Date()
@@ -854,25 +861,30 @@ export async function performDailySnapshotAndComparison() {
 
     // Get yesterday's snapshot
     const yesterdaySnapshot = await getDailySnapshot(yesterdayStr)
+    infoLog(`[Daily Snapshot] Yesterday's snapshot ${yesterdaySnapshot ? 'found' : 'not found'}`)
 
     // Save today's snapshot
-  await saveDailySnapshot(todayStr, todaySnapshot)
-  await cleanupOldSnapshots()
+    await saveDailySnapshot(todayStr, todaySnapshot)
+    await cleanupOldSnapshots()
+    infoLog('[Daily Snapshot] Today\'s snapshot saved and old snapshots cleaned')
 
     // Compare snapshots if we have yesterday's data
     if (yesterdaySnapshot) {
+      infoLog('[Daily Snapshot] Comparing snapshots...')
       const changes = compareSnapshots(yesterdaySnapshot, todaySnapshot)
       const summary = formatChangesSummary(changes)
       
       if (summary) {
+        infoLog('[Daily Snapshot] Changes detected, preparing to send email')
         // Send email notification
         const mailer = await ensureMailerTransport()
         if (!mailer) {
-          warnLog('Daily changes summary skipped: transporter not available')
+          warnLog('[Daily Snapshot] Daily changes summary skipped: transporter not available')
           return
         }
 
-        await mailer.sendMail({
+        infoLog(`[Daily Snapshot] Sending email to ${DAILY_CHANGE_EMAIL}`)
+        const emailResult = await mailer.sendMail({
           from: process.env.SMTP_FROM || 'stamjer.mpd@gmail.com',
           to: DAILY_CHANGE_EMAIL,
           subject: summary.subject,
@@ -884,25 +896,42 @@ export async function performDailySnapshotAndComparison() {
           changes.users.created.length + changes.users.updated.length + changes.users.deleted.length +
           changes.events.created.length + changes.events.updated.length + changes.events.deleted.length : 0
 
-  infoLog(`Daily changes summary sent: ${totalChanges} net changes reported`)
-        logEvent({ action: 'daily-changes-summary-sent', metadata: { changesCount: totalChanges } })
+        infoLog(`[Daily Snapshot] ✅ Daily changes summary sent successfully: ${totalChanges} net changes reported`)
+        if (emailResult.messageId) {
+          infoLog(`[Daily Snapshot] Email message ID: ${emailResult.messageId}`)
+        }
+        const previewUrl = nodemailer.getTestMessageUrl(emailResult)
+        if (previewUrl) {
+          infoLog(`[Daily Snapshot] Preview URL: ${previewUrl}`)
+        }
+        logEvent({ action: 'daily-changes-summary-sent', metadata: { changesCount: totalChanges, emailSent: true } })
       } else {
+        infoLog('[Daily Snapshot] No net changes detected, skipping email notification')
         debugLog('No net changes detected, skipping email notification')
+        logEvent({ action: 'daily-snapshot-no-changes', metadata: { emailSent: false } })
       }
     } else {
-      infoLog('No previous snapshot found, daily comparison will start tomorrow')
+      infoLog('[Daily Snapshot] No previous snapshot found, daily comparison will start tomorrow')
     }
 
   } catch (error) {
-    console.error('Failed to perform daily snapshot and comparison:', error)
+    console.error('[Daily Snapshot] ❌ Failed to perform daily snapshot and comparison:', error)
     logSystemError(error, { action: 'perform-daily-snapshot-comparison', status: 500 })
   }
 }
 
 /**
  * Schedules the daily snapshot and comparison to run at midnight
+ * NOTE: On Vercel, this is handled by Vercel Cron instead.
+ * This function is kept for local development only.
  */
 function scheduleDailySnapshot() {
+  // Skip scheduling if running on Vercel - cron job will handle it
+  if (process.env.VERCEL) {
+    infoLog('Running on Vercel: daily snapshot will be triggered by Vercel Cron at 05:00 UTC')
+    return
+  }
+  
   const now = new Date()
   const tomorrow = new Date(now)
   tomorrow.setDate(tomorrow.getDate() + 1)
@@ -1053,6 +1082,370 @@ function calculateStreepjes() {
   return counts
 }
 
+function escapeHtml(value = '') {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function sanitizeIban(iban = '') {
+  return iban.replace(/\s+/g, '').toUpperCase()
+}
+
+function formatIban(iban = '') {
+  const sanitized = sanitizeIban(iban)
+  return sanitized.replace(/(.{4})/g, '$1 ').trim()
+}
+
+function maskIban(iban = '') {
+  const sanitized = sanitizeIban(iban)
+  if (sanitized.length <= 8) {
+    return sanitized.replace(/.(?=.{4})/g, '*')
+  }
+  const head = sanitized.slice(0, 4)
+  const tail = sanitized.slice(-4)
+  return `${head}${'*'.repeat(Math.max(sanitized.length - 8, 4))}${tail}`
+}
+
+function formatCurrency(amount) {
+  const value = Number(amount)
+  if (!Number.isFinite(value)) {
+    return '€ 0,00'
+  }
+
+  try {
+    return new Intl.NumberFormat('nl-NL', {
+      style: 'currency',
+      currency: 'EUR'
+    }).format(value)
+  } catch {
+    return `€ ${value.toFixed(2)}`
+  }
+}
+
+function formatDateDisplay(value) {
+  if (!value) {
+    return 'Onbekend'
+  }
+
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return 'Onbekend'
+  }
+
+  try {
+    return new Intl.DateTimeFormat('nl-NL', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric'
+    }).format(parsed)
+  } catch {
+    return parsed.toISOString().split('T')[0]
+  }
+}
+
+function sanitizeFileName(value = '') {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/-{2,}/g, '-')
+    .slice(0, 60) || 'stamjer'
+}
+
+async function buildPaymentRequestPdf(request, attachments = []) {
+  const pdfDoc = await PDFDocument.create()
+  pdfDoc.setCreator('Stamjer Declaratiesysteem')
+  pdfDoc.setProducer('Stamjer Declaratiesysteem')
+  if (request?.expenseTitle) {
+    pdfDoc.setTitle(`Declaratie - ${request.expenseTitle}`)
+    pdfDoc.setSubject(request.expenseTitle)
+  }
+
+  const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica)
+  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+  const pageSize = [595.28, 841.89] // A4 portrait in points
+  const headingColor = rgb(0.12, 0.23, 0.45)
+  const textColor = rgb(0.16, 0.18, 0.22)
+  const leftMargin = 48
+  const rightMargin = 48
+  const topMargin = 72
+  const bottomMargin = 72
+  const lineHeight = 18
+  const labelWidth = 130
+  const submittedAt = request?.submittedAt ? new Date(request.submittedAt) : new Date()
+
+  let page = pdfDoc.addPage(pageSize)
+  let { width, height } = page.getSize()
+  let cursorY = height - topMargin
+  const maxLineWidth = width - leftMargin - rightMargin
+
+  const ensureSpace = (lines = 1) => {
+    if (cursorY - lineHeight * lines < bottomMargin) {
+      page = pdfDoc.addPage(pageSize)
+      ;({ width, height } = page.getSize())
+      cursorY = height - topMargin
+    }
+  }
+
+  const wrapText = (text = '', font = fontRegular, size = 11, maxWidth = maxLineWidth) => {
+    const value = String(text || '').trim()
+    if (!value) {
+      return ['-']
+    }
+
+    const words = value.split(/\s+/).filter(Boolean)
+    const lines = []
+    let currentLine = ''
+
+    const flushLine = () => {
+      if (currentLine) {
+        lines.push(currentLine)
+        currentLine = ''
+      }
+    }
+
+    const appendLongWord = (word) => {
+      let buffer = ''
+      for (const char of word) {
+        const candidate = buffer + char
+        if (font.widthOfTextAtSize(candidate, size) <= maxWidth) {
+          buffer = candidate
+        } else {
+          if (buffer) {
+            if (font.widthOfTextAtSize(buffer, size) > maxWidth && buffer.length > 1) {
+              const midpoint = Math.floor(buffer.length / 2)
+              lines.push(buffer.slice(0, midpoint))
+              buffer = buffer.slice(midpoint)
+            } else {
+              lines.push(buffer)
+              buffer = ''
+            }
+          }
+          buffer = char
+        }
+      }
+      if (buffer) {
+        lines.push(buffer)
+      }
+    }
+
+    for (const word of words) {
+      const candidate = currentLine ? `${currentLine} ${word}` : word
+      if (font.widthOfTextAtSize(candidate, size) <= maxWidth) {
+        currentLine = candidate
+      } else {
+        flushLine()
+        if (font.widthOfTextAtSize(word, size) > maxWidth) {
+          appendLongWord(word)
+        } else {
+          currentLine = word
+        }
+      }
+    }
+
+    flushLine()
+    return lines.length > 0 ? lines : ['-']
+  }
+
+  const drawHeading = (text, size = 14) => {
+    ensureSpace(2)
+    page.drawText(text, {
+      x: leftMargin,
+      y: cursorY,
+      size,
+      font: fontBold,
+      color: headingColor
+    })
+    cursorY -= size >= 16 ? 28 : 24
+  }
+
+  const drawRow = (label, value) => {
+    const lines = wrapText(value, fontRegular, 11, maxLineWidth - labelWidth)
+    ensureSpace(lines.length)
+
+    page.drawText(label, {
+      x: leftMargin,
+      y: cursorY,
+      size: 11,
+      font: fontBold,
+      color: headingColor
+    })
+
+    lines.forEach((line, index) => {
+      page.drawText(line, {
+        x: leftMargin + labelWidth,
+        y: cursorY - index * lineHeight,
+        size: 11,
+        font: fontRegular,
+        color: textColor
+      })
+    })
+
+    cursorY -= lineHeight * lines.length
+    cursorY -= 4
+  }
+
+  const drawParagraph = (text) => {
+    const lines = wrapText(text, fontRegular, 11)
+    ensureSpace(lines.length)
+
+    lines.forEach((line, index) => {
+      page.drawText(line, {
+        x: leftMargin,
+        y: cursorY - index * lineHeight,
+        size: 11,
+        font: fontRegular,
+        color: textColor
+      })
+    })
+
+    cursorY -= lineHeight * lines.length
+    cursorY -= 8
+  }
+
+  page.drawText('Declaratieaanvraag', {
+    x: leftMargin,
+    y: cursorY,
+    size: 22,
+    font: fontBold,
+    color: headingColor
+  })
+  cursorY -= 26
+
+  const submittedText = new Intl.DateTimeFormat('nl-NL', {
+    dateStyle: 'long',
+    timeStyle: 'short'
+  }).format(submittedAt)
+
+  page.drawText(`Ingediend op ${submittedText}`, {
+    x: leftMargin,
+    y: cursorY,
+    size: 11,
+    font: fontRegular,
+    color: textColor
+  })
+  cursorY -= 24
+
+  drawHeading('Samenvatting', 16)
+
+  const summaryRows = [
+    ['Naam', request.requesterName || 'Onbekend'],
+    ['E-mailadres', request.requesterEmail || '-'],
+    ['Datum uitgave', formatDateDisplay(request.expenseDate)],
+    ['Onderwerp', request.expenseTitle || '-'],
+    ['Bedrag', formatCurrency(request.amount)],
+    ['Betaalmethode', request.paymentMethod === 'paymentLink' ? 'Betaallink' : 'IBAN (bankoverschrijving)']
+  ]
+
+  if (request.paymentMethod === 'iban' && request.iban) {
+    summaryRows.push(['IBAN', formatIban(request.iban)])
+  }
+
+  if (request.paymentMethod === 'paymentLink' && request.paymentLink) {
+    summaryRows.push(['Betaallink', request.paymentLink])
+  }
+
+  summaryRows.forEach(([label, value]) => drawRow(label, value))
+
+  drawHeading('Beschrijving')
+  drawParagraph(request.description || 'Geen aanvullende omschrijving opgegeven.')
+
+  if (request.notes) {
+    drawHeading('Opmerking voor admins')
+    drawParagraph(request.notes)
+  }
+
+  drawHeading('Bijlagen')
+  if (!attachments.length) {
+    drawParagraph('Geen bijlagen toegevoegd.')
+  } else {
+    drawParagraph('De originele bestanden vind je op de vervolgpagina’s van dit document.')
+    attachments.forEach((attachment, index) => {
+      ensureSpace(1)
+      page.drawText(`${index + 1}. ${attachment.name} (${attachment.type})`, {
+        x: leftMargin,
+        y: cursorY,
+        size: 11,
+        font: fontRegular,
+        color: textColor
+      })
+      cursorY -= lineHeight
+    })
+    cursorY -= 8
+  }
+
+  for (let i = 0; i < attachments.length; i++) {
+    const attachment = attachments[i]
+
+    if (attachment.type === 'application/pdf') {
+      try {
+        const externalPdf = await PDFDocument.load(attachment.buffer)
+        const copiedPages = await pdfDoc.copyPages(externalPdf, externalPdf.getPageIndices())
+        copiedPages.forEach((copiedPage) => pdfDoc.addPage(copiedPage))
+      } catch {
+        const attachmentPage = pdfDoc.addPage(pageSize)
+        attachmentPage.drawText(`Bijlage ${i + 1}: ${attachment.name}`, {
+          x: leftMargin,
+          y: attachmentPage.getHeight() - topMargin,
+          size: 14,
+          font: fontBold,
+          color: headingColor
+        })
+        attachmentPage.drawText('Deze PDF-bijlage kon niet worden toegevoegd.', {
+          x: leftMargin,
+          y: attachmentPage.getHeight() - topMargin - 24,
+          size: 11,
+          font: fontRegular,
+          color: textColor
+        })
+      }
+      continue
+    }
+
+    const attachmentPage = pdfDoc.addPage(pageSize)
+    const { width: pageWidth, height: pageHeight } = attachmentPage.getSize()
+
+    let embeddedImage
+    if (attachment.type === 'image/png') {
+      embeddedImage = await pdfDoc.embedPng(attachment.buffer)
+    } else {
+      embeddedImage = await pdfDoc.embedJpg(attachment.buffer)
+    }
+
+    const maxImageWidth = pageWidth - 2 * leftMargin
+    const maxImageHeight = pageHeight - 2 * topMargin - 40
+    const scale = Math.min(
+      maxImageWidth / embeddedImage.width,
+      maxImageHeight / embeddedImage.height,
+      1
+    )
+    const imageWidth = embeddedImage.width * scale
+    const imageHeight = embeddedImage.height * scale
+
+    attachmentPage.drawText(`Bijlage ${i + 1}: ${attachment.name}`, {
+      x: leftMargin,
+      y: pageHeight - topMargin + 10,
+      size: 14,
+      font: fontBold,
+      color: headingColor
+    })
+
+    attachmentPage.drawImage(embeddedImage, {
+      x: (pageWidth - imageWidth) / 2,
+      y: (pageHeight - imageHeight) / 2 - 20,
+      width: imageWidth,
+      height: imageHeight
+    })
+  }
+
+  const pdfBytes = await pdfDoc.save()
+  return Buffer.from(pdfBytes)
+}
+
 // Cold start
 await loadUsers()
 await loadEvents()
@@ -1199,7 +1592,7 @@ app.use((req, res, next) => {
   })
 })
 
-app.use(express.json({ limit: '1mb' }))
+app.use(express.json({ limit: '25mb' }))
 app.use(createRequestLogger())
 
 // Request logging (no sensitive payloads)
@@ -1655,6 +2048,275 @@ apiRouter.post('/change-password', async (req, res) => {
   }
 })
 
+// Declaratie indienen
+apiRouter.post('/payment-requests', async (req, res) => {
+  try {
+    const {
+      userId,
+      requesterName = '',
+      requesterEmail = '',
+      expenseTitle = '',
+      expenseDate,
+      amount,
+      description = '',
+      notes = '',
+      paymentMethod = 'iban',
+      iban = '',
+      paymentLink = '',
+      attachments = []
+    } = req.body || {}
+
+    const errors = []
+    const trimmedName = requesterName.trim()
+    const trimmedEmail = requesterEmail.trim().toLowerCase()
+    const normalizedPaymentMethod = paymentMethod === 'paymentLink' ? 'paymentLink' : 'iban'
+    const trimmedExpenseTitle = expenseTitle.trim()
+    const trimmedDescription = description.toString().trim()
+    const trimmedNotes = notes.toString().trim()
+    const sanitizedIban = normalizedPaymentMethod === 'iban' ? sanitizeIban(iban) : ''
+    const trimmedPaymentLink = normalizedPaymentMethod === 'paymentLink' ? paymentLink.trim() : ''
+    const submittedAt = new Date()
+    const amountNumber = Number.parseFloat(amount)
+    const expenseDateValue = expenseDate ? new Date(expenseDate) : null
+
+    if (!trimmedName) {
+      errors.push('Naam is verplicht.')
+    }
+
+    if (!trimmedEmail || !validator.isEmail(trimmedEmail)) {
+      errors.push('Gebruik een geldig e-mailadres.')
+    }
+
+    if (!trimmedExpenseTitle) {
+      errors.push('Omschrijf kort waarvoor je hebt betaald.')
+    }
+
+    if (!expenseDateValue || Number.isNaN(expenseDateValue.getTime())) {
+      errors.push('Kies een geldige datum waarop je hebt betaald.')
+    }
+
+    if (!Number.isFinite(amountNumber) || amountNumber <= 0) {
+      errors.push('Voer een geldig bedrag groter dan 0 in.')
+    }
+
+    if (normalizedPaymentMethod === 'iban') {
+      if (!sanitizedIban) {
+        errors.push('IBAN is verplicht wanneer je kiest voor overschrijven.')
+      } else if (!validator.isIBAN(sanitizedIban)) {
+        errors.push(`Dit IBAN-nummer is ongeldig (${sanitizedIban.substring(0, 6)}...${sanitizedIban.substring(sanitizedIban.length - 2)}). Het heeft het juiste formaat, maar de controle-cijfers kloppen niet. Controleer of je het correct hebt overgetypt.`)
+      }
+    } else if (normalizedPaymentMethod === 'paymentLink') {
+      if (!trimmedPaymentLink) {
+        errors.push('Voeg een betaallink toe of kies voor IBAN.')
+      } else if (!validator.isURL(trimmedPaymentLink, { require_protocol: true })) {
+        errors.push('De betaallink moet beginnen met http(s)://')
+      }
+    }
+
+    const attachmentPayload = Array.isArray(attachments) ? attachments : []
+    if (attachmentPayload.length > PAYMENT_REQUEST_ATTACHMENT_LIMIT) {
+      const maxText = PAYMENT_REQUEST_ATTACHMENT_LIMIT === 1
+        ? '1 bestand'
+        : `${PAYMENT_REQUEST_ATTACHMENT_LIMIT} bestanden`
+      errors.push(`Je kunt maximaal ${maxText} meesturen.`)
+    }
+
+    const sanitizedAttachments = []
+    let totalAttachmentSize = 0
+
+    for (let i = 0; i < attachmentPayload.length; i++) {
+      const attachment = attachmentPayload[i] || {}
+      const base64Content = String(attachment.content || '').trim()
+      const declaredType = String(attachment.type || '').toLowerCase()
+      const originalName = (attachment.name || `bijlage-${i + 1}`).toString()
+      const safeName = originalName.trim() || `bijlage-${i + 1}.dat`
+
+      if (!base64Content) {
+        errors.push(`Bijlage ${i + 1} bevat geen gegevens.`)
+        continue
+      }
+
+      if (!['image/jpeg', 'image/png', 'application/pdf'].includes(declaredType)) {
+        errors.push(`Bestandstype van bijlage ${safeName} wordt niet ondersteund.`)
+        continue
+      }
+
+      let buffer
+      try {
+        buffer = Buffer.from(base64Content, 'base64')
+      } catch {
+        errors.push(`Bijlage ${safeName} kon niet worden gelezen.`)
+        continue
+      }
+
+      if (!buffer || !buffer.length) {
+        errors.push(`Bijlage ${safeName} bevat een leeg bestand.`)
+        continue
+      }
+
+      if (buffer.length > PAYMENT_REQUEST_ATTACHMENT_SIZE_LIMIT) {
+        const maxMb = Math.round(PAYMENT_REQUEST_ATTACHMENT_SIZE_LIMIT / 1024 / 1024)
+        errors.push(`Bijlage ${safeName} is groter dan ${maxMb}MB.`)
+        continue
+      }
+
+      totalAttachmentSize += buffer.length
+
+      sanitizedAttachments.push({
+        name: safeName,
+        type: declaredType,
+        buffer
+      })
+    }
+
+    if (totalAttachmentSize > PAYMENT_REQUEST_TOTAL_SIZE_LIMIT) {
+      const maxMb = Math.round(PAYMENT_REQUEST_TOTAL_SIZE_LIMIT / 1024 / 1024)
+      errors.push(`De totale grootte van de bijlagen is groter dan ${maxMb}MB.`)
+    }
+
+    if (errors.length > 0) {
+      return res.status(400).json({ msg: errors[0], errors })
+    }
+
+    const matchedUser = Number.isInteger(Number.parseInt(userId, 10))
+      ? users.find((u) => u.id === Number.parseInt(userId, 10))
+      : null
+
+    const mailer = await ensureMailerTransport()
+    if (!mailer) {
+      return res.status(503).json({ msg: 'E-mailservice is tijdelijk niet beschikbaar.' })
+    }
+
+    const pdfBuffer = await buildPaymentRequestPdf({
+      requesterName: trimmedName,
+      requesterEmail: trimmedEmail,
+      expenseTitle: trimmedExpenseTitle,
+      expenseDate: expenseDateValue,
+      amount: amountNumber,
+      description: trimmedDescription,
+      notes: trimmedNotes,
+      paymentMethod: normalizedPaymentMethod,
+      iban: sanitizedIban,
+      paymentLink: trimmedPaymentLink,
+      submittedAt,
+      attachments: sanitizedAttachments.map(({ name, type }) => ({ name, type }))
+    }, sanitizedAttachments)
+
+    const pdfFileName = `Declaratie-${sanitizeFileName(trimmedExpenseTitle || trimmedName)}-${submittedAt.toISOString().split('T')[0]}.pdf`
+    const formattedAmount = formatCurrency(amountNumber)
+    const formattedDate = formatDateDisplay(expenseDateValue)
+    const subject = `Declaratie: ${trimmedName} – ${formattedAmount}`
+
+    const descriptionHtml = escapeHtml(trimmedDescription || 'Geen aanvullende omschrijving.').replace(/\r?\n/g, '<br />')
+    const notesHtml = escapeHtml(trimmedNotes).replace(/\r?\n/g, '<br />')
+    const attachmentsHtml = sanitizedAttachments.length
+      ? `<ul>${sanitizedAttachments.map((att) => `<li>${escapeHtml(att.name)} (${escapeHtml(att.type)})</li>`).join('')}</ul>`
+      : '<p>Geen bijlagen toegevoegd.</p>'
+
+    const htmlBody = `
+      <h2>Nieuwe declaratie ontvangen</h2>
+      <p>Er is een nieuwe declaratie ingediend via het Stamjer portaal.</p>
+      <table style="border-collapse: collapse; width: 100%; max-width: 520px;">
+        <tbody>
+          <tr>
+            <td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: 600;">Naam</td>
+            <td style="padding: 8px; border: 1px solid #e2e8f0;">${escapeHtml(trimmedName)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: 600;">E-mailadres</td>
+            <td style="padding: 8px; border: 1px solid #e2e8f0;"><a href="mailto:${escapeHtml(trimmedEmail)}">${escapeHtml(trimmedEmail)}</a></td>
+          </tr>
+          <tr>
+            <td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: 600;">Datum uitgave</td>
+            <td style="padding: 8px; border: 1px solid #e2e8f0;">${escapeHtml(formattedDate)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: 600;">Onderwerp</td>
+            <td style="padding: 8px; border: 1px solid #e2e8f0;">${escapeHtml(trimmedExpenseTitle)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: 600;">Bedrag</td>
+            <td style="padding: 8px; border: 1px solid #e2e8f0;">${escapeHtml(formattedAmount)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: 600;">Betaalmethode</td>
+            <td style="padding: 8px; border: 1px solid #e2e8f0;">
+              ${normalizedPaymentMethod === 'paymentLink'
+                ? `Betaallink${trimmedPaymentLink ? ` – <a href="${escapeHtml(trimmedPaymentLink)}" target="_blank" rel="noopener noreferrer">Open link</a>` : ''}`
+                : `IBAN – ${escapeHtml(formatIban(sanitizedIban))}`}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <h3>Beschrijving</h3>
+      <p>${descriptionHtml}</p>
+      ${trimmedNotes ? `<h3>Opmerking voor admins</h3><p>${notesHtml}</p>` : ''}
+      <h3>Bijlagen</h3>
+      ${attachmentsHtml}
+      <p>Alle details en bewijsstukken zijn samengevoegd in de bijgevoegde pdf (${escapeHtml(pdfFileName)}).</p>
+    `
+
+    const textBodyLines = [
+      'Nieuwe declaratie via Stamjer:',
+      '',
+      `Naam: ${trimmedName}`,
+      `E-mail: ${trimmedEmail}`,
+      `Datum uitgave: ${formattedDate}`,
+      `Onderwerp: ${trimmedExpenseTitle}`,
+      `Bedrag: ${formattedAmount}`,
+      `Betaalmethode: ${normalizedPaymentMethod === 'paymentLink' ? 'Betaallink' : `IBAN ${formatIban(sanitizedIban)}`}`,
+      normalizedPaymentMethod === 'paymentLink' && trimmedPaymentLink ? `Betaallink: ${trimmedPaymentLink}` : null,
+      '',
+      `Beschrijving: ${trimmedDescription || 'Geen aanvullende omschrijving.'}`,
+      trimmedNotes ? `Opmerking voor admins: ${trimmedNotes}` : null,
+      '',
+      `Bijlagen: ${sanitizedAttachments.length}`,
+      'De volledige aanvraag vind je in de meegestuurde pdf.'
+    ].filter(Boolean).join('\n')
+
+    const sendResult = await mailer.sendMail({
+      from: process.env.SMTP_FROM || 'stamjer.mpd@gmail.com',
+      to: PAYMENT_REQUEST_EMAIL,
+      replyTo: `${trimmedName} <${trimmedEmail}>`,
+      subject,
+      html: htmlBody,
+      text: textBodyLines,
+      attachments: [
+        {
+          filename: pdfFileName,
+          content: pdfBuffer,
+          contentType: 'application/pdf'
+        }
+      ]
+    })
+
+    logEvent({
+      action: 'payment-request-submitted',
+      metadata: {
+        userId: matchedUser?.id || null,
+        requesterEmail: trimmedEmail,
+        amount: amountNumber,
+        expenseTitle: trimmedExpenseTitle,
+        paymentMethod: normalizedPaymentMethod,
+        attachments: sanitizedAttachments.length,
+        ibanMasked: normalizedPaymentMethod === 'iban' ? maskIban(sanitizedIban) : null
+      }
+    })
+
+    const responsePayload = { msg: 'Declaratie succesvol verstuurd.' }
+    const previewUrl = nodemailer.getTestMessageUrl(sendResult)
+    if (previewUrl) {
+      responsePayload.previewUrl = previewUrl
+    }
+
+    res.status(201).json(responsePayload)
+  } catch (error) {
+    console.error('Payment request error:', error)
+    logSystemError(error, { action: 'POST /api/payment-requests', status: 500, metadata: req.body })
+    res.status(500).json({ msg: 'Declaratie versturen mislukt.' })
+  }
+})
+
 // Manual trigger for daily snapshot comparison (admin only, for testing)
 apiRouter.post('/admin/trigger-daily-snapshot', async (req, res) => {
   try {
@@ -1668,6 +2330,87 @@ apiRouter.post('/admin/trigger-daily-snapshot', async (req, res) => {
     console.error(err)
     logSystemError(err, { action: 'POST /api/admin/trigger-daily-snapshot', status: 500, metadata: req.body })
     res.status(500).json({ msg: 'Failed to trigger daily snapshot comparison' })
+  }
+})
+
+// Public endpoint for Vercel Cron to trigger daily snapshot
+apiRouter.get('/cron-daily', async (req, res) => {
+  try {
+    // Check if request is authorized (from Vercel Cron or with secret)
+    const cronHeader = req.headers['x-vercel-cron']
+    const secret = process.env.CRON_SECRET
+    const providedSecret = req.query?.secret || req.headers['x-cron-secret'] || req.headers['authorization']
+    
+    let authorized = false
+    
+    // Check Vercel Cron header
+    if (cronHeader) {
+      authorized = true
+    }
+    
+    // Check secret if provided
+    if (secret && providedSecret) {
+      if (typeof providedSecret === 'string' && providedSecret.startsWith('Bearer ')) {
+        authorized = providedSecret.slice(7) === secret
+      } else if (Array.isArray(providedSecret)) {
+        authorized = providedSecret.some((value) => value === secret)
+      } else {
+        authorized = providedSecret === secret
+      }
+    }
+    
+    if (!authorized) {
+      warnLog('Unauthorized cron-daily request attempt')
+      return res.status(401).json({ error: 'Unauthorized' })
+    }
+    
+    infoLog('Daily snapshot cron triggered')
+    await performDailySnapshotAndComparison()
+    res.status(200).json({ ok: true, message: 'Daily snapshot and comparison completed successfully' })
+  } catch (err) {
+    console.error('Daily snapshot cron failed:', err)
+    logSystemError(err, { action: 'GET /api/cron-daily', status: 500 })
+    const message = err && err.message ? err.message : 'Unknown error'
+    res.status(500).json({ error: 'Failed to run daily snapshot', message })
+  }
+})
+
+// Also support POST method for cron-daily
+apiRouter.post('/cron-daily', async (req, res) => {
+  try {
+    const cronHeader = req.headers['x-vercel-cron']
+    const secret = process.env.CRON_SECRET
+    const providedSecret = req.query?.secret || req.headers['x-cron-secret'] || req.headers['authorization']
+    
+    let authorized = false
+    
+    if (cronHeader) {
+      authorized = true
+    }
+    
+    if (secret && providedSecret) {
+      if (typeof providedSecret === 'string' && providedSecret.startsWith('Bearer ')) {
+        authorized = providedSecret.slice(7) === secret
+      } else if (Array.isArray(providedSecret)) {
+        authorized = providedSecret.some((value) => value === secret)
+      } else {
+        authorized = providedSecret === secret
+      }
+    }
+    
+    if (!authorized) {
+      warnLog('Unauthorized cron-daily request attempt')
+      return res.status(401).json({ error: 'Unauthorized' })
+    }
+    
+    infoLog('Daily snapshot cron triggered (POST)')
+    await performDailySnapshotAndComparison()
+    res.status(200).json({ ok: true, message: 'Daily snapshot and comparison completed successfully' })
+  } catch (err) {
+    console.error('Daily snapshot cron failed:', err)
+    logSystemError(err, { action: 'POST /api/cron-daily', status: 500 })
+    const message = err && err.message ? err.message : 'Unknown error'
+    res.status(500).json({ error: 'Failed to run daily snapshot', message })
   }
 })
 

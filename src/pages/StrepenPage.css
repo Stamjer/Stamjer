@@ -23,22 +23,7 @@
   animation: fadeInUp var(--duration-slow) var(--ease-out);
 }
 
-.strepen-header h1 {
-  font-size: 2.5rem;
-  font-weight: var(--font-weight-bold);
-  background: var(--gradient-primary);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  margin-bottom: var(--space-1);
-  line-height: 1.2;
-}
-
-@media (min-width: 768px) {
-  .strepen-header h1 {
-    font-size: 3rem;
-  }
-}
+/* h1 styles now handled by shared.css */
 
 .strepen-header p {
   font-size: 1.25rem;
@@ -598,7 +583,7 @@
 
 @media (max-width: 600px) {
   .strepen-page {
-    padding: 0px 32px 24px 10px; /* add a little extra right padding for breathing room */
+    padding: 0rem 2.25rem 0rem 0.75rem; /* add a little extra right padding for breathing room */
   }
 
   .strepen-header h1 {
@@ -607,7 +592,6 @@
 
   .strepen-mobile-header {
     position: sticky;
-    top: 64px; /* align under app nav */
     z-index: 5;
     background: transparent;
     padding-bottom: 8px;

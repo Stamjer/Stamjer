@@ -689,7 +689,7 @@
 }
 
 /* ================================================================
-   PAGE LAYOUT
+   PAGE LAYOUT & HEADERS
    ================================================================ */
 
 .page-header {
@@ -713,6 +713,59 @@
   .page-title {
     font-size: 3rem;
   }
+}
+
+/* ================================================================
+   ENHANCED H1 STYLES - PROFESSIONAL DESIGN
+   ================================================================ */
+
+/* Hide page h1 headers in main app pages since they're now in the navbar */
+/* Keep h1 visible for auth pages (no navbar) and error pages */
+.calendar-header h1,
+.opkomsten-header h1,
+.account-header h1,
+.strepen-header h1,
+.payment-request-header h1 {
+  display: none;
+}
+
+h1 {
+  font-size: 1.5rem;
+  font-weight: var(--font-weight-bold);
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 50%, #3b82f6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0 0 var(--space-2) 0;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  position: relative;
+  /* padding-bottom: var(--space-3); */
+}
+
+/* Responsive sizing */
+@media (min-width: 768px) {
+  h1 {
+    font-size: 3rem;
+    letter-spacing: -0.03em;
+  }
+  
+  h1::after {
+    width: 80px;
+    height: 5px;
+  }
+}
+
+@media (min-width: 1024px) {
+  h1 {
+    font-size: 3.5rem;
+  }
+}
+
+/* Remove underline for h1 in navigation or other contexts where not appropriate */
+nav h1::after,
+.no-underline h1::after {
+  display: none;
 }
 
 .page-subtitle {
