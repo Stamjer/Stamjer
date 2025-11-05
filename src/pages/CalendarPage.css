@@ -1026,6 +1026,7 @@
 
 .fc-daygrid-event-harness {
   margin: 1px 0 !important;
+  
 }
 
 .fc-event-main {
@@ -1299,6 +1300,19 @@
 }
 
 .calendar-wrapper .event-opkomst:hover {
+  filter: brightness(0.95) !important;
+}
+
+/* Schoonmaak events: make them green for quick recognition */
+.calendar-wrapper .event-schoonmaak,
+.calendar-wrapper .event-schoonmaak .fc-event-main,
+.calendar-wrapper .event-schoonmaak.fc-daygrid-event,
+.calendar-wrapper .event-schoonmaak.fc-event {
+  background: linear-gradient(135deg, var(--secondary-400) 0%, var(--secondary-500) 100%) !important; /* grey */
+  color: #ffffff !important;
+}
+
+.calendar-wrapper .event-schoonmaak:hover {
   filter: brightness(0.95) !important;
 }
 

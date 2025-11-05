@@ -38,6 +38,12 @@ export default function MyAccount({ user: userProp, onLogout }) {
     .map(name => name.trim())
     .filter(Boolean)
   
+  const splitSchoonmakerNames = (value = '') => value
+    .replace(/\sen\s/gi, ',')
+    .split(/[,/&]+/)
+    .map(name => name.trim())
+    .filter(Boolean)
+  
   // Resolve user from props first, then storage
   let user = userProp
   if (!user) {
@@ -119,14 +125,29 @@ export default function MyAccount({ user: userProp, onLogout }) {
           return normalizedMakers.some(name => candidates.includes(name))
         }
 
+        const matchesCurrentUserAsSchoonmaker = (schoonmakers) => {
+          const makerNames = splitSchoonmakerNames(schoonmakers)
+          if (makerNames.length === 0) return false
+          const normalizedMakers = makerNames.map(name => normalizeValue(name))
+          const candidates = [normalizedFirstName, normalizedLastName, normalizedFullName].filter(Boolean)
+          return normalizedMakers.some(name => candidates.includes(name))
+        }
+
         const upcomingOwnedOpkomsten = events
           .filter(event => event?.isOpkomst)
           .filter(event => matchesCurrentUser(event.opkomstmakers))
           .filter(event => isUpcomingEvent(event.start))
+
+        const upcomingOwnedSchoonmaak = events
+          .filter(event => event?.isSchoonmaak)
+          .filter(event => matchesCurrentUserAsSchoonmaker(event.schoonmakers))
+          .filter(event => isUpcomingEvent(event.start))
+
+        const upcomingOwnedEvents = [...upcomingOwnedOpkomsten, ...upcomingOwnedSchoonmaak]
           .sort((a, b) => new Date(a.start) - new Date(b.start))
 
         if (!isCancelled) {
-          setOpkomstEvents(upcomingOwnedOpkomsten)
+          setOpkomstEvents(upcomingOwnedEvents)
         }
       } catch (err) {
         if (!isCancelled) {
@@ -288,7 +309,11 @@ export default function MyAccount({ user: userProp, onLogout }) {
   const selectedOpkomstDateText = selectedOpkomst ? renderOpkomstDateDetails(selectedOpkomst) : ''
   const selectedOpkomstTimeRange = selectedOpkomst ? renderOpkomstTimeRange(selectedOpkomst) : null
   const selectedOpkomstMakers = selectedOpkomst
-    ? splitOpkomstmakerNames(selectedOpkomst.opkomstmakers)
+    ? (selectedOpkomst.isOpkomst 
+        ? splitOpkomstmakerNames(selectedOpkomst.opkomstmakers)
+        : selectedOpkomst.isSchoonmaak
+        ? splitSchoonmakerNames(selectedOpkomst.schoonmakers)
+        : [])
     : []
 
   console.log('MyAccount - User data:', { id, firstName, lastName, email, active })
@@ -483,20 +508,26 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
 
           <div className="account-card account-card-opkomsten">
             <div className="account-card-header">
-              <h4>Mijn opkomsten</h4>
+              <h4>Mijn evenementen</h4>
             </div>
             <div className="account-card-body">
               <div className="opkomst-list">
                 {isOpkomstenLoading ? (
-                  <p className="opkomst-list__status">Opkomsten laden...</p>
+                  <p className="opkomst-list__status">Evenementen laden...</p>
                 ) : opkomstenError ? (
                   <p className="opkomst-list__status opkomst-list__status--error">{opkomstenError}</p>
                 ) : opkomstEvents.length === 0 ? (
-                  <p className="opkomst-list__status">Je bent momenteel geen opkomstmaker van een aankomende opkomst.</p>
+                  <p className="opkomst-list__status">Je bent momenteel geen opkomstmaker of schoonmaker van een aankomend evenement.</p>
                 ) : (
                   <ul className="opkomst-list__items">
                     {opkomstEvents.map(event => {
-                      const opkomstmakerNames = splitOpkomstmakerNames(event.opkomstmakers)
+                      const isOpkomst = event?.isOpkomst
+                      const isSchoonmaak = event?.isSchoonmaak
+                      const makerNames = isOpkomst 
+                        ? splitOpkomstmakerNames(event.opkomstmakers)
+                        : isSchoonmaak 
+                        ? splitSchoonmakerNames(event.schoonmakers)
+                        : []
 
                       return (
                         <li key={event.id}>
@@ -504,21 +535,21 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
                             type="button"
                             className="opkomst-list__item"
                             onClick={() => setSelectedOpkomst(event)}
-                            aria-label={`Bekijk details voor ${event.title || 'deze opkomst'}`}
+                            aria-label={`Bekijk details voor ${event.title || 'dit evenement'}`}
                           >
                             <div className="opkomst-list__header">
-                              <span className="opkomst-list__title">{event.title || 'Opkomst zonder titel'}</span>
+                              <span className="opkomst-list__title">{event.title || 'Evenement zonder titel'}</span>
                               {/* <span className="opkomst-list__chevron" aria-hidden="true">&gt;</span> */}
                             </div>
                             <div className="opkomst-list__meta">
                               {/* <span className="opkomst-list__label">Datum</span> */}
                               <span className="opkomst-list__meta-value">{formatOpkomstDate(event.start, event.end, event.allDay)}</span>
                             </div>
-                            {opkomstmakerNames.length > 0 && (
+                            {makerNames.length > 0 && (
                               <div className="opkomst-list__makers">
-                                {/* <span className="opkomst-list__label">Opkomstmakers</span> */}
+                                {/* <span className="opkomst-list__label">{isOpkomst ? 'Opkomstmakers' : 'Schoonmakers'}</span> */}
                                 <div className="opkomst-list__makers-badges">
-                                  {opkomstmakerNames.map((maker, index) => (
+                                  {makerNames.map((maker, index) => (
                                     <span key={`${event.id}-maker-${index}`} className="opkomst-list__maker-pill">{maker}</span>
                                   ))}
                                 </div>
@@ -680,8 +711,16 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
               {selectedOpkomstMakers.length > 0 && (
                 <div className="detail-item">
                   <div className="detail-content">
-                    <strong>Opkomstmakers</strong>
+                    <strong>{selectedOpkomst.isOpkomst ? 'Opkomstmakers' : 'Schoonmakers'}</strong>
                     <span className="description-text">{selectedOpkomstMakers.join('\n')}</span>
+                  </div>
+                </div>
+              )}
+              {selectedOpkomst.isSchoonmaak && selectedOpkomst.schoonmaakOptions && selectedOpkomst.schoonmaakOptions.length > 0 && (
+                <div className="detail-item">
+                  <div className="detail-content">
+                    <strong>Schoonmaak opties</strong>
+                    <span className="description-text">{selectedOpkomst.schoonmaakOptions.join(', ')}</span>
                   </div>
                 </div>
               )}

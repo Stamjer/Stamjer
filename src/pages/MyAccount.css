@@ -257,6 +257,9 @@
   -webkit-appearance: none;
   box-shadow: var(--shadow-sm);
   padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0);
 }
 
 .opkomst-list__item:hover,
@@ -314,11 +317,11 @@
 .opkomst-list__makers-badges {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 
 .opkomst-list__maker-pill {
-  padding: 0.25rem 0.75rem;
+  padding: 0rem 0.5rem;
   background: var(--primary-50);
   border: 1px solid var(--primary-100);
   border-radius: var(--radius-full);
@@ -343,7 +346,6 @@
 @media (max-width: 600px) {
   .opkomst-list__item {
     padding: var(--space-3);
-    gap: var(--space-2);
   }
 
   .opkomst-list__title {
@@ -389,4 +391,33 @@
 
 .account-card-calendar .calendar-subscription {
   margin: 0;
+}
+
+/* Event Details Modal Styles */
+.event-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.detail-item {
+  padding: var(--space-3);
+  background: var(--secondary-50);
+  border-radius: var(--radius-lg);
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.detail-item:hover {
+  background: var(--secondary-100);
+}
+
+.detail-content {
+  width: 100%;
+}
+
+.detail-content strong {
+  color: var(--secondary-800);
+  font-weight: var(--font-weight-semibold);
+  display: block;
+  margin-bottom: var(--space-1);
 }

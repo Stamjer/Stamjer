@@ -149,20 +149,23 @@ export default function MobileAgenda({
               <ul className="event-list">
                 {list.map(ev => {
                   const isOpkomst = !!ev.extendedProps?.isOpkomst
+                  const isSchoonmaak = !!ev.extendedProps?.isSchoonmaak
                   const timed = !ev.allDay && ev.start
                   const start = timed ? new Date(ev.start) : null
                   const end = timed && ev.end ? new Date(ev.end) : null
                   const timeText = timed ? `${start.toLocaleTimeString('nl-NL', {hour:'2-digit', minute:'2-digit', hour12:false})}${end ? ` – ${end.toLocaleTimeString('nl-NL', {hour:'2-digit', minute:'2-digit', hour12:false})}` : ''}` : 'Hele dag'
                   return (
-                    <li key={ev.id} className={`event-card ${isOpkomst ? 'opkomst' : ''}`}>
+                    <li key={ev.id} className={`event-card ${isOpkomst ? 'opkomst' : ''} ${isSchoonmaak ? 'schoonmaak' : ''}`}>
                       <button type="button" className="event-button" onClick={() => onEventClick && onEventClick({ event: ev })}>
                         <div className="event-main">
-                          <div className="event-title" title={ev.title}>{ev.title}</div>
+                          <div className="event-header">
+                            <div className="event-title" title={ev.title}>{ev.title}</div>
+                            <div className="event-time" aria-hidden={!timed}>{timeText}</div>
+                          </div>
                           {ev.extendedProps?.location && (
                             <div className="event-meta">{ev.extendedProps.location}</div>
                           )}
                         </div>
-                        <div className="event-time" aria-hidden={!timed}>{timeText}</div>
                       </button>
                     </li>
                   )

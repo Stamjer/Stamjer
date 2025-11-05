@@ -107,7 +107,9 @@ async function ensureIndexes(db) {
   const eventsCreated = await ensureCollectionIndexes(db.collection('events'), [
     { keys: { start: 1 }, options: { background: true, name: 'events_start_idx' }, description: 'events.start' },
     { keys: { isOpkomst: 1 }, options: { background: true, name: 'events_isOpkomst_idx' }, description: 'events.isOpkomst' },
-    { keys: { start: 1, isOpkomst: 1 }, options: { background: true, name: 'events_start_isOpkomst_idx' }, description: 'events start + isOpkomst' }
+    { keys: { isSchoonmaak: 1 }, options: { background: true, name: 'events_isSchoonmaak_idx' }, description: 'events.isSchoonmaak' },
+    { keys: { start: 1, isOpkomst: 1 }, options: { background: true, name: 'events_start_isOpkomst_idx' }, description: 'events start + isOpkomst' },
+    { keys: { start: 1, isSchoonmaak: 1 }, options: { background: true, name: 'events_start_isSchoonmaak_idx' }, description: 'events start + isSchoonmaak' }
   ])
 
   const usersCreated = await ensureCollectionIndexes(db.collection('users'), [
@@ -1745,6 +1747,8 @@ apiRouter.post('/events', async (req, res) => {
       title, start, end, allDay,
       location, description,
       isOpkomst, opkomstmakers,
+      isSchoonmaak, schoonmakers,
+      schoonmaakOptions,
       userId,
       participants: requestedParticipants = []
     } = req.body
@@ -1760,6 +1764,7 @@ apiRouter.post('/events', async (req, res) => {
 
     const id = Math.random().toString(36).substr(2, 6)
     const isOpkomstFlag = !!isOpkomst
+    const isSchoonmaakFlag = !!isSchoonmaak
     const newEv = {
       id,
       title,
@@ -1770,6 +1775,9 @@ apiRouter.post('/events', async (req, res) => {
       description: description || '',
       isOpkomst: isOpkomstFlag,
       opkomstmakers: opkomstmakers || '',
+      isSchoonmaak: isSchoonmaakFlag,
+      schoonmakers: schoonmakers || '',
+      schoonmaakOptions: schoonmaakOptions || [],
       participants: sanitizedParticipants
     }
 
@@ -1838,6 +1846,12 @@ apiRouter.put('/events/:id/attendance', async (req, res) => {
     const { id, userId, attending } = { ...req.params, ...req.body }
     const ev = events.find(e => e.id === id)
     if (!ev) return res.status(404).json({ msg: 'Niet gevonden' })
+    
+    // Only opkomst events have participants/attendance
+    if (!ev.isOpkomst) {
+      return res.status(400).json({ msg: 'Aanwezigheid kan alleen bijgewerkt worden voor opkomst evenementen' })
+    }
+    
     if (!ev.participants) ev.participants = []
     const uid = parseInt(userId, 10)
     const idx = ev.participants.indexOf(uid)

@@ -18,6 +18,10 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { updateAttendance, updateEvent } from '../services/api'
 import { withSupportContact } from '../config/appInfo'
 import { useToast } from '../hooks/useToast'
+
+// Location input with autocomplete
+import LocationInput from '../components/LocationInput'
+
 // Component styling
 import './OpkomstenPage.css'
 
@@ -566,14 +570,12 @@ function OpkomstEditForm({ event, onClose, onSave, users = [], currentUser = nul
               <label className="form-label" htmlFor="location">
                 Locatie Locatie
               </label>
-              <input
-                id="location"
-                type="text"
-                className="form-input"
+              <LocationInput
                 value={formData.location}
-                onChange={e => handleInputChange('location', e.target.value)}
-                placeholder="Waar vindt het plaats?"
+                onChange={(value) => handleInputChange('location', value)}
+                placeholder="bijv. Clubhuis Scouting MPD"
                 disabled={isSubmitting}
+                error={errors.location}
               />
             </div>
 

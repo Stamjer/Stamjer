@@ -29,6 +29,9 @@ import nlLocale from '@fullcalendar/core/locales/nl'
 import MobileAgenda from '../components/MobileAgenda'
 import { useIsMobile } from '../hooks/useDeviceDetection'
 
+// Location input with autocomplete
+import LocationInput from '../components/LocationInput'
+
 // TanStack Query hooks
 import { 
   useEvents, 
@@ -375,6 +378,36 @@ function EventModal({ event, onClose, onDelete, onEdit, isAdmin = false, current
               </div>
             )}
 
+            {/* Schoonmakers - only show for schoonmaak events */}
+            {extendedProps?.isSchoonmaak && extendedProps?.schoonmakers && (
+              <div className="detail-item">
+                <div className="detail-content">
+                  <strong>Schoonmakers:</strong>{" "}
+                  {(() => {
+                    const makers = extendedProps.schoonmakers
+                      .split(",")
+                      .map(m => m.trim())
+                      .filter(Boolean);
+
+                    if (makers.length === 1) return makers[0];
+                    if (makers.length === 2) return `${makers[0]} en ${makers[1]}`;
+
+                    return `${makers.slice(0, -1).join(", ")} en ${makers[makers.length - 1]}`;
+                  })()}
+                </div>
+              </div>
+            )}
+
+            {/* Schoonmaak options - only show for schoonmaak events */}
+            {extendedProps?.isSchoonmaak && extendedProps?.schoonmaakOptions && extendedProps.schoonmaakOptions.length > 0 && (
+              <div className="detail-item">
+                <div className="detail-content">
+                  <strong>Schoonmaak opties:</strong>
+                  {extendedProps.schoonmaakOptions.join(' en ')}
+                </div>
+              </div>
+            )}
+
             {/* Description */}
             {extendedProps?.description && (
               <div className="detail-item">
@@ -443,6 +476,21 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
     return []
   }
 
+  // Initialize schoonmakers as an array of selected user IDs
+  const initializeSchoonmakers = () => {
+    if (event?.schoonmakers) {
+      if (Array.isArray(event.schoonmakers)) {
+        return event.schoonmakers
+      }
+      const storedNames = event.schoonmakers.split(',').map(name => name.trim()).filter(name => name)
+      return storedNames.map(name => {
+        const user = users.find(u => u.firstName === name)
+        return user ? user.id : null
+      }).filter(id => id !== null)
+    }
+    return []
+  }
+
   const [formData, setFormData] = useState({
     title: event?.title || '',
     startDate: event?.start || new Date().toISOString().slice(0, 10),
@@ -453,7 +501,10 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
     location: event?.location || '',
     description: event?.description || '',
     isOpkomst: event?.isOpkomst || false,
-    opkomstmakers: initializeOpkomstmakers()
+    opkomstmakers: initializeOpkomstmakers(),
+    isSchoonmaak: event?.isSchoonmaak || false,
+    schoonmakers: initializeSchoonmakers(),
+    schoonmaakOptions: event?.schoonmaakOptions || []
   })
 
   const [errors, setErrors] = useState({})
@@ -470,9 +521,31 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
           newData.startTime = '20:30'
           newData.endTime = '22:30'
           newData.location = 'Clubhuis Scouting MPD'
+          newData.isSchoonmaak = false
+          newData.schoonmakers = []
+          newData.schoonmaakOptions = []
         } else {
-          newData.title = ''
+          // Only clear opkomstmakers if explicitly toggling off
+          if (prev.isOpkomst) {
+            newData.opkomstmakers = []
+          }
+        }
+      }
+      
+      // If schoonmaak is toggled, update defaults accordingly
+      if (field === 'isSchoonmaak') {
+        if (value) {
+          newData.title = 'Schoonmaak Stam'
+          newData.isAllDay = true
+          newData.location = 'Veulenkamp 41, 2623 XA Delft'
+          newData.isOpkomst = false
           newData.opkomstmakers = []
+        } else {
+          // Only clear schoonmakers if explicitly toggling off
+          if (prev.isSchoonmaak) {
+            newData.schoonmakers = []
+            newData.schoonmaakOptions = []
+          }
         }
       }
       
@@ -543,6 +616,46 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
     })
   }
 
+  // Handle schoonmaker selection
+  const handleSchoonmakerChange = (userId) => {
+    setFormData(prev => {
+      const currentIds = prev.schoonmakers || []
+      const isSelected = currentIds.includes(userId)
+      
+      if (isSelected) {
+        return {
+          ...prev,
+          schoonmakers: currentIds.filter(id => id !== userId)
+        }
+      } else {
+        return {
+          ...prev,
+          schoonmakers: [...currentIds, userId]
+        }
+      }
+    })
+  }
+
+  // Handle schoonmaak options selection
+  const handleSchoonmaakOptionChange = (option) => {
+    setFormData(prev => {
+      const currentOptions = prev.schoonmaakOptions || []
+      const isSelected = currentOptions.includes(option)
+      
+      if (isSelected) {
+        return {
+          ...prev,
+          schoonmaakOptions: currentOptions.filter(opt => opt !== option)
+        }
+      } else {
+        return {
+          ...prev,
+          schoonmaakOptions: [...currentOptions, option]
+        }
+      }
+    })
+  }
+
   const validateForm = () => {
     const newErrors = {}
 
@@ -607,6 +720,15 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
         .filter(name => name !== null)
         .join(', ')
 
+      // Convert schoonmakers user IDs to first names
+      const schoonmakersString = formData.schoonmakers
+        .map(userId => {
+          const user = users.find(u => u.id === userId)
+          return user ? user.firstName : null
+        })
+        .filter(name => name !== null)
+        .join(', ')
+
       const eventData = {
         title: title.trim(),
         start,
@@ -616,6 +738,9 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
         description: description.trim(),
         isOpkomst: formData.isOpkomst,
         opkomstmakers: opkomstmakersString,
+        isSchoonmaak: formData.isSchoonmaak,
+        schoonmakers: schoonmakersString,
+        schoonmaakOptions: formData.schoonmaakOptions,
       }
 
       if (!isEdit && formData.isOpkomst) {
@@ -678,7 +803,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
                 value={formData.title}
                 onChange={e => handleInputChange('title', e.target.value)}
                 placeholder="Evenement titel"
-                disabled={isSubmitting || formData.isOpkomst}
+                disabled={isSubmitting || formData.isOpkomst || formData.isSchoonmaak}
                 aria-describedby={errors.title ? "title-error" : undefined}
               />
               {errors.title && (
@@ -725,6 +850,76 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
                   ))}
                 </div>
               </div>
+            )}
+
+            {/* Schoonmaak toggle */}
+            <div className="form-group">
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={formData.isSchoonmaak}
+                  onChange={e => handleInputChange('isSchoonmaak', e.target.checked)}
+                  disabled={isSubmitting}
+                  className="checkbox-input"
+                />
+           <span className="checkbox-custom"></span>
+           Schoonmaak
+              </label>
+            </div>
+
+            {/* Schoonmakers - only show when it's a schoonmaak */}
+            {formData.isSchoonmaak && (
+              <>
+                <div className="form-group form-group-full">
+                  <label className="form-label">
+                    Schoonmakers selecteren
+                  </label>
+                  <div className="opkomstmakers-checkboxes">
+                    {users.map(user => (
+                      <label key={user.id} className="checkbox-label opkomstmaker-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={formData.schoonmakers.includes(user.id)}
+                          onChange={() => handleSchoonmakerChange(user.id)}
+                          disabled={isSubmitting}
+                          className="checkbox-input"
+                        />
+                        <span className="checkbox-custom"></span>
+                        {user.firstName}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="form-group form-group-full">
+                  <label className="form-label">
+                    Schoonmaak opties
+                  </label>
+                  <div className="opkomstmakers-checkboxes">
+                    <label className="checkbox-label opkomstmaker-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={formData.schoonmaakOptions.includes('Container')}
+                        onChange={() => handleSchoonmaakOptionChange('Container')}
+                        disabled={isSubmitting}
+                        className="checkbox-input"
+                      />
+                      <span className="checkbox-custom"></span>
+                      Container
+                    </label>
+                    <label className="checkbox-label opkomstmaker-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={formData.schoonmaakOptions.includes('PMD-bak')}
+                        onChange={() => handleSchoonmaakOptionChange('PMD-bak')}
+                        disabled={isSubmitting}
+                        className="checkbox-input"
+                      />
+                      <span className="checkbox-custom"></span>
+                      PMD-bak
+                    </label>
+                  </div>
+                </div>
+              </>
             )}
 
             {/* All day toggle */}
@@ -835,14 +1030,12 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
               <label className="form-label" htmlFor="location">
                 Locatie
               </label>
-              <input
-                id="location"
-                type="text"
-                className="form-input"
+              <LocationInput
                 value={formData.location}
-                onChange={e => handleInputChange('location', e.target.value)}
-                placeholder="Waar vindt het plaats?"
+                onChange={(value) => handleInputChange('location', value)}
+                placeholder="bijv. Scouting Marco Polo Delft"
                 disabled={isSubmitting}
+                error={errors.location}
               />
             </div>
 
@@ -1138,6 +1331,18 @@ export default function CalendarPage() {
       })
     }
 
+    // Convert schoonmakers string to array of user IDs for editing
+    const schoonmakersArray = []
+    if (ev.extendedProps.schoonmakers) {
+      const storedNames = ev.extendedProps.schoonmakers.split(',').map(name => name.trim()).filter(name => name)
+      storedNames.forEach(name => {
+        const user = users.find(u => u.firstName === name)
+        if (user) {
+          schoonmakersArray.push(user.id)
+        }
+      })
+    }
+
     // Get dates from Date objects
     const startObj = ev.start instanceof Date ? ev.start : new Date(ev.start)
     const endObjRaw = ev.end instanceof Date || !ev.end ? ev.end : new Date(ev.end)
@@ -1167,6 +1372,9 @@ export default function CalendarPage() {
       description: ev.extendedProps.description || '',
       isOpkomst: ev.extendedProps.isOpkomst || false,
       opkomstmakers: opkomstmakersArray,
+      isSchoonmaak: ev.extendedProps.isSchoonmaak || false,
+      schoonmakers: schoonmakersArray,
+      schoonmaakOptions: ev.extendedProps.schoonmaakOptions || [],
     })
     setSelectedEvent(null)
   }, [users, currentUser, showError])
@@ -1206,7 +1414,9 @@ export default function CalendarPage() {
       hour12: false
     },
     eventClassNames: (arg) => {
-      return arg.event?.extendedProps?.isOpkomst ? ['event-opkomst'] : []
+      if (arg.event?.extendedProps?.isOpkomst) return ['event-opkomst']
+      if (arg.event?.extendedProps?.isSchoonmaak) return ['event-schoonmaak']
+      return []
     },
     customButtons: isAdmin ? {
       nieuwBtn: {

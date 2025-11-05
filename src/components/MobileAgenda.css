@@ -131,12 +131,13 @@
   border-left: 5px solid var(--primary-600);
 }
 
+.event-card.schoonmaak {
+  border-left: 5px solid var(--secondary-300);
+}
+
 .event-button {
   width: 100%;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: 8px;
+  display: block;
   padding: 10px 12px;
   background: transparent;
   border: none;
@@ -146,7 +147,15 @@
 .event-button:active { transform: scale(0.99); }
 
 .event-main {
-  min-width: 0; /* enable ellipsis */
+  width: 100%;
+}
+
+.event-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 2px;
 }
 
 .event-title {
@@ -159,19 +168,23 @@
   line-clamp: 2;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0; /* enable ellipsis */
 }
 
 .event-meta {
-  margin-top: 2px;
   font-size: 0.82rem;
   color: var(--secondary-600);
+  width: 100%;
 }
 
 .event-time {
   font-size: 0.82rem;
   color: var(--secondary-700);
   font-weight: 700;
-  margin-left: 8px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  margin-top: 0.15rem;
 }
 
 .empty {

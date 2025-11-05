@@ -52,6 +52,9 @@ export function useEvents(options = {}) {
           description: evt.description,
           isOpkomst: evt.isOpkomst,
           opkomstmakers: evt.opkomstmakers,
+          isSchoonmaak: evt.isSchoonmaak,
+          schoonmakers: evt.schoonmakers,
+          schoonmaakOptions: evt.schoonmaakOptions,
           participants: evt.participants || []
         },
       }))
@@ -202,6 +205,9 @@ export function useCreateEvent(options = {}) {
           description: eventData.description,
           isOpkomst: eventData.isOpkomst,
           opkomstmakers: eventData.opkomstmakers,
+          isSchoonmaak: eventData.isSchoonmaak,
+          schoonmakers: eventData.schoonmakers,
+          schoonmaakOptions: eventData.schoonmaakOptions,
           participants: optimisticParticipants
         },
       }
@@ -239,6 +245,9 @@ export function useCreateEvent(options = {}) {
               description: newEvent.description,
               isOpkomst: newEvent.isOpkomst,
               opkomstmakers: newEvent.opkomstmakers,
+              isSchoonmaak: newEvent.isSchoonmaak,
+              schoonmakers: newEvent.schoonmakers,
+              schoonmaakOptions: newEvent.schoonmaakOptions,
               participants: newEvent.participants || []
             }
           } : evt
@@ -304,6 +313,9 @@ export function useUpdateEvent(options = {}) {
               description: eventData.description,
               isOpkomst: eventData.isOpkomst,
               opkomstmakers: eventData.opkomstmakers,
+              isSchoonmaak: eventData.isSchoonmaak,
+              schoonmakers: eventData.schoonmakers,
+              schoonmaakOptions: eventData.schoonmaakOptions,
             }
           } : evt
         )
@@ -338,6 +350,9 @@ export function useUpdateEvent(options = {}) {
               description: updatedEvent.description,
               isOpkomst: updatedEvent.isOpkomst,
               opkomstmakers: updatedEvent.opkomstmakers,
+              isSchoonmaak: updatedEvent.isSchoonmaak,
+              schoonmakers: updatedEvent.schoonmakers,
+              schoonmaakOptions: updatedEvent.schoonmaakOptions,
               participants: updatedEvent.participants || []
             }
           } : evt
