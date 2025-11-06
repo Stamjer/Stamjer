@@ -31,6 +31,7 @@ import { useIsMobile } from '../hooks/useDeviceDetection'
 
 // Location input with autocomplete
 import LocationInput from '../components/LocationInput'
+import LocationLink from '../components/LocationLink'
 
 // TanStack Query hooks
 import { 
@@ -358,7 +359,7 @@ function EventModal({ event, onClose, onDelete, onEdit, isAdmin = false, current
               <div className="detail-item">
                 <div className="detail-content">
                   <strong>Locatie:</strong>
-                  {extendedProps.location}
+                  <LocationLink location={extendedProps.location} />
                 </div>
               </div>
             )}

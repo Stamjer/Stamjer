@@ -32,17 +32,31 @@ const defaultQueryOptions = {
     // Keep in cache for 10 minutes after component unmount
     gcTime: 10 * 60 * 1000,
     
-    // Retry failed queries twice with exponential backoff\n    retry: 2,
+    // Retry failed queries twice with exponential backoff
+    retry: 2,
     
-    // Exponential backoff capped at 10s\n    retryDelay: (attempt) => Math.min(1000 * (2 ** attempt), 10000),
+    // Exponential backoff capped at 10s
+    retryDelay: (attempt) => Math.min(1000 * (2 ** attempt), 10000),
     
-    // Keep refetches lightweight while staying resilient\n    refetchOnWindowFocus: false,\n    refetchOnReconnect: true,\n    refetchOnMount: false
+    // Optimize refetch behavior for performance
+    refetchOnWindowFocus: false, // Prevent unnecessary refetches
+    refetchOnReconnect: true,    // Only refetch on reconnect
+    refetchOnMount: false,        // Don't refetch on every mount
+    
+    // Network mode for better offline handling
+    networkMode: 'online',
+    
+    // Reduce structural sharing overhead for large data
+    structuralSharing: true,
   },
   
   mutations: {
-    // No retries for mutations either
+    // No retries for mutations
     retry: false,
-    retryDelay: 1000
+    retryDelay: 1000,
+    
+    // Network mode for mutations
+    networkMode: 'online',
   }
 }
 

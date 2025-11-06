@@ -1152,6 +1152,11 @@ export default function OpkomstenPage() {
                             {new Date(event.end).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit', hour12: false })}
                           </span>
                         )}
+                        {event.location && (
+                        <p className="location-info">
+                          {event.location}
+                        </p>
+                      )}
                       </div>
                     )}
                   </div>
@@ -1259,11 +1264,6 @@ export default function OpkomstenPage() {
                       )}
                       {event.description && (
                         <p className="description-text">{event.description}</p>
-                      )}
-                      {event.location && (
-                        <p className="location-info">
-                          📍 {event.location}
-                        </p>
                       )}
                     </div>
                   </div>

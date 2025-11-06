@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { withSupportContact } from '../config/appInfo'
 import { useIsMobile } from '../hooks/useDeviceDetection'
+import LocationLink from '../components/LocationLink'
 import './StrepenPage.css'
 
 function capitalizeWeekday(dateStr) {
@@ -331,6 +332,9 @@ export default function StrepenPage() {
             <section className="event-info">
               <h2>{selectedEvent.title}</h2>
               <p>📅 {capitalizeWeekday(selectedEvent.start)}</p>
+              {selectedEvent.location && (
+                <p><LocationLink location={selectedEvent.location} showIcon={false} /></p>
+              )}
               <p>👥 Opkomstmakers: {selectedEvent.opkomstmakers}</p>
             </section>
           </>

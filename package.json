@@ -1,6 +1,6 @@
 {
   "name": "stamjer",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "description": "Een professionele React + Vite kalender applicatie met gebruikersauthenticatie en evenementbeheer",
   "private": true,
   "type": "module",
@@ -22,9 +22,12 @@
     "api": "node api/index.js",
     "start": "concurrently \"npm:api\" \"npm:dev\"",
     "build": "vite build",
+    "build:analyze": "set ANALYZE=true && vite build",
     "vercel-build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint ."
+    "preview:dist": "vite preview --port 4173",
+    "lint": "eslint .",
+    "test:lighthouse": "echo Run lighthouse on production build at http://localhost:4173"
   },
   "main": "api/index.js",
   "dependencies": {
@@ -57,6 +60,8 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^16.0.0",
+    "rollup-plugin-visualizer": "^5.12.0",
+    "terser": "^5.44.1",
     "vite": "^6.3.5"
   }
 }

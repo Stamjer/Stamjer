@@ -12,16 +12,28 @@
   "categories": ["productivity", "business", "utilities"],
   "icons": [
     {
-      "src": "/stam_H.png",
+      "src": "/icons/192x192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "/stam_H.png",
+      "src": "/icons/192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/512x512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "prefer_related_applications": false,
@@ -33,7 +45,7 @@
       "url": "/kalender",
       "icons": [
         {
-          "src": "/stam_H.png",
+          "src": "/icons/96x96.png",
           "sizes": "96x96"
         }
       ]
@@ -45,7 +57,7 @@
       "url": "/opkomsten",
       "icons": [
         {
-          "src": "/stam_H.png",
+          "src": "/icons/96x96.png",
           "sizes": "96x96"
         }
       ]
@@ -53,10 +65,16 @@
   ],
   "screenshots": [
     {
-      "src": "/stam_H.png",
+      "src": "/icons/720x1280.png",
       "type": "image/png",
       "sizes": "720x1280",
       "form_factor": "narrow"
+    },
+    {
+      "src": "/icons/1280x720.png",
+      "type": "image/png",
+      "sizes": "1280x720",
+      "form_factor": "wide"
     }
   ]
 }

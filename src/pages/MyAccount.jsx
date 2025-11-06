@@ -4,6 +4,7 @@ import { withSupportContact } from '../config/appInfo'
 import { changePassword, updateUserProfile, getEvents } from '../services/api'
 import { invalidateEvents, invalidateUsers } from '../lib/queryClient'
 import CalendarSubscription from '../components/CalendarSubscription'
+import LocationLink from '../components/LocationLink'
 import './MyAccount.css'
 import './Auth.css'
 
@@ -704,7 +705,7 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
                 <div className="detail-item">
                   <div className="detail-content">
                     <strong>Locatie</strong>
-                    <span>{selectedOpkomst.location}</span>
+                    <LocationLink location={selectedOpkomst.location} />
                   </div>
                 </div>
               )}
