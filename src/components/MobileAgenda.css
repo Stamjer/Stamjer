@@ -17,7 +17,7 @@
   backdrop-filter: blur(8px);
   z-index: 3;
   border-bottom: 1px solid var(--secondary-200);
-  padding: 8px 4px;
+  padding: 0rem 0.5rem;
 }
 
 .mobile-agenda-header .title {
@@ -53,8 +53,8 @@
 .days {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-top: 10px; /* spacing handled via container padding */
+  gap: 0.5rem;
+  margin-top: 0.5rem; /* spacing handled via container padding */
   padding-top: 0;
 }
 
@@ -70,8 +70,8 @@
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
   background: var(--secondary-50);
   border-bottom: 1px solid var(--secondary-200);
   width: 100%;
