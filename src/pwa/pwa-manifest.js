@@ -1,8 +1,8 @@
 export const pwaManifest = {
   id: '/',
-  name: 'Stamjer - Vereniging Agenda',
+  name: 'Stamjer - De Hertog Stam Agenda',
   short_name: 'Stamjer',
-  description: 'Agenda en opkomsten beheer voor de vereniging',
+  description: 'Agenda en opkomsten beheer voor de Hertog Stam',
   start_url: '/',
   display: 'standalone',
   background_color: '#f8fafc',
@@ -43,7 +43,7 @@ export const pwaManifest = {
     {
       name: 'Kalender',
       short_name: 'Kalender',
-      description: 'Bekijk de verenigingskalender',
+      description: 'Bekijk de kalender',
       url: '/kalender',
       icons: [
         {

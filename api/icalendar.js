@@ -65,6 +65,10 @@ function foldLine(line) {
   return lines.join('\r\n')
 }
 
+const DEFAULT_TIMEZONE = 'Europe/Amsterdam'
+const ISO_NAIVE_DATETIME_REGEX = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2})(?::(\d{2})(?::(\d{2}))?)?)?(?:\.\d+)?$/
+const ISO_OFFSET_DATETIME_REGEX = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2})(?::(\d{2})(?::(\d{2}))?)?)?(?:\.\d+)?([+-]\d{2}:?\d{2}|Z)$/
+
 /**
  * Format a date for iCalendar (UTC)
  * @param {string|Date} date - Date to format
@@ -86,6 +90,65 @@ function formatICalDate(date) {
   const seconds = String(d.getUTCSeconds()).padStart(2, '0')
   
   return `${year}${month}${day}T${hours}${minutes}${seconds}Z`
+}
+
+/**
+ * Extract YYYYMMDDTHHMMSS parts for the configured timezone.
+ * When the source date string omits an offset, it is treated as local
+ * Europe/Amsterdam time to ensure Dutch schedules remain correct.
+ * @param {string|Date} date - Source date value
+ * @param {string} timeZone - IANA timezone identifier
+ * @returns {string} Local datetime string formatted as YYYYMMDDTHHMMSS
+ */
+function formatICalDateInTimeZone(date, timeZone = DEFAULT_TIMEZONE) {
+  if (!date) {
+    throw new Error('Missing date provided to formatICalDateInTimeZone')
+  }
+
+  if (typeof date === 'string') {
+    const trimmed = date.trim()
+
+    // Treat ISO strings without explicit timezone as local Dutch time.
+    const naiveMatch = ISO_NAIVE_DATETIME_REGEX.exec(trimmed)
+    if (naiveMatch && !ISO_OFFSET_DATETIME_REGEX.test(trimmed)) {
+      const [, year, month, day, hour = '00', minute = '00', second = '00'] = naiveMatch
+      return `${year}${month}${day}T${hour}${minute}${second}`
+    }
+
+    // Date strings containing offsets or 'Z' are interpreted as instant.
+  }
+
+  const parsed = date instanceof Date ? date : new Date(date)
+
+  if (isNaN(parsed.getTime())) {
+    throw new Error('Invalid date provided to formatICalDateInTimeZone')
+  }
+
+  const formatter = new Intl.DateTimeFormat('en-GB', {
+    timeZone,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })
+
+  const parts = formatter.formatToParts(parsed).reduce((acc, part) => {
+    if (part.type !== 'literal') {
+      acc[part.type] = part.value
+    }
+    return acc
+  }, {})
+
+  const { year, month, day, hour, minute, second } = parts
+
+  if (!year || !month || !day || !hour || !minute || !second) {
+    throw new Error('Failed to derive timezone-aware datetime parts')
+  }
+
+  return `${year}${month}${day}T${hour}${minute}${second}`
 }
 
 /**
@@ -128,9 +191,9 @@ function generateVEvent(event) {
     const startDate = formatICalDateOnly(event.start)
     lines.push(foldLine(`DTSTART;VALUE=DATE:${startDate}`))
   } else {
-    // Timed events use UTC datetime
-    const startDate = formatICalDate(event.start)
-    lines.push(foldLine(`DTSTART:${startDate}`))
+    // Timed events assume Dutch timezone
+    const startDate = formatICalDateInTimeZone(event.start, DEFAULT_TIMEZONE)
+    lines.push(foldLine(`DTSTART;TZID=${DEFAULT_TIMEZONE}:${startDate}`))
   }
   
   // DTEND (required)
@@ -139,8 +202,8 @@ function generateVEvent(event) {
       const endDate = formatICalDateOnly(event.end)
       lines.push(foldLine(`DTEND;VALUE=DATE:${endDate}`))
     } else {
-      const endDate = formatICalDate(event.end)
-      lines.push(foldLine(`DTEND:${endDate}`))
+      const endDate = formatICalDateInTimeZone(event.end, DEFAULT_TIMEZONE)
+      lines.push(foldLine(`DTEND;TZID=${DEFAULT_TIMEZONE}:${endDate}`))
     }
   } else {
     // If no end date, use start date
@@ -151,8 +214,8 @@ function generateVEvent(event) {
       const endDate = formatICalDateOnly(start)
       lines.push(foldLine(`DTEND;VALUE=DATE:${endDate}`))
     } else {
-      const endDate = formatICalDate(event.start)
-      lines.push(foldLine(`DTEND:${endDate}`))
+      const endDate = formatICalDateInTimeZone(event.start, DEFAULT_TIMEZONE)
+      lines.push(foldLine(`DTEND;TZID=${DEFAULT_TIMEZONE}:${endDate}`))
     }
   }
   
