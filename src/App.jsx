@@ -148,8 +148,8 @@ function App() {
         const raw = localStorage.getItem('user')
         if (raw) {
           const userData = JSON.parse(raw)
-          // Validate user data structure
-          if (userData && (userData.email || userData.id)) {
+          // Validate user data structure and presence of sessionToken for API auth
+          if (userData && (userData.email || userData.id) && userData.sessionToken) {
             setUser(userData)
           } else {
             localStorage.removeItem('user')

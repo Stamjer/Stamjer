@@ -109,8 +109,8 @@
   margin: 0;
   padding: 0.35rem 0.6rem;
   border-radius: 0.6rem;
-  color: var(--secondary-100);
-  background: var(--primary-600);
+  color: var(--primary-600);
+  background: var(--secondary-100);
 }
 
 .notification-status.success {

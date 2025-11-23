@@ -38,6 +38,18 @@ const JSON_HEADERS = {
   'Content-Type': 'application/json',
 }
 
+function getStoredUser() {
+  try {
+    const rawLocal = typeof localStorage !== 'undefined' ? localStorage.getItem('user') : null
+    const rawSession = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('user') : null
+    const raw = rawLocal || rawSession
+    if (!raw) return null
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
 // ================================================================
 // UTILITY FUNCTIONS
 // ================================================================
@@ -175,6 +187,16 @@ async function request(url, options = {}, timeout = DEFAULT_TIMEOUT) {
       ...requestOptions.headers,
     }
     requestOptions.body = JSON.stringify(requestOptions.body)
+  }
+
+  // Attach bearer token when available
+  const storedUser = getStoredUser()
+  const token = storedUser?.sessionToken
+  if (token) {
+    requestOptions.headers = {
+      ...requestOptions.headers,
+      Authorization: `Bearer ${token}`,
+    }
   }
 
   let timeoutId
