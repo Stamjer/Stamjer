@@ -1227,11 +1227,17 @@ async function sendPushNotificationRecord(subscriptionRecord, payload) {
       { $set: { lastActiveAt: nowIso, updatedAt: nowIso } }
     )
   } catch (error) {
-    if (error.statusCode === 404 || error.statusCode === 410) {
-      warnLog(`[push] Subscription expired, removing endpoint ${subscriptionRecord.endpoint}`)
-      await removePushSubscriptionByEndpoint(subscriptionRecord.endpoint)
+    const status = error?.statusCode
+    const respBody = error?.body || ''
+    const endpoint = subscriptionRecord.endpoint
+
+    if ([400, 403, 404, 410].includes(status)) {
+      warnLog(`[push] Subscription invalid/expired (${status}) for endpoint ${endpoint}, removing. Body: ${respBody}`)
+      await removePushSubscriptionByEndpoint(endpoint)
       return
     }
+
+    warnLog(`[push] Verzenden pushmelding mislukt (${endpoint}) [${status ?? 'unknown'}]: ${error.message}`)
     throw error
   }
 }
