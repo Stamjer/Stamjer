@@ -82,6 +82,19 @@ const VAPID_SUBJECT =
   process.env.CLIENT_ORIGIN ||
   process.env.VITE_CLIENT_ORIGIN ||
   `mailto:${WEB_PUSH_CONTACT}`
+const PUSH_TOPIC =
+  process.env.PUSH_TOPIC ||
+  (() => {
+    try {
+      if (VAPID_SUBJECT && VAPID_SUBJECT.startsWith('http')) {
+        return new URL(VAPID_SUBJECT).host
+      }
+      if (process.env.CLIENT_ORIGIN) {
+        return new URL(process.env.CLIENT_ORIGIN).host
+      }
+    } catch {}
+    return 'stamjer.nl'
+  })()
 let isWebPushConfigured = false
 const MAX_NOTIFICATIONS_PER_USER = 100
 const DEFAULT_NOTIFICATION_URL = ''
@@ -1223,8 +1236,16 @@ async function sendPushNotificationRecord(subscriptionRecord, payload) {
     keys: subscriptionRecord.keys || {}
   }
 
+  const webPushOptions = {
+    TTL: 24 * 60 * 60, // 1 day
+    headers: {
+      topic: PUSH_TOPIC,
+      'apns-topic': PUSH_TOPIC
+    }
+  }
+
   try {
-    await webpush.sendNotification(webPushSubscription, JSON.stringify(payload))
+    await webpush.sendNotification(webPushSubscription, JSON.stringify(payload), webPushOptions)
 
     const nowIso = new Date().toISOString()
     subscriptionRecord.lastActiveAt = nowIso
