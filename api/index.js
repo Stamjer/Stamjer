@@ -77,6 +77,11 @@ const MAX_PUSH_SUBSCRIPTIONS_PER_USER = Math.max(parseInt(process.env.MAX_PUSH_S
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY || ''
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || ''
 const WEB_PUSH_CONTACT = process.env.SMTP_FROM || 'stamjer.mpd@gmail.com'
+const VAPID_SUBJECT =
+  process.env.VAPID_SUBJECT ||
+  process.env.CLIENT_ORIGIN ||
+  process.env.VITE_CLIENT_ORIGIN ||
+  `mailto:${WEB_PUSH_CONTACT}`
 let isWebPushConfigured = false
 const MAX_NOTIFICATIONS_PER_USER = 100
 const DEFAULT_NOTIFICATION_URL = ''
@@ -89,7 +94,10 @@ const SCHEDULED_NOTIFICATION_INTERVAL_MS = Math.max(
 
 if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
   try {
-    webpush.setVapidDetails(`mailto:${WEB_PUSH_CONTACT}`, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
+    if (!/^https?:\/\//i.test(VAPID_SUBJECT) && !/^mailto:/i.test(VAPID_SUBJECT)) {
+      warnLog(`VAPID_SUBJECT (${VAPID_SUBJECT}) is niet een geldige https/mailto waarde; Apple Web Push kan weigeren. Overweeg een https-origin.`)
+    }
+    webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
     isWebPushConfigured = true
     infoLog('Web Push notificaties geconfigureerd')
   } catch (error) {
