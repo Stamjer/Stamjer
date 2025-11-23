@@ -7,7 +7,8 @@ import {
   getEvents,
   subscribePush,
   getPushPublicKey,
-  unsubscribePush
+  unsubscribePush,
+  getUserProfile
 } from '../services/api'
 import { invalidateEvents, invalidateUsers } from '../lib/queryClient'
 import CalendarSubscription from '../components/CalendarSubscription'
@@ -259,6 +260,31 @@ export default function MyAccount({ user: userProp, onLogout }) {
     setNotificationSettings(mergedSettings)
     setNotificationSettingsStatus(null)
   }, [user])
+
+  // Always refresh profile preferences from the server (keeps devices in sync)
+  useEffect(() => {
+    let cancelled = false
+    const fetchProfile = async () => {
+      if (!user?.id) return
+      try {
+        const response = await getUserProfile(user.id)
+        const freshUser = response?.user
+        if (!freshUser) return
+        const mergedUser = { ...user, ...freshUser, password: undefined }
+        localStorage.setItem('user', JSON.stringify(mergedUser))
+        sessionStorage.setItem('user', JSON.stringify(mergedUser))
+        if (!cancelled) {
+          setNotificationSettings((prev) =>
+            normalizeNotificationSettings(freshUser.notificationPreferences || prev)
+          )
+        }
+      } catch (err) {
+        console.warn('MyAccount - Profiel verversen mislukt:', err?.message || err)
+      }
+    }
+    fetchProfile()
+    return () => { cancelled = true }
+  }, [user?.id])
 
   useEffect(() => {
     if (!user) {
@@ -640,7 +666,7 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
       }
 
       if (!pushSupported) {
-        throw new Error('Deze browser ondersteunt geen pushmeldingen.')
+        throw new Error('Deze browser ondersteunt geen pushmeldingen. Download Stamjer als PWA om deze functie te gebruiken. Vraag aan een admin als je niet weet hoe dit moet.')
       }
 
       const permission = await Notification.requestPermission()

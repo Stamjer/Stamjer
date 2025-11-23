@@ -532,8 +532,11 @@ export async function getUsersFull() {
  * Get user profile
  * @returns {Promise<Object>} User profile data
  */
-export async function getUserProfile() {
-  return request('/user/profile')
+export async function getUserProfile(userId) {
+  if (!userId) {
+    throw new Error('Gebruikers-ID is verplicht om profiel op te halen')
+  }
+  return request(`/user/profile?userId=${encodeURIComponent(userId)}`)
 }
 
 /**

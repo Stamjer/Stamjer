@@ -31,7 +31,7 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import expressStaticGzip from 'express-static-gzip'
 import { fileURLToPath } from 'url'
 import { dirname } from 'path'
-import { randomUUID } from 'crypto'
+import { randomUUID, createHmac, timingSafeEqual } from 'crypto'
 import webpush from 'web-push'
 import { MongoClient } from 'mongodb'
 import { createRequestLogger, configureDailyReport, logError as logSystemError, logEvent } from './logger.js'
@@ -68,6 +68,12 @@ const PAYMENT_REQUEST_ATTACHMENT_LIMIT = Math.max(parseInt(process.env.PAYMENT_R
 const PAYMENT_REQUEST_ATTACHMENT_SIZE_LIMIT = Math.max(parseInt(process.env.PAYMENT_REQUEST_ATTACHMENT_SIZE_LIMIT, 10) || 5, 1) * 1024 * 1024
 const PAYMENT_REQUEST_TOTAL_SIZE_LIMIT = Math.max(parseInt(process.env.PAYMENT_REQUEST_TOTAL_SIZE_LIMIT, 10) || 15, 1) * 1024 * 1024
 
+const NOTIFICATION_TTL_DAYS = Math.max(parseInt(process.env.NOTIFICATION_TTL_DAYS, 10) || 90, 7)
+const NOTIFICATION_TTL_MS = NOTIFICATION_TTL_DAYS * 24 * 60 * 60 * 1000
+const SESSION_TTL_DAYS = Math.max(parseInt(process.env.SESSION_TTL_DAYS, 10) || 7, 1)
+const SESSION_TTL_MS = SESSION_TTL_DAYS * 24 * 60 * 60 * 1000
+const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-session-secret-change-me'
+const MAX_PUSH_SUBSCRIPTIONS_PER_USER = Math.max(parseInt(process.env.MAX_PUSH_SUBSCRIPTIONS_PER_USER, 10) || 5, 1)
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY || ''
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || ''
 const WEB_PUSH_CONTACT = process.env.SMTP_FROM || 'stamjer.mpd@gmail.com'
@@ -169,7 +175,8 @@ async function ensureIndexes(db) {
   const notificationsCreated = await ensureCollectionIndexes(db.collection('notifications'), [
     { keys: { userId: 1, createdAt: -1 }, options: { background: true, name: 'notifications_user_created_idx' }, description: 'notifications per user' },
     { keys: { eventId: 1, type: 1, userId: 1 }, options: { background: true, name: 'notifications_event_type_user_idx' }, description: 'notifications dedupe lookup' },
-    { keys: { read: 1, userId: 1 }, options: { background: true, name: 'notifications_read_user_idx' }, description: 'notifications read filter' }
+    { keys: { readBy: 1, userId: 1 }, options: { background: true, name: 'notifications_read_user_idx' }, description: 'notifications read filter' },
+    { keys: { expiresAt: 1 }, options: { expireAfterSeconds: 0, background: true, name: 'notifications_expiresAt_ttl_idx' }, description: `notifications TTL (${NOTIFICATION_TTL_DAYS} dagen)` }
   ])
 
   if (eventsCreated || usersCreated || resetCodesCreated || snapshotsCreated || pushSubscriptionsCreated || notificationsCreated) {
@@ -270,6 +277,128 @@ function parseBoolean(value, defaultValue = false) {
   return defaultValue
 }
 
+function base64UrlEncode(buffer) {
+  return Buffer.from(buffer).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+}
+
+function base64UrlDecode(str) {
+  const padded = str.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(str.length / 4) * 4, '=')
+  return Buffer.from(padded, 'base64')
+}
+
+function signSessionToken(payload) {
+  const header = base64UrlEncode(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
+  const body = base64UrlEncode(JSON.stringify(payload))
+  const data = `${header}.${body}`
+  const signature = base64UrlEncode(createHmac('sha256', SESSION_SECRET).update(data).digest())
+  return `${data}.${signature}`
+}
+
+function verifySessionToken(token) {
+  if (!token || typeof token !== 'string' || !token.includes('.')) return null
+  const [header, body, signature] = token.split('.')
+  const data = `${header}.${body}`
+  const expectedSig = base64UrlEncode(createHmac('sha256', SESSION_SECRET).update(data).digest())
+
+  const sigBuf = Buffer.from(signature || '', 'utf8')
+  const expectedBuf = Buffer.from(expectedSig, 'utf8')
+  if (sigBuf.length !== expectedBuf.length || !timingSafeEqual(sigBuf, expectedBuf)) {
+    return null
+  }
+
+  try {
+    const payload = JSON.parse(base64UrlDecode(body).toString('utf8'))
+    if (!payload || typeof payload !== 'object') return null
+    if (payload.exp && Date.now() > payload.exp) return null
+    return payload
+  } catch {
+    return null
+  }
+}
+
+function sanitizeClientString(input = '', maxLength = 120) {
+  return input
+    .toString()
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, '')
+    .slice(0, maxLength)
+}
+
+function isValidBase64UrlKey(value = '', minLength = 10, maxLength = 256) {
+  const str = value.toString()
+  if (str.length < minLength || str.length > maxLength) return false
+  return /^[A-Za-z0-9_-]+$/.test(str)
+}
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+function issueSessionToken(user) {
+  user.sessionVersion = (user.sessionVersion || 0) + 1
+  if (user.sessionToken) {
+    delete user.sessionToken
+  }
+  const payload = {
+    userId: user.id,
+    v: user.sessionVersion,
+    exp: Date.now() + SESSION_TTL_MS
+  }
+  return signSessionToken(payload)
+}
+
+function extractAuthToken(req) {
+  const bearer = typeof req.headers?.authorization === 'string' ? req.headers.authorization.trim() : ''
+  if (bearer && bearer.toLowerCase().startsWith('bearer ')) {
+    return bearer.slice(7).trim()
+  }
+  return (
+    (req.headers?.['x-session-token'] ?? req.body?.sessionToken ?? req.query?.sessionToken ?? '').toString().trim()
+  )
+}
+
+function getAuthenticatedUser(req, { requireAdmin = false } = {}) {
+  const sessionToken = extractAuthToken(req)
+  if (!sessionToken) {
+    return { error: 'AUTH_REQUIRED' }
+  }
+
+  const payload = verifySessionToken(sessionToken)
+  if (!payload || !Number.isFinite(payload.userId)) {
+    return { error: 'AUTH_INVALID' }
+  }
+
+  const user = users.find((u) => u.id === payload.userId)
+  if (!user) {
+    return { error: 'AUTH_INVALID' }
+  }
+
+  const sessionVersion = user.sessionVersion || 0
+  if (payload.v !== sessionVersion) {
+    return { error: 'AUTH_INVALID' }
+  }
+
+  if (requireAdmin && !isUserAdmin(user.id)) {
+    return { error: 'AUTH_FORBIDDEN' }
+  }
+
+  return { user, userId: user.id, token: sessionToken }
+}
+
+function requireAuthenticatedUser(req, res, { requireAdmin = false } = {}) {
+  const ctx = getAuthenticatedUser(req, { requireAdmin })
+  if (ctx.error === 'AUTH_REQUIRED') {
+    res.status(401).json({ error: 'Authenticatie vereist' })
+    return null
+  }
+  if (ctx.error === 'AUTH_INVALID') {
+    res.status(401).json({ error: 'Ongeldige sessie' })
+    return null
+  }
+  if (ctx.error === 'AUTH_FORBIDDEN') {
+    res.status(403).json({ error: 'Alleen beheerders' })
+    return null
+  }
+  return ctx
+}
+
 // Tussenopslag gebruikers en evenementen
 let users = []
 let events = []
@@ -289,7 +418,8 @@ async function loadUsers() {
     .then((list) =>
       list.map((user) => ({
         ...user,
-        notificationPreferences: normalizeNotificationPreferences(user.notificationPreferences || {})
+        notificationPreferences: normalizeNotificationPreferences(user.notificationPreferences || {}),
+        sessionVersion: Number.isFinite(user.sessionVersion) ? user.sessionVersion : 0
       }))
     )
   infoLog(`Loaded ${users.length} users from MongoDB`)
@@ -321,12 +451,28 @@ async function loadPushSubscriptions() {
 
 async function loadNotifications() {
   const db = await getDb()
+  const now = Date.now()
+  const missingExpiryIds = []
   notifications = (await db.collection('notifications')
     .find({})
     .project({ _id: 0 })
     .toArray())
-    .map((notification) => normalizeNotificationRecord(notification))
+    .map((notification) => {
+      const normalized = normalizeNotificationRecord(notification)
+      if (normalized && !normalized.expiresAt) {
+        missingExpiryIds.push(normalized.id)
+      }
+      return normalized
+    })
     .filter(Boolean)
+
+  if (missingExpiryIds.length > 0) {
+    const expiresAt = new Date(now + NOTIFICATION_TTL_MS)
+    await db.collection('notifications').updateMany(
+      { id: { $in: missingExpiryIds } },
+      { $set: { expiresAt } }
+    )
+  }
   infoLog(`[notifications] Loaded ${notifications.length} notifications from MongoDB`)
 }
 
@@ -594,18 +740,34 @@ async function upsertPushSubscription({ userId, subscription, userAgent = '', de
     throw new Error('Ongeldig gebruikers-ID voor push-subscriptie')
   }
 
+  const existingUser = users.find((u) => u.id === normalizedUserId && Boolean(u?.active))
+  if (!existingUser) {
+    throw new Error('Gebruiker niet gevonden of inactief')
+  }
+
   if (!subscription || typeof subscription.endpoint !== 'string') {
     throw new Error('Ongeldige push-subscriptie ontvangen')
+  }
+
+  const keys = subscription.keys || {}
+  if (!isValidBase64UrlKey(keys.p256dh) || !isValidBase64UrlKey(keys.auth, 8, 64)) {
+    throw new Error('Ongeldige push-sleutelgegevens')
+  }
+
+  const userSubs = pushSubscriptions.filter((item) => item.userId === normalizedUserId)
+  const existingEndpoint = userSubs.find((item) => item.endpoint === subscription.endpoint)
+  if (!existingEndpoint && userSubs.length >= MAX_PUSH_SUBSCRIPTIONS_PER_USER) {
+    throw new Error(`Maximaal ${MAX_PUSH_SUBSCRIPTIONS_PER_USER} apparaten per gebruiker voor pushmeldingen`)
   }
 
   const nowIso = new Date().toISOString()
   const record = {
     endpoint: subscription.endpoint,
-    keys: subscription.keys || {},
+    keys,
     expirationTime: subscription.expirationTime || null,
     userId: normalizedUserId,
-    userAgent: userAgent || null,
-    deviceName: deviceName || null,
+    userAgent: sanitizeClientString(userAgent, 160) || null,
+    deviceName: sanitizeClientString(deviceName, 80) || null,
     updatedAt: nowIso,
     lastActiveAt: nowIso
   }
@@ -720,7 +882,7 @@ async function markNotificationsAsRead(userId, notificationIds, read = true) {
     $or: [
       { recipients: normalizedUserId },
       { recipients: { $exists: true, $size: 0 } },
-      { userId: normalizedUserId } // legacy compatibility
+      { userId: normalizedUserId } // legacy compatibility + per-user docs
     ]
   }
 
@@ -816,6 +978,11 @@ async function listScheduledNotifications() {
 
 async function createScheduledNotification(payload) {
   const nowIso = new Date().toISOString()
+  const sendAtDate = payload.sendAt ? new Date(payload.sendAt) : new Date(nowIso)
+  if (!Number.isFinite(sendAtDate.getTime())) {
+    throw new Error('Ongeldige verzendtijd voor melding')
+  }
+
   const id = randomUUID()
   const record = {
     id,
@@ -824,12 +991,13 @@ async function createScheduledNotification(payload) {
     audience: payload.audience || 'all',
     recipientIds: payload.recipientIds || [],
     priority: payload.priority || 'normal',
-    sendAt: payload.sendAt || nowIso,
+    sendAt: sendAtDate,
     status: payload.status || 'scheduled',
     createdAt: nowIso,
     updatedAt: nowIso,
     cta: payload.cta || null,
     attachments: payload.attachments || [],
+    createdBy: payload.createdBy || null
   }
 
   const db = await getDb()
@@ -851,9 +1019,19 @@ async function updateScheduledNotificationRecord(id, payload) {
     throw new Error('Niet gevonden')
   }
 
+  let sendAt = payload.sendAt ?? scheduledNotifications[idx].sendAt
+  if (sendAt) {
+    const sendAtDate = new Date(sendAt)
+    if (!Number.isFinite(sendAtDate.getTime())) {
+      throw new Error('Ongeldige verzendtijd voor melding')
+    }
+    sendAt = sendAtDate
+  }
+
   const updated = {
     ...scheduledNotifications[idx],
     ...payload,
+    sendAt,
     updatedAt: nowIso,
   }
 
@@ -897,36 +1075,50 @@ async function resolveScheduledRecipients(scheduled) {
 
 async function processUserScheduledNotifications(referenceDate = new Date()) {
   try {
-    await ensureScheduledLoaded()
+    if (!Array.isArray(users) || users.length === 0) {
+      await loadUsers()
+    }
+
+    const db = await getDb()
     if (!Array.isArray(pushSubscriptions) || pushSubscriptions.length === 0) {
       await loadPushSubscriptions()
     }
 
-    const nowMs = referenceDate.getTime()
-    const due = scheduledNotifications.filter((item) => {
-      if (!item) return false
-      if ((item.status || 'scheduled') !== 'scheduled') return false
-      const sendAtMs = new Date(item.sendAt || nowMs).getTime()
-      if (!Number.isFinite(sendAtMs)) return false
-      return sendAtMs <= nowMs
-    })
-
-    if (due.length === 0) return []
-
-    const db = await getDb()
+    const nowDate = new Date(referenceDate)
     const sentIds = []
 
-    for (const scheduled of due) {
+    // Normalize old records that stored sendAt as string
+    try {
+      await db.collection('scheduledNotifications').updateMany(
+        { sendAt: { $type: 'string' } },
+        [{ $set: { sendAt: { $toDate: '$sendAt' } } }]
+      )
+    } catch {
+      // Ignore migration errors; future inserts use Date
+    }
+
+    while (true) {
+      const claimed = await db.collection('scheduledNotifications').findOneAndUpdate(
+        {
+          status: 'scheduled',
+          sendAt: { $lte: nowDate }
+        },
+        {
+          $set: { status: 'processing', updatedAt: new Date() }
+        },
+        { returnDocument: 'after' }
+      )
+
+      const scheduled = claimed.value
+      if (!scheduled) break
+
       try {
         const recipients = await resolveScheduledRecipients(scheduled)
         if (recipients.length === 0) {
-          const updatedAt = new Date().toISOString()
+          const updatedAt = new Date()
           await db.collection('scheduledNotifications').updateOne(
             { id: scheduled.id },
             { $set: { status: 'failed', updatedAt, error: 'Geen ontvangers' } }
-          )
-          scheduledNotifications = scheduledNotifications.map((item) =>
-            item.id === scheduled.id ? { ...item, status: 'failed', updatedAt, error: 'Geen ontvangers' } : item
           )
           continue
         }
@@ -952,22 +1144,19 @@ async function processUserScheduledNotifications(referenceDate = new Date()) {
         })
 
         await db.collection('scheduledNotifications').deleteOne({ id: scheduled.id })
-        scheduledNotifications = scheduledNotifications.filter((item) => item.id !== scheduled.id)
         infoLog(`[notifications] Geplande melding ${scheduled.id} verzonden en verwijderd uit wachtrij`)
         sentIds.push(scheduled.id)
       } catch (error) {
-        const updatedAt = new Date().toISOString()
+        const updatedAt = new Date()
         await db.collection('scheduledNotifications').updateOne(
           { id: scheduled.id },
           { $set: { status: 'error', updatedAt, error: error.message || 'onbekende fout' } }
-        )
-        scheduledNotifications = scheduledNotifications.map((item) =>
-          item.id === scheduled.id ? { ...item, status: 'error', updatedAt, error: error.message || 'onbekende fout' } : item
         )
         logSystemError(error, { action: 'processUserScheduledNotifications', status: 500, metadata: { id: scheduled.id } })
       }
     }
 
+    await loadScheduledNotifications()
     return sentIds
   } catch (error) {
     logSystemError(error, { action: 'processUserScheduledNotifications', status: 500 })
@@ -995,12 +1184,13 @@ function mapNotificationForClient(notification, userId) {
 }
 
 function buildPushPayload(notification) {
+  const safeMetadata = notification.metadata?.cta ? { cta: notification.metadata.cta } : {}
   const baseData = {
     url: notification.url || DEFAULT_NOTIFICATION_URL,
     notificationId: notification.id,
     type: notification.type,
     eventId: notification.eventId || null,
-    metadata: notification.metadata || {},
+    metadata: safeMetadata,
     createdAt: notification.createdAt,
   }
 
@@ -1040,9 +1230,9 @@ async function sendPushNotificationRecord(subscriptionRecord, payload) {
     if (error.statusCode === 404 || error.statusCode === 410) {
       warnLog(`[push] Subscription expired, removing endpoint ${subscriptionRecord.endpoint}`)
       await removePushSubscriptionByEndpoint(subscriptionRecord.endpoint)
-    } else {
-      warnLog(`[push] Verzenden pushmelding mislukt (${subscriptionRecord.endpoint}): ${error.message}`)
+      return
     }
+    throw error
   }
 }
 
@@ -1051,7 +1241,35 @@ async function dispatchPushNotifications(notificationDocs) {
     return
   }
 
+  if (!Array.isArray(users) || users.length === 0) {
+    await loadUsers()
+  }
+  if (!Array.isArray(pushSubscriptions) || pushSubscriptions.length === 0) {
+    await loadPushSubscriptions()
+  }
+
   const tasks = []
+  const MAX_ATTEMPTS = 3
+  const BASE_BACKOFF_MS = 250
+
+  const sendWithRetry = async (subscriptionRecord, payload) => {
+    let attempt = 0
+    while (attempt < MAX_ATTEMPTS) {
+      try {
+        await sendPushNotificationRecord(subscriptionRecord, payload)
+        return
+      } catch (error) {
+        attempt += 1
+        const transient = ![404, 410].includes(error?.statusCode) && (error?.statusCode >= 500 || error?.code === 'ETIMEDOUT' || error?.code === 'ECONNRESET')
+        if (!transient || attempt >= MAX_ATTEMPTS) {
+          warnLog(`[push] Verzenden pushmelding mislukt (${subscriptionRecord.endpoint}): ${error.message}`)
+          return
+        }
+        await delay(BASE_BACKOFF_MS * attempt)
+      }
+    }
+  }
+
   notificationDocs.forEach((notification) => {
     const recipients = sanitizeIdArray(notification.recipients || [])
     recipients.forEach((recipientId) => {
@@ -1065,7 +1283,7 @@ async function dispatchPushNotifications(notificationDocs) {
       }
       const payload = buildPushPayload(notification)
       userSubscriptions.forEach((subscriptionRecord) => {
-        tasks.push(sendPushNotificationRecord(subscriptionRecord, payload))
+        tasks.push(sendWithRetry(subscriptionRecord, payload))
       })
     })
   })
@@ -1173,41 +1391,59 @@ async function createNotificationsForUsers({
 
   const now = new Date()
   const nowIso = now.toISOString()
-
-  const id = randomUUID()
-  const doc = {
-    _id: id,
-    id,
-    recipients: normalizedUserIds,
-    readBy: [],
-    title: title || 'Stamjer',
-    body: message || '',
-    type,
-    eventId: eventId || null,
-    url: url || DEFAULT_NOTIFICATION_URL,
-    createdAt: nowIso,
-    updatedAt: nowIso,
-    metadata: metadata || {},
-    priority
-  }
+  const expiresAt = new Date(now.getTime() + NOTIFICATION_TTL_MS)
 
   const db = await getDb()
-  await db.collection('notifications').insertOne(doc)
 
-  notifications.push({
-    ...doc,
-    _id: undefined
-  })
-
-  await Promise.all(normalizedUserIds.map((uid) => pruneNotificationsForUser(uid)))
-
-  if (isWebPushConfigured) {
-    await dispatchPushNotifications([doc])
+  // Dedupe per user on the same event/type
+  let allowedUserIds = normalizedUserIds
+  if (eventId) {
+    const existing = await db.collection('notifications')
+      .find({ eventId, type, userId: { $in: normalizedUserIds } })
+      .project({ userId: 1 })
+      .toArray()
+    const existingSet = new Set(existing.map((n) => sanitizeUserId(n.userId)).filter((id) => id !== null))
+    allowedUserIds = normalizedUserIds.filter((uid) => !existingSet.has(uid))
   }
 
-  await dispatchEmailNotifications([doc])
+  if (allowedUserIds.length === 0) {
+    return []
+  }
 
-  return [doc]
+  const docs = allowedUserIds.map((recipientId) => {
+    const id = randomUUID()
+    return {
+      _id: id,
+      id,
+      userId: recipientId,
+      recipients: [recipientId],
+      readBy: [],
+      title: title || 'Stamjer',
+      body: message || '',
+      type,
+      eventId: eventId || null,
+      url: url || DEFAULT_NOTIFICATION_URL,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+      metadata: metadata || {},
+      priority,
+      expiresAt
+    }
+  })
+
+  await db.collection('notifications').insertMany(docs)
+
+  notifications.push(...docs.map(({ _id, ...rest }) => rest))
+
+  await Promise.all(allowedUserIds.map((uid) => pruneNotificationsForUser(uid)))
+
+  if (isWebPushConfigured) {
+    await dispatchPushNotifications(docs)
+  }
+
+  await dispatchEmailNotifications(docs)
+
+  return docs
 }
 
 async function processScheduledNotifications(referenceDate = new Date()) {
@@ -2823,6 +3059,24 @@ apiRouter.put('/user/profile', async (req, res) => {
   }
 })
 
+// Profiel ophalen (met voorkeuren)
+apiRouter.get('/user/profile', (req, res) => {
+  const { userId } = req.query
+  const uid = sanitizeUserId(userId)
+  if (uid === null) {
+    return res.status(400).json({ error: 'Ongeldig gebruikers-ID' })
+  }
+
+  const user = users.find((u) => u.id === uid)
+  if (!user) {
+    return res.status(404).json({ error: 'Gebruiker niet gevonden' })
+  }
+
+  const safeUser = { ...user }
+  delete safeUser.password
+  res.json({ user: safeUser })
+})
+
 // Evenementen ophalen
 apiRouter.get('/events', (req, res) => {
   res.json({ events })
@@ -3010,9 +3264,9 @@ apiRouter.put('/events/:id/attendance', async (req, res) => {
 // Push notifications & subscriptions
 apiRouter.get('/push/public-key', (req, res) => {
   if (!VAPID_PUBLIC_KEY) {
-    return res.status(503).json({ error: 'Push notificaties zijn niet geconfigureerd' })
+    return res.json({ publicKey: null, enabled: false, error: 'Push notificaties zijn niet geconfigureerd' })
   }
-  res.json({ publicKey: VAPID_PUBLIC_KEY })
+  res.json({ publicKey: VAPID_PUBLIC_KEY, enabled: true })
 })
 
 apiRouter.post('/push/subscribe', async (req, res) => {
@@ -3021,12 +3275,15 @@ apiRouter.post('/push/subscribe', async (req, res) => {
       return res.status(503).json({ error: 'Push notificaties zijn niet beschikbaar' })
     }
 
-    const { userId, subscription, userAgent, deviceName } = req.body || {}
-    if (!userId || !subscription) {
-      return res.status(400).json({ error: 'Gebruikers-ID en subscription zijn vereist' })
+    const auth = requireAuthenticatedUser(req, res)
+    if (!auth) return
+
+    const { subscription, userAgent, deviceName } = req.body || {}
+    if (!subscription) {
+      return res.status(400).json({ error: 'Subscription is vereist' })
     }
 
-    await upsertPushSubscription({ userId, subscription, userAgent, deviceName })
+    await upsertPushSubscription({ userId: auth.userId, subscription, userAgent, deviceName })
     res.json({ ok: true })
   } catch (error) {
     console.error('[push] Registratie mislukt:', error)
@@ -3037,9 +3294,21 @@ apiRouter.post('/push/subscribe', async (req, res) => {
 
 apiRouter.post('/push/unsubscribe', async (req, res) => {
   try {
+    const auth = requireAuthenticatedUser(req, res)
+    if (!auth) return
+
+    if (!Array.isArray(pushSubscriptions) || pushSubscriptions.length === 0) {
+      await loadPushSubscriptions()
+    }
+
     const { endpoint } = req.body || {}
     if (!endpoint) {
       return res.status(400).json({ error: 'Endpoint is vereist' })
+    }
+
+    const subscription = pushSubscriptions.find((sub) => sub.endpoint === endpoint)
+    if (subscription && subscription.userId !== auth.userId) {
+      return res.status(403).json({ error: 'Dit endpoint hoort niet bij deze gebruiker' })
     }
 
     await removePushSubscriptionByEndpoint(endpoint)
@@ -3052,11 +3321,10 @@ apiRouter.post('/push/unsubscribe', async (req, res) => {
 })
 
 apiRouter.get('/notifications', (req, res) => {
-  const { userId, limit = '50' } = req.query
-  const normalizedUserId = sanitizeUserId(userId)
-  if (normalizedUserId === null) {
-    return res.status(400).json({ error: 'Ongeldig gebruikers-ID' })
-  }
+  const auth = requireAuthenticatedUser(req, res)
+  if (!auth) return
+  const { limit = '50' } = req.query
+  const normalizedUserId = auth.userId
 
   const max = Math.max(1, Math.min(200, parseInt(limit, 10) || 50))
   const userNotifications = notifications
@@ -3082,11 +3350,10 @@ apiRouter.get('/notifications', (req, res) => {
 
 apiRouter.post('/notifications/mark-read', async (req, res) => {
   try {
-    const { userId, notificationIds, read = true } = req.body || {}
-    if (!userId) {
-      return res.status(400).json({ error: 'Gebruikers-ID is vereist' })
-    }
-    const result = await markNotificationsAsRead(userId, notificationIds, read)
+    const auth = requireAuthenticatedUser(req, res)
+    if (!auth) return
+    const { notificationIds, read = true } = req.body || {}
+    const result = await markNotificationsAsRead(auth.userId, notificationIds, read)
     res.json({ ok: true, updated: result.updated })
   } catch (error) {
     console.error('[notifications] Markeren als gelezen mislukt:', error)
@@ -3097,11 +3364,9 @@ apiRouter.post('/notifications/mark-read', async (req, res) => {
 
 apiRouter.post('/notifications/mark-all-read', async (req, res) => {
   try {
-    const { userId } = req.body || {}
-    if (!userId) {
-      return res.status(400).json({ error: 'Gebruikers-ID is vereist' })
-    }
-    const result = await markAllNotificationsAsRead(userId)
+    const auth = requireAuthenticatedUser(req, res)
+    if (!auth) return
+    const result = await markAllNotificationsAsRead(auth.userId)
     res.json({ ok: true, updated: result.updated })
   } catch (error) {
     console.error('[notifications] Alles markeren mislukt:', error)
@@ -3112,10 +3377,10 @@ apiRouter.post('/notifications/mark-all-read', async (req, res) => {
 
 apiRouter.post('/notifications/manual', async (req, res) => {
   try {
-    const { userId, title, message, recipientIds = [], eventId = null, url = null, priority = 'default' } = req.body || {}
-    if (!userId || !isUserAdmin(userId)) {
-      return res.status(403).json({ error: 'Alleen beheerders mogen notificaties versturen' })
-    }
+    const auth = requireAuthenticatedUser(req, res, { requireAdmin: true })
+    if (!auth) return
+
+    const { title, message, recipientIds = [], eventId = null, url = null, priority = 'default' } = req.body || {}
     if (!title || !message) {
       return res.status(400).json({ error: 'Titel en bericht zijn verplicht' })
     }
@@ -3135,14 +3400,14 @@ apiRouter.post('/notifications/manual', async (req, res) => {
       type: 'manual',
       eventId: eventId || null,
       url: url || buildEventUrl(eventId),
-      metadata: { createdBy: sanitizeUserId(userId), manual: true },
+      metadata: { createdBy: auth.userId, manual: true },
       priority
     })
 
     logEvent({
       action: 'notification-manual-sent',
       metadata: {
-        createdBy: sanitizeUserId(userId),
+        createdBy: auth.userId,
         recipientCount: notificationsCreated.length,
         eventId: eventId || null
       }
@@ -3159,8 +3424,10 @@ apiRouter.post('/notifications/manual', async (req, res) => {
   }
 })
 
-apiRouter.get('/notifications/scheduled', async (_req, res) => {
+apiRouter.get('/notifications/scheduled', async (req, res) => {
   try {
+    const auth = requireAuthenticatedUser(req, res, { requireAdmin: true })
+    if (!auth) return
     const items = await listScheduledNotifications()
     res.json({ items })
   } catch (error) {
@@ -3172,6 +3439,8 @@ apiRouter.get('/notifications/scheduled', async (_req, res) => {
 
 apiRouter.post('/notifications/schedule', async (req, res) => {
   try {
+    const auth = requireAuthenticatedUser(req, res, { requireAdmin: true })
+    if (!auth) return
     const { title, message, sendAt, audience = 'all', recipientIds = [], priority = 'normal', cta = null, attachments = [] } = req.body || {}
     if (!title || !message) {
       return res.status(400).json({ error: 'Titel en bericht zijn verplicht' })
@@ -3185,7 +3454,8 @@ apiRouter.post('/notifications/schedule', async (req, res) => {
       priority,
       cta,
       attachments,
-      status: 'scheduled'
+      status: 'scheduled',
+      createdBy: auth.userId
     })
     res.json({ notification: record })
   } catch (error) {
@@ -3197,6 +3467,8 @@ apiRouter.post('/notifications/schedule', async (req, res) => {
 
 apiRouter.put('/notifications/schedule/:id', async (req, res) => {
   try {
+    const auth = requireAuthenticatedUser(req, res, { requireAdmin: true })
+    if (!auth) return
     const { id } = req.params
     const updated = await updateScheduledNotificationRecord(id, req.body || {})
     res.json({ notification: updated })
@@ -3209,6 +3481,8 @@ apiRouter.put('/notifications/schedule/:id', async (req, res) => {
 
 apiRouter.delete('/notifications/schedule/:id', async (req, res) => {
   try {
+    const auth = requireAuthenticatedUser(req, res, { requireAdmin: true })
+    if (!auth) return
     const { id } = req.params
     await cancelScheduledNotificationRecord(id)
     res.json({ ok: true })
@@ -3238,11 +3512,35 @@ apiRouter.post('/login', async (req, res) => {
         })())
 
     if (!match) return res.status(400).json({ msg: 'Onjuist wachtwoord' })
-    res.json({ user: { ...u, password: undefined } })
+
+    // Create a session token for subsequent authenticated requests
+    const sessionToken = issueSessionToken(u)
+    await saveUser(u)
+
+    res.json({ user: { ...u, password: undefined, sessionToken } })
   } catch (err) {
     console.error('Login error details:', err)
     logSystemError(err, { action: 'POST /api/login', status: 500, metadata: req.body })
     res.status(500).json({ msg: 'Inloggen mislukt' })
+  }
+})
+
+apiRouter.post('/logout', async (req, res) => {
+  try {
+    const auth = requireAuthenticatedUser(req, res)
+    if (!auth) return
+
+    const idx = users.findIndex((u) => u.id === auth.userId)
+    if (idx >= 0) {
+      users[idx].sessionVersion = (users[idx].sessionVersion || 0) + 1
+      await saveUser(users[idx])
+    }
+
+    res.json({ ok: true })
+  } catch (error) {
+    console.error('Logout error details:', error)
+    logSystemError(error, { action: 'POST /api/logout', status: 500, metadata: req.body })
+    res.status(500).json({ msg: 'Uitloggen mislukt' })
   }
 })
 

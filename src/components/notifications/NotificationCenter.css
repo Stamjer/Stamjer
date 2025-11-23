@@ -38,7 +38,7 @@
   border-color: var(--primary-600);
 }
 
-.notification-badge {
+.notification-badge{
   position: absolute;
   top: -0.1rem;
   right: -0.1rem;

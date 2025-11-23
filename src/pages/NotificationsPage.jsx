@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import {
   useNotifications,
   useMarkNotificationsRead,
@@ -121,6 +121,7 @@ function NotificationsPage({ user }) {
   const notifications = notificationsData.notifications ?? []
   const unreadCount = notificationsData.unreadCount ?? 0
   const pushServerEnabled = Boolean(notificationsData.push?.enabled)
+  const accountPushPreferred = Boolean(user?.notificationPreferences?.push)
 
   const pushSupported = useMemo(() => (
     typeof window !== 'undefined' &&
@@ -284,11 +285,11 @@ function NotificationsPage({ user }) {
 
       const registration = await ensureServiceWorkerRegistration()
       const readyRegistration = registration.active ? registration : await navigator.serviceWorker.ready
-      const { vapidPublicKey, publicKey } = await getPushPublicKey()
+      const { vapidPublicKey, publicKey, enabled = true } = await getPushPublicKey()
       const key = vapidPublicKey || publicKey
 
-      if (!key) {
-        throw new Error('Publieke sleutel ontbreekt.')
+      if (!enabled || !key) {
+        throw new Error('Pushmeldingen zijn niet geconfigureerd. Probeer het later opnieuw of neem contact op met een admin.')
       }
 
       const subscription = await readyRegistration.pushManager.subscribe({
@@ -315,7 +316,20 @@ function NotificationsPage({ user }) {
     }
 
     if (!pushServerEnabled) {
-      return <p className="notification-status">Pushmeldingen zijn momenteel nog niet beschikbaar.</p>
+      return (
+        <p className="notification-status">
+          Pushmeldingen zijn nog niet ingeschakeld. Zet ze aan via{' '}
+          <Link to="/account">Account &gt; Meldingen</Link>.
+        </p>
+      )
+    }
+
+    if (accountPushPreferred && subscriptionStatus !== 'subscribed') {
+      return (
+        <p className="notification-status">
+          Pushmeldingen staan aan voor je account. Activeer ze op dit toestel met de knop hieronder.
+        </p>
+      )
     }
 
     if (subscriptionStatus === 'denied') {
