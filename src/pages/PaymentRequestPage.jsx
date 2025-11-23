@@ -34,13 +34,14 @@ function resolveStoredUser(fallbackUser) {
 
 function getInitialFormData(user) {
   const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim()
+  const dateToday = new Date().toISOString().split('T')[0]
 
   return {
     requesterName: fullName || '',
     requesterEmail: user?.email || '',
     expenseTitle: '',
     paidTo: '',
-    expenseDate: '',
+    expenseDate: dateToday || '',
     amount: '',
     description: '',
     paymentMethod: 'iban',

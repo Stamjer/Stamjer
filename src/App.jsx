@@ -27,7 +27,8 @@ import { APP_VERSION, withSupportContact } from './config/appInfo'
 import ProtectedRoute from './components/ProtectedRoute'
 import { AppErrorBoundary, PageErrorBoundary, setupGlobalErrorHandling } from './components/ErrorBoundary'
 import { ToastProvider } from './hooks/useToast'
-import { CalendarIcon, ClipboardIcon, EuroIcon, TrophyIcon, UserIcon, LoginIcon } from './components/icons'
+import { CalendarIcon, ClipboardIcon, EuroIcon, TrophyIcon, UserIcon, LoginIcon, NotificationIcon } from './components/icons'
+import NotificationCenter from './components/notifications/NotificationCenter'
 
 // Query client configuration
 import { queryClient } from './lib/queryClient'
@@ -46,6 +47,8 @@ const OpkomstenPage = lazy(() => import('./pages/OpkomstenPage'))
 const MyAccount = lazy(() => import('./pages/MyAccount'))
 const StrepenPage = lazy(() => import('./pages/StrepenPage'))
 const PaymentRequestPage = lazy(() => import('./pages/PaymentRequestPage'))
+const NotificationsPage = lazy(() => import('./pages/NotificationsPage'))
+const NotificationAdminPage = lazy(() => import('./pages/NotificationAdminPage'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 
 const ROUTE_LABELS = {
@@ -57,6 +60,8 @@ const ROUTE_LABELS = {
   '/declaraties': 'Declaraties',
   '/strepen': 'Strepen',
   '/account': 'Account',
+  '/meldingen': 'Meldingen',
+  '/meldingen/beheer': 'Meldingbeheer',
 }
 
 const NAV_ICON_MAP = {
@@ -67,6 +72,8 @@ const NAV_ICON_MAP = {
   '/account': UserIcon,
   '/login': LoginIcon,
   '/': LoginIcon,
+  '/meldingen': NotificationIcon,
+  '/meldingen/beheer': NotificationIcon,
 }
 
 
@@ -437,10 +444,8 @@ function App() {
                         <nav className="nav-container" role="navigation" aria-label="Hoofdnavigatie">
               <div className="nav-primary">
                 <div className="nav-brand">
-                  <img
-                    src="/stam_H.png"
-                    alt="Stamjer Logo"
-                    className="nav-logo"
+                  <div
+                    className="nav-logo-stack"
                     role="button"
                     tabIndex={0}
                     onClick={playLogoSound}
@@ -450,16 +455,24 @@ function App() {
                         playLogoSound()
                       }
                     }}
-                  />
-                  <h1 className="nav-title">{ROUTE_LABELS[normalizedPathname] || 'Stamjer'}</h1>
-                  <span
-                    className="nav-version"
-                    aria-label={`Applicatie versie ${APP_VERSION}`}
                   >
-                    v{APP_VERSION}
-                  </span>
+                    <img
+                      src="/stam_H.png"
+                      alt="Stamjer Logo"
+                      className="nav-logo"
+                      draggable="false"
+                    />
+                    <span
+                      className="nav-version"
+                      aria-label={`Applicatie versie ${APP_VERSION}`}
+                    >
+                      v{APP_VERSION}
+                    </span>
+                  </div>
+                  <h1 className="nav-title">{ROUTE_LABELS[normalizedPathname] || 'Stamjer'}</h1>
+
+                  {user && <NotificationCenter user={user} />}
                 </div>
-                {/* Removed extra route/user pills for a cleaner top bar */}
               </div>
 
               <button
@@ -586,6 +599,20 @@ function App() {
                   <ProtectedRoute user={user}>
                     <PageErrorBoundary pageName="My Account">
                       <MyAccount user={user} onLogout={handleLogout} />
+                    </PageErrorBoundary>
+                  </ProtectedRoute>
+                } />
+                <Route path="/meldingen" element={
+                  <ProtectedRoute user={user}>
+                    <PageErrorBoundary pageName="Meldingen">
+                      <NotificationsPage user={user} />
+                    </PageErrorBoundary>
+                  </ProtectedRoute>
+                } />
+                <Route path="/meldingen/beheer" element={
+                  <ProtectedRoute user={user}>
+                    <PageErrorBoundary pageName="Meldingbeheer">
+                      <NotificationAdminPage user={user} />
                     </PageErrorBoundary>
                   </ProtectedRoute>
                 } />

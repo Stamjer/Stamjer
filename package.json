@@ -1,7 +1,7 @@
 {
   "name": "stamjer",
-  "version": "1.8.1",
-  "description": "Een professionele React + Vite kalender applicatie met gebruikersauthenticatie en evenementbeheer",
+  "version": "1.9.0",
+  "description": "Een React + Vite kalender applicatie met gebruikersauthenticatie en evenementbeheer",
   "private": true,
   "type": "module",
   "author": "R.S. Kort",
@@ -37,6 +37,8 @@
     "@fullcalendar/react": "^6.1.17",
     "@tanstack/react-query": "^5.89.0",
     "@tanstack/react-query-devtools": "^5.89.0",
+    "@vercel/analytics": "^1.5.0",
+    "@vercel/speed-insights": "^1.2.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.0.1",
@@ -48,7 +50,8 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.6.2",
-    "validator": "^13.15.15"
+    "validator": "^13.15.15",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",

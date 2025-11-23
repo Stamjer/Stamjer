@@ -31,6 +31,8 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import expressStaticGzip from 'express-static-gzip'
 import { fileURLToPath } from 'url'
 import { dirname } from 'path'
+import { randomUUID } from 'crypto'
+import webpush from 'web-push'
 import { MongoClient } from 'mongodb'
 import { createRequestLogger, configureDailyReport, logError as logSystemError, logEvent } from './logger.js'
 import { createICalendarHandler } from './icalendar.js'
@@ -65,6 +67,32 @@ const PAYMENT_REQUEST_EMAIL = process.env.PAYMENT_REQUEST_EMAIL || 'stamjer.mpd@
 const PAYMENT_REQUEST_ATTACHMENT_LIMIT = Math.max(parseInt(process.env.PAYMENT_REQUEST_ATTACHMENT_LIMIT, 10) || 3, 0)
 const PAYMENT_REQUEST_ATTACHMENT_SIZE_LIMIT = Math.max(parseInt(process.env.PAYMENT_REQUEST_ATTACHMENT_SIZE_LIMIT, 10) || 5, 1) * 1024 * 1024
 const PAYMENT_REQUEST_TOTAL_SIZE_LIMIT = Math.max(parseInt(process.env.PAYMENT_REQUEST_TOTAL_SIZE_LIMIT, 10) || 15, 1) * 1024 * 1024
+
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY || ''
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || ''
+const WEB_PUSH_CONTACT = process.env.SMTP_FROM || 'stamjer.mpd@gmail.com'
+let isWebPushConfigured = false
+const MAX_NOTIFICATIONS_PER_USER = 100
+const DEFAULT_NOTIFICATION_URL = ''
+const DEFAULT_NOTIFICATION_ICON = '/icons/192x192.png'
+const DEFAULT_NOTIFICATION_BADGE = '/stam_H.png'
+const SCHEDULED_NOTIFICATION_INTERVAL_MS = Math.max(
+  parseInt(process.env.SCHEDULED_NOTIFICATION_INTERVAL_MS, 10) || 30000,
+  5000
+)
+
+if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+  try {
+    webpush.setVapidDetails(`mailto:${WEB_PUSH_CONTACT}`, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
+    isWebPushConfigured = true
+    infoLog('Web Push notificaties geconfigureerd')
+  } catch (error) {
+    isWebPushConfigured = false
+    warnLog(`Web Push configuratie mislukt: ${error.message}`)
+  }
+} else {
+  warnLog('Web Push notificaties zijn uitgeschakeld: VAPID keys ontbreken')
+}
 
 function maskEmail(email = '') {
   if (typeof email !== 'string') return ''
@@ -132,7 +160,19 @@ async function ensureIndexes(db) {
     { keys: { createdAt: 1 }, options: { expireAfterSeconds: SNAPSHOT_TTL_SECONDS, background: true, name: 'snapshots_createdAt_ttl_idx' }, description: `dailySnapshots TTL (${SNAPSHOT_RETENTION_DAYS} dagen)` }
   ])
 
-  if (eventsCreated || usersCreated || resetCodesCreated || snapshotsCreated) {
+  const pushSubscriptionsCreated = await ensureCollectionIndexes(db.collection('pushSubscriptions'), [
+    { keys: { endpoint: 1 }, options: { unique: true, background: true, name: 'pushSubscriptions_endpoint_unique_idx' }, description: 'pushSubscriptions.endpoint unique' },
+    { keys: { userId: 1 }, options: { background: true, name: 'pushSubscriptions_user_idx' }, description: 'pushSubscriptions.userId' },
+    { keys: { lastActiveAt: -1 }, options: { background: true, name: 'pushSubscriptions_lastActive_idx' }, description: 'pushSubscriptions.lastActiveAt' }
+  ])
+
+  const notificationsCreated = await ensureCollectionIndexes(db.collection('notifications'), [
+    { keys: { userId: 1, createdAt: -1 }, options: { background: true, name: 'notifications_user_created_idx' }, description: 'notifications per user' },
+    { keys: { eventId: 1, type: 1, userId: 1 }, options: { background: true, name: 'notifications_event_type_user_idx' }, description: 'notifications dedupe lookup' },
+    { keys: { read: 1, userId: 1 }, options: { background: true, name: 'notifications_read_user_idx' }, description: 'notifications read filter' }
+  ])
+
+  if (eventsCreated || usersCreated || resetCodesCreated || snapshotsCreated || pushSubscriptionsCreated || notificationsCreated) {
     infoLog('[indexes] Created or verified MongoDB indexes')
   }
 }
@@ -233,6 +273,9 @@ function parseBoolean(value, defaultValue = false) {
 // Tussenopslag gebruikers en evenementen
 let users = []
 let events = []
+let pushSubscriptions = []
+let notifications = []
+let scheduledNotifications = []
 // Remove in-memory pendingReset as we'll use MongoDB
 // const pendingReset = {}
 
@@ -243,16 +286,1031 @@ async function loadUsers() {
     .find({})
     .project({ _id: 0 })
     .toArray()
+    .then((list) =>
+      list.map((user) => ({
+        ...user,
+        notificationPreferences: normalizeNotificationPreferences(user.notificationPreferences || {})
+      }))
+    )
   infoLog(`Loaded ${users.length} users from MongoDB`)
 }
 
 async function loadEvents() {
   const db = await getDb()
-  events = await db.collection('events')
+  events = (await db.collection('events')
+    .find({})
+    .project({ _id: 0 })
+    .toArray())
+    .map((event) => ({
+      ...event,
+      opkomstmakerIds: sanitizeIdArray(event.opkomstmakerIds),
+      schoonmakerIds: sanitizeIdArray(event.schoonmakerIds),
+      participants: sanitizeIdArray(event.participants)
+    }))
+  infoLog(`Loaded ${events.length} events from MongoDB`)
+}
+
+async function loadPushSubscriptions() {
+  const db = await getDb()
+  pushSubscriptions = await db.collection('pushSubscriptions')
     .find({})
     .project({ _id: 0 })
     .toArray()
-  infoLog(`Loaded ${events.length} events from MongoDB`)
+  infoLog(`[push] Loaded ${pushSubscriptions.length} push subscriptions from MongoDB`)
+}
+
+async function loadNotifications() {
+  const db = await getDb()
+  notifications = (await db.collection('notifications')
+    .find({})
+    .project({ _id: 0 })
+    .toArray())
+    .map((notification) => normalizeNotificationRecord(notification))
+    .filter(Boolean)
+  infoLog(`[notifications] Loaded ${notifications.length} notifications from MongoDB`)
+}
+
+async function loadScheduledNotifications() {
+  const db = await getDb()
+  scheduledNotifications = await db.collection('scheduledNotifications')
+    .find({})
+    .project({ _id: 0 })
+    .toArray()
+  infoLog(`[notifications] Loaded ${scheduledNotifications.length} scheduled notifications from MongoDB`)
+}
+
+function sanitizeUserId(userId) {
+  const parsed = Number.parseInt(userId, 10)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function sanitizeIdArray(value) {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  const unique = new Set()
+  value.forEach((item) => {
+    const parsed = sanitizeUserId(item)
+    if (parsed !== null) {
+      unique.add(parsed)
+    }
+  })
+  return Array.from(unique)
+}
+
+function normalizeNotificationPreferences(preferences = {}) {
+  return {
+    push: Boolean(preferences.push),
+    email: Boolean(preferences.email)
+  }
+}
+
+function getUserNotificationPreferences(userId) {
+  const uid = sanitizeUserId(userId)
+  if (uid === null) return normalizeNotificationPreferences()
+  const user = users.find((u) => u.id === uid)
+  return normalizeNotificationPreferences(user?.notificationPreferences || {})
+}
+
+function resolveAbsoluteUrl(url) {
+  if (!url) return ''
+  const trimmed = String(url).trim()
+  const hasProtocol = /^https?:\/\//i.test(trimmed) || trimmed.startsWith('mailto:')
+  if (hasProtocol) return trimmed
+
+  const base = process.env.CLIENT_ORIGIN || process.env.VITE_CLIENT_ORIGIN || process.env.PUBLIC_URL || ''
+  if (!base) return trimmed
+
+  try {
+    return new URL(trimmed, base).toString()
+  } catch {
+    return trimmed
+  }
+}
+
+function renderMarkdownInline(input = '') {
+  // Basic inline markdown: escape, then links, bold, italic, line breaks
+  const escaped = input
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+
+  const withLinks = escaped.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text, link) => {
+    const safeLink = resolveAbsoluteUrl(link)
+    return `<a href="${safeLink}" style="color:#2563eb; text-decoration:underline;" target="_blank" rel="noopener noreferrer">${text}</a>`
+  })
+
+  const withBold = withLinks.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+  const withItalic = withBold.replace(/_([^_]+)_/g, '<em>$1</em>')
+
+  return withItalic.replace(/\n/g, '<br>')
+}
+
+function notificationVisibleToUser(notification, userId) {
+  if (!notification) return false
+  const recipients = sanitizeIdArray(notification.recipients)
+
+  // Legacy notifications stored userId instead of recipients list
+  if (recipients.length === 0 && Number.isFinite(notification?.userId)) {
+    if (!Number.isFinite(userId)) return false
+    return userId === sanitizeUserId(notification.userId)
+  }
+
+  // Notifications without recipients are considered broadcast
+  if (recipients.length === 0) return true
+
+  if (!Number.isFinite(userId)) return false
+  return recipients.includes(userId)
+}
+
+function hasUserReadNotification(notification, userId) {
+  if (!notification || !Number.isFinite(userId)) return false
+  const readBy = sanitizeIdArray(notification.readBy)
+
+  // Legacy boolean read flag; only applies to single-user notifications
+  if (readBy.length === 0 && notification.userId && notification.read === true) {
+    const uid = sanitizeUserId(notification.userId)
+    return uid === userId
+  }
+
+  return readBy.includes(userId)
+}
+
+function normalizeNotificationRecord(notification) {
+  if (!notification) return null
+
+  const recipients = sanitizeIdArray(
+    Array.isArray(notification.recipients) ? notification.recipients : []
+  )
+
+  const legacyUserId = sanitizeUserId(notification.userId)
+  if (legacyUserId !== null && !recipients.includes(legacyUserId)) {
+    recipients.push(legacyUserId)
+  }
+
+  const readBy = sanitizeIdArray(
+    Array.isArray(notification.readBy) ? notification.readBy : []
+  )
+
+  if (notification.read === true && legacyUserId !== null && !readBy.includes(legacyUserId)) {
+    readBy.push(legacyUserId)
+  }
+
+  return {
+    ...notification,
+    recipients,
+    readBy,
+  }
+}
+
+function buildEventUrl(eventId) {
+  if (!eventId) {
+    return DEFAULT_NOTIFICATION_URL
+  }
+  try {
+    return `${DEFAULT_NOTIFICATION_URL}?event=${encodeURIComponent(eventId)}`
+  } catch {
+    return DEFAULT_NOTIFICATION_URL
+  }
+}
+
+function formatDateKeyInTimezone(dateInput, timeZone = 'Europe/Amsterdam') {
+  if (!dateInput) return null
+  const date = dateInput instanceof Date ? dateInput : new Date(dateInput)
+  if (Number.isNaN(date.getTime())) return null
+
+  const formatter = new Intl.DateTimeFormat('sv-SE', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  })
+
+  return formatter.format(date)
+}
+
+function differenceInDays(targetKey, referenceKey) {
+  if (!targetKey || !referenceKey) return null
+
+  const [ty, tm, td] = targetKey.split('-').map(Number)
+  const [ry, rm, rd] = referenceKey.split('-').map(Number)
+
+  if ([ty, tm, td, ry, rm, rd].some((component) => !Number.isFinite(component))) {
+    return null
+  }
+
+  const targetUtc = Date.UTC(ty, tm - 1, td)
+  const referenceUtc = Date.UTC(ry, rm - 1, rd)
+
+  return Math.round((targetUtc - referenceUtc) / (24 * 60 * 60 * 1000))
+}
+
+function formatFriendlyDate(dateInput, timeZone = 'Europe/Amsterdam') {
+  if (!dateInput) return ''
+  const date = dateInput instanceof Date ? dateInput : new Date(dateInput)
+  if (Number.isNaN(date.getTime())) return ''
+
+  const formatter = new Intl.DateTimeFormat('nl-NL', {
+    timeZone,
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long'
+  })
+
+  return formatter.format(date)
+}
+
+function resolveUserIdsFromCommaSeparatedNames(namesString = '') {
+  if (!namesString || !Array.isArray(users) || users.length === 0) {
+    return []
+  }
+
+  const requestedNames = namesString
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean)
+
+  if (requestedNames.length === 0) {
+    return []
+  }
+
+  const matchedIds = new Set()
+
+  requestedNames.forEach((name) => {
+    const lower = name.toLowerCase()
+    const match = users.find((user) => {
+      if (!user) return false
+      const firstName = (user.firstName || '').toLowerCase()
+      const lastName = (user.lastName || '').toLowerCase()
+      const fullName = `${firstName} ${lastName}`.trim()
+      return firstName === lower || fullName === lower || fullName.split(' ').includes(lower)
+    })
+    if (match && Number.isFinite(match.id)) {
+      matchedIds.add(match.id)
+    }
+  })
+
+  return Array.from(matchedIds)
+}
+
+function resolveOpkomstMakerIds(event) {
+  if (!event) return []
+  if (Array.isArray(event.opkomstmakerIds) && event.opkomstmakerIds.length > 0) {
+    return sanitizeIdArray(event.opkomstmakerIds)
+  }
+  if (typeof event.opkomstmakers === 'string' && event.opkomstmakers.trim().length > 0) {
+    return resolveUserIdsFromCommaSeparatedNames(event.opkomstmakers)
+  }
+  return []
+}
+
+function resolveSchoonmakerIds(event) {
+  if (!event) return []
+  if (Array.isArray(event.schoonmakerIds) && event.schoonmakerIds.length > 0) {
+    return sanitizeIdArray(event.schoonmakerIds)
+  }
+  if (typeof event.schoonmakers === 'string' && event.schoonmakers.trim().length > 0) {
+    return resolveUserIdsFromCommaSeparatedNames(event.schoonmakers)
+  }
+  return []
+}
+
+function resolveEventParticipantIds(event) {
+  if (!event) return []
+  if (Array.isArray(event.participants) && event.participants.length > 0) {
+    return sanitizeIdArray(event.participants)
+  }
+  // Fall back to all active users if participants list is empty
+  if (Array.isArray(users) && users.length > 0) {
+    return users.filter((user) => Boolean(user?.active)).map((user) => user.id).filter(Number.isFinite)
+  }
+  return []
+}
+
+async function upsertPushSubscription({ userId, subscription, userAgent = '', deviceName = '' }) {
+  const normalizedUserId = sanitizeUserId(userId)
+  if (normalizedUserId === null) {
+    throw new Error('Ongeldig gebruikers-ID voor push-subscriptie')
+  }
+
+  if (!subscription || typeof subscription.endpoint !== 'string') {
+    throw new Error('Ongeldige push-subscriptie ontvangen')
+  }
+
+  const nowIso = new Date().toISOString()
+  const record = {
+    endpoint: subscription.endpoint,
+    keys: subscription.keys || {},
+    expirationTime: subscription.expirationTime || null,
+    userId: normalizedUserId,
+    userAgent: userAgent || null,
+    deviceName: deviceName || null,
+    updatedAt: nowIso,
+    lastActiveAt: nowIso
+  }
+
+  const db = await getDb()
+  await db.collection('pushSubscriptions').updateOne(
+    { endpoint: subscription.endpoint },
+    {
+      $set: record,
+      $setOnInsert: { createdAt: nowIso }
+    },
+    { upsert: true }
+  )
+
+  const existingIndex = pushSubscriptions.findIndex((item) => item.endpoint === subscription.endpoint)
+  if (existingIndex >= 0) {
+    const existing = pushSubscriptions[existingIndex]
+    pushSubscriptions[existingIndex] = {
+      ...existing,
+      ...record,
+      createdAt: existing.createdAt || nowIso
+    }
+  } else {
+    pushSubscriptions.push({
+      ...record,
+      createdAt: nowIso
+    })
+  }
+
+  return { endpoint: subscription.endpoint }
+}
+
+async function removePushSubscriptionByEndpoint(endpoint) {
+  if (!endpoint) return
+  const db = await getDb()
+  await db.collection('pushSubscriptions').deleteOne({ endpoint })
+  pushSubscriptions = pushSubscriptions.filter((item) => item.endpoint !== endpoint)
+}
+
+async function pruneNotificationsForUser(userId) {
+  const normalizedUserId = sanitizeUserId(userId)
+  if (normalizedUserId === null) return
+
+  const userNotifications = notifications
+    .filter((notification) => notificationVisibleToUser(notification, normalizedUserId))
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
+  if (userNotifications.length <= MAX_NOTIFICATIONS_PER_USER) {
+    return
+  }
+
+  const excess = userNotifications.slice(MAX_NOTIFICATIONS_PER_USER)
+  const db = await getDb()
+  const nowIso = new Date().toISOString()
+
+  // For shared notifications, remove the user from recipients/readBy.
+  // If the notification only targets this user, delete it entirely.
+  for (const notification of excess) {
+    const recipients = sanitizeIdArray(notification.recipients)
+    const readBy = sanitizeIdArray(notification.readBy)
+    const id = notification.id
+
+    // Broadcast notifications (no recipients) are not pruned per-user
+    if (recipients.length === 0) {
+      continue
+    }
+
+    if (recipients.length <= 1) {
+      await db.collection('notifications').deleteOne({ id })
+      notifications = notifications.filter((item) => item.id !== id)
+      continue
+    }
+
+    const update = {
+      $pull: { recipients: normalizedUserId, readBy: normalizedUserId },
+      $set: { updatedAt: nowIso }
+    }
+    await db.collection('notifications').updateOne({ id }, update)
+
+    const idx = notifications.findIndex((item) => item.id === id)
+    if (idx >= 0) {
+      const updatedRecipients = recipients.filter((uid) => uid !== normalizedUserId)
+      const updatedReadBy = readBy.filter((uid) => uid !== normalizedUserId)
+      notifications[idx] = {
+        ...notifications[idx],
+        recipients: updatedRecipients,
+        readBy: updatedReadBy,
+        updatedAt: nowIso
+      }
+    }
+  }
+}
+
+async function markNotificationsAsRead(userId, notificationIds, read = true) {
+  const normalizedUserId = sanitizeUserId(userId)
+  if (normalizedUserId === null) {
+    throw new Error('Ongeldig gebruikers-ID voor notificaties')
+  }
+
+  const ids = Array.isArray(notificationIds) ? notificationIds.filter(Boolean) : [notificationIds].filter(Boolean)
+  if (ids.length === 0) {
+    return { updated: 0 }
+  }
+
+  const uniqueIds = Array.from(new Set(ids))
+  const readIso = new Date().toISOString()
+  const readFlag = parseBoolean(read, true)
+  const db = await getDb()
+
+  const filter = {
+    id: { $in: uniqueIds },
+    $or: [
+      { recipients: normalizedUserId },
+      { recipients: { $exists: true, $size: 0 } },
+      { userId: normalizedUserId } // legacy compatibility
+    ]
+  }
+
+  const update = readFlag
+    ? {
+        $addToSet: { readBy: normalizedUserId },
+        $set: { updatedAt: readIso }
+      }
+    : {
+        $pull: { readBy: normalizedUserId },
+        $set: { updatedAt: readIso }
+      }
+
+  const result = await db.collection('notifications').updateMany(filter, update)
+
+  const updateSet = new Set(uniqueIds)
+  notifications = notifications.map((notification) => {
+    if (!updateSet.has(notification.id) || !notificationVisibleToUser(notification, normalizedUserId)) {
+      return notification
+    }
+
+    const readBy = sanitizeIdArray(notification.readBy)
+    let updatedReadBy = readBy
+
+    if (readFlag && !readBy.includes(normalizedUserId)) {
+      updatedReadBy = [...readBy, normalizedUserId]
+    }
+    if (!readFlag) {
+      updatedReadBy = readBy.filter((uid) => uid !== normalizedUserId)
+    }
+
+    return {
+      ...notification,
+      readBy: updatedReadBy,
+      updatedAt: readIso
+    }
+  })
+
+  return { updated: result.modifiedCount || 0 }
+}
+
+async function markAllNotificationsAsRead(userId) {
+  const normalizedUserId = sanitizeUserId(userId)
+  if (normalizedUserId === null) {
+    throw new Error('Ongeldig gebruikers-ID voor notificaties')
+  }
+
+  const readIso = new Date().toISOString()
+  const db = await getDb()
+
+  const result = await db.collection('notifications').updateMany(
+    {
+      $or: [
+        { recipients: normalizedUserId },
+        { recipients: { $exists: true, $size: 0 } },
+        { userId: normalizedUserId } // legacy compatibility
+      ]
+    },
+    {
+      $addToSet: { readBy: normalizedUserId },
+      $set: { updatedAt: readIso }
+    }
+  )
+
+  notifications = notifications.map((notification) => {
+    if (!notificationVisibleToUser(notification, normalizedUserId)) {
+      return notification
+    }
+    const readBy = sanitizeIdArray(notification.readBy)
+    if (readBy.includes(normalizedUserId)) {
+      return notification
+    }
+    return {
+      ...notification,
+      readBy: [...readBy, normalizedUserId],
+      updatedAt: readIso
+    }
+  })
+
+  return { updated: result.modifiedCount || 0 }
+}
+
+async function ensureScheduledLoaded() {
+  if (!Array.isArray(scheduledNotifications) || scheduledNotifications.length === 0) {
+    await loadScheduledNotifications()
+  }
+}
+
+async function listScheduledNotifications() {
+  await ensureScheduledLoaded()
+  return scheduledNotifications
+}
+
+async function createScheduledNotification(payload) {
+  const nowIso = new Date().toISOString()
+  const id = randomUUID()
+  const record = {
+    id,
+    title: payload.title || 'Melding',
+    message: payload.message || '',
+    audience: payload.audience || 'all',
+    recipientIds: payload.recipientIds || [],
+    priority: payload.priority || 'normal',
+    sendAt: payload.sendAt || nowIso,
+    status: payload.status || 'scheduled',
+    createdAt: nowIso,
+    updatedAt: nowIso,
+    cta: payload.cta || null,
+    attachments: payload.attachments || [],
+  }
+
+  const db = await getDb()
+  await db.collection('scheduledNotifications').updateOne(
+    { id },
+    { $set: { ...record, _id: id } },
+    { upsert: true }
+  )
+
+  scheduledNotifications.push(record)
+  return record
+}
+
+async function updateScheduledNotificationRecord(id, payload) {
+  await ensureScheduledLoaded()
+  const nowIso = new Date().toISOString()
+  const idx = scheduledNotifications.findIndex((item) => item.id === id)
+  if (idx < 0) {
+    throw new Error('Niet gevonden')
+  }
+
+  const updated = {
+    ...scheduledNotifications[idx],
+    ...payload,
+    updatedAt: nowIso,
+  }
+
+  const db = await getDb()
+  await db.collection('scheduledNotifications').updateOne(
+    { id },
+    { $set: { ...updated, _id: id } },
+    { upsert: true }
+  )
+
+  scheduledNotifications[idx] = updated
+  return updated
+}
+
+async function cancelScheduledNotificationRecord(id) {
+  await ensureScheduledLoaded()
+  const db = await getDb()
+  await db.collection('scheduledNotifications').deleteOne({ id })
+  scheduledNotifications = scheduledNotifications.filter((item) => item.id !== id)
+}
+
+async function resolveScheduledRecipients(scheduled) {
+  if (!Array.isArray(users) || users.length === 0) {
+    await loadUsers()
+  }
+
+  if (scheduled.audience === 'admins') {
+    return users.filter((u) => u?.isAdmin).map((u) => u.id).filter(Number.isFinite)
+  }
+
+  if (scheduled.audience === 'custom') {
+    return sanitizeIdArray(scheduled.recipientIds)
+  }
+
+  // Default: all actieve leden
+  return users
+    .filter((user) => Boolean(user?.active))
+    .map((user) => user.id)
+    .filter(Number.isFinite)
+}
+
+async function processUserScheduledNotifications(referenceDate = new Date()) {
+  try {
+    await ensureScheduledLoaded()
+    if (!Array.isArray(pushSubscriptions) || pushSubscriptions.length === 0) {
+      await loadPushSubscriptions()
+    }
+
+    const nowMs = referenceDate.getTime()
+    const due = scheduledNotifications.filter((item) => {
+      if (!item) return false
+      if ((item.status || 'scheduled') !== 'scheduled') return false
+      const sendAtMs = new Date(item.sendAt || nowMs).getTime()
+      if (!Number.isFinite(sendAtMs)) return false
+      return sendAtMs <= nowMs
+    })
+
+    if (due.length === 0) return []
+
+    const db = await getDb()
+    const sentIds = []
+
+    for (const scheduled of due) {
+      try {
+        const recipients = await resolveScheduledRecipients(scheduled)
+        if (recipients.length === 0) {
+          const updatedAt = new Date().toISOString()
+          await db.collection('scheduledNotifications').updateOne(
+            { id: scheduled.id },
+            { $set: { status: 'failed', updatedAt, error: 'Geen ontvangers' } }
+          )
+          scheduledNotifications = scheduledNotifications.map((item) =>
+            item.id === scheduled.id ? { ...item, status: 'failed', updatedAt, error: 'Geen ontvangers' } : item
+          )
+          continue
+        }
+
+        const metadata = {
+          scheduledId: scheduled.id,
+          scheduledSendAt: scheduled.sendAt,
+          audience: scheduled.audience || 'all',
+          createdBy: scheduled.createdBy || null,
+          cta: scheduled.cta || null,
+          attachments: scheduled.attachments || [],
+        }
+
+        infoLog(`[notifications] Verstuur geplande melding ${scheduled.id} naar ${recipients.length} ontvangers`)
+        await createNotificationsForUsers({
+          title: scheduled.title,
+          message: scheduled.message,
+          userIds: recipients,
+          type: 'scheduled',
+          url: scheduled.cta?.url || DEFAULT_NOTIFICATION_URL,
+          metadata,
+          priority: scheduled.priority || 'default'
+        })
+
+        await db.collection('scheduledNotifications').deleteOne({ id: scheduled.id })
+        scheduledNotifications = scheduledNotifications.filter((item) => item.id !== scheduled.id)
+        infoLog(`[notifications] Geplande melding ${scheduled.id} verzonden en verwijderd uit wachtrij`)
+        sentIds.push(scheduled.id)
+      } catch (error) {
+        const updatedAt = new Date().toISOString()
+        await db.collection('scheduledNotifications').updateOne(
+          { id: scheduled.id },
+          { $set: { status: 'error', updatedAt, error: error.message || 'onbekende fout' } }
+        )
+        scheduledNotifications = scheduledNotifications.map((item) =>
+          item.id === scheduled.id ? { ...item, status: 'error', updatedAt, error: error.message || 'onbekende fout' } : item
+        )
+        logSystemError(error, { action: 'processUserScheduledNotifications', status: 500, metadata: { id: scheduled.id } })
+      }
+    }
+
+    return sentIds
+  } catch (error) {
+    logSystemError(error, { action: 'processUserScheduledNotifications', status: 500 })
+    return []
+  }
+}
+
+function mapNotificationForClient(notification, userId) {
+  if (!notification) return null
+  const read = hasUserReadNotification(notification, userId)
+
+  return {
+    id: notification.id,
+    title: notification.title,
+    body: notification.body,
+    type: notification.type,
+    priority: notification.priority || 'default',
+    eventId: notification.eventId || null,
+    url: notification.url || DEFAULT_NOTIFICATION_URL,
+    read,
+    createdAt: notification.createdAt,
+    readAt: null,
+    metadata: notification.metadata || {},
+  }
+}
+
+function buildPushPayload(notification) {
+  const baseData = {
+    url: notification.url || DEFAULT_NOTIFICATION_URL,
+    notificationId: notification.id,
+    type: notification.type,
+    eventId: notification.eventId || null,
+    metadata: notification.metadata || {},
+    createdAt: notification.createdAt,
+  }
+
+  return {
+    title: notification.title || 'Stamjer',
+    body: notification.body || '',
+    tag: notification.eventId ? `event-${notification.eventId}-${notification.type}` : `notification-${notification.id}`,
+    icon: DEFAULT_NOTIFICATION_ICON,
+    badge: DEFAULT_NOTIFICATION_BADGE,
+    data: baseData,
+    renotify: false,
+    requireInteraction: false
+  }
+}
+
+async function sendPushNotificationRecord(subscriptionRecord, payload) {
+  if (!isWebPushConfigured || !subscriptionRecord) return
+
+  const webPushSubscription = {
+    endpoint: subscriptionRecord.endpoint,
+    expirationTime: subscriptionRecord.expirationTime ?? null,
+    keys: subscriptionRecord.keys || {}
+  }
+
+  try {
+    await webpush.sendNotification(webPushSubscription, JSON.stringify(payload))
+
+    const nowIso = new Date().toISOString()
+    subscriptionRecord.lastActiveAt = nowIso
+
+    const db = await getDb()
+    await db.collection('pushSubscriptions').updateOne(
+      { endpoint: subscriptionRecord.endpoint },
+      { $set: { lastActiveAt: nowIso, updatedAt: nowIso } }
+    )
+  } catch (error) {
+    if (error.statusCode === 404 || error.statusCode === 410) {
+      warnLog(`[push] Subscription expired, removing endpoint ${subscriptionRecord.endpoint}`)
+      await removePushSubscriptionByEndpoint(subscriptionRecord.endpoint)
+    } else {
+      warnLog(`[push] Verzenden pushmelding mislukt (${subscriptionRecord.endpoint}): ${error.message}`)
+    }
+  }
+}
+
+async function dispatchPushNotifications(notificationDocs) {
+  if (!isWebPushConfigured || !Array.isArray(notificationDocs) || notificationDocs.length === 0) {
+    return
+  }
+
+  const tasks = []
+  notificationDocs.forEach((notification) => {
+    const recipients = sanitizeIdArray(notification.recipients || [])
+    recipients.forEach((recipientId) => {
+      const prefs = getUserNotificationPreferences(recipientId)
+      if (!prefs.push) {
+        return
+      }
+      const userSubscriptions = pushSubscriptions.filter((sub) => sub.userId === recipientId)
+      if (userSubscriptions.length === 0) {
+        return
+      }
+      const payload = buildPushPayload(notification)
+      userSubscriptions.forEach((subscriptionRecord) => {
+        tasks.push(sendPushNotificationRecord(subscriptionRecord, payload))
+      })
+    })
+  })
+
+  if (tasks.length > 0) {
+    await Promise.allSettled(tasks)
+  }
+}
+
+async function dispatchEmailNotifications(notificationDocs = []) {
+  if (!Array.isArray(notificationDocs) || notificationDocs.length === 0) return
+
+  const mailer = await ensureMailerTransport()
+  if (!mailer) {
+    warnLog('[email] E-mail notificaties overgeslagen: transporter niet beschikbaar')
+    return
+  }
+
+  const tasks = []
+
+  for (const notification of notificationDocs) {
+    const recipients = sanitizeIdArray(notification.recipients || [])
+    for (const recipientId of recipients) {
+      const user = users.find((u) => u.id === recipientId)
+      const prefs = getUserNotificationPreferences(recipientId)
+      if (!prefs.email) continue
+      if (!user?.email) continue
+
+      const emailHtml = buildNotificationEmailHtml({
+        title: notification.title || 'Stamjer melding',
+        message: notification.body || notification.message || '',
+        url: notification.url || notification.metadata?.cta?.url || DEFAULT_NOTIFICATION_URL,
+        createdAt: notification.createdAt
+      })
+
+      tasks.push(
+        mailer.sendMail({
+          from: process.env.SMTP_FROM || 'Stamjer <stamjer.mpd@gmail.com>',
+          to: user.email,
+          subject: notification.title || 'Stamjer melding',
+          html: emailHtml
+        }).catch((error) => {
+          logSystemError(error, { action: 'email-notification', status: 500, metadata: { userId: recipientId, notificationId: notification.id } })
+        })
+      )
+    }
+  }
+
+  if (tasks.length > 0) {
+    await Promise.allSettled(tasks)
+  }
+}
+
+function buildNotificationEmailHtml({ title, message, url, createdAt }) {
+  const safeMessage = renderMarkdownInline(message || '')
+  const formattedDate = createdAt
+    ? new Date(createdAt).toLocaleString('nl-NL', { dateStyle: 'medium', timeStyle: 'short' })
+    : ''
+  const absoluteUrl = resolveAbsoluteUrl(url || '')
+
+  return `
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; background: #f7f8fa; padding: 24px; color: #0f172a;">
+      <table role="presentation" cellspacing="0" cellpadding="0" width="100%" style="max-width: 640px; margin: 0 auto; background: #ffffff; border-radius: 16px; box-shadow: 0 10px 40px rgba(15, 23, 42, 0.08); overflow: hidden;">
+        <tr>
+          <td style="padding: 24px 28px 16px 28px; background: linear-gradient(135deg, #ecfeff, #eef2ff); border-bottom: 1px solid #e5e7eb;">
+            <h1 style="margin: 0; font-size: 20px; color: #0f172a; line-height: 1.3;">${title}</h1>
+            ${formattedDate ? `<p style="margin: 8px 0 0 0; color: #475569; font-size: 13px;">Verzonden op ${formattedDate}</p>` : ''}
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 24px 28px; color: #0f172a; font-size: 15px; line-height: 1.6;">
+            <div style="margin-bottom: 20px;">${safeMessage || 'Nieuwe melding.'}</div>
+            ${absoluteUrl ? `
+              <div style="text-align: left; margin-top: 12px;">
+                <a href="${absoluteUrl}" style="display: inline-block; background: linear-gradient(135deg, #0ea5e9, #6366f1); color: #ffffff; text-decoration: none; padding: 12px 18px; border-radius: 10px; font-weight: 600; box-shadow: 0 6px 20px rgba(99, 102, 241, 0.25);" target="_blank" rel="noopener noreferrer">Bekijk in Stamjer</a>
+              </div>
+            ` : ''}
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 18px 28px; background: #f8fafc; color: #475569; font-size: 12px; border-top: 1px solid #e5e7eb;">
+            <p style="margin: 0 0 6px 0; font-weight: 600;">Stamjer</p>
+            <p style="margin: 0;">Je ontvangt deze melding omdat je e-mailmeldingen hebt ingeschakeld.</p>
+          </td>
+        </tr>
+      </table>
+    </div>
+  `
+}
+
+async function createNotificationsForUsers({
+  title,
+  message,
+  userIds = [],
+  type = 'general',
+  eventId = null,
+  url = DEFAULT_NOTIFICATION_URL,
+  metadata = {},
+  priority = 'default'
+}) {
+  const normalizedUserIds = Array.from(new Set(userIds.map(sanitizeUserId).filter((id) => id !== null)))
+  if (normalizedUserIds.length === 0) {
+    return []
+  }
+
+  const now = new Date()
+  const nowIso = now.toISOString()
+
+  const id = randomUUID()
+  const doc = {
+    _id: id,
+    id,
+    recipients: normalizedUserIds,
+    readBy: [],
+    title: title || 'Stamjer',
+    body: message || '',
+    type,
+    eventId: eventId || null,
+    url: url || DEFAULT_NOTIFICATION_URL,
+    createdAt: nowIso,
+    updatedAt: nowIso,
+    metadata: metadata || {},
+    priority
+  }
+
+  const db = await getDb()
+  await db.collection('notifications').insertOne(doc)
+
+  notifications.push({
+    ...doc,
+    _id: undefined
+  })
+
+  await Promise.all(normalizedUserIds.map((uid) => pruneNotificationsForUser(uid)))
+
+  if (isWebPushConfigured) {
+    await dispatchPushNotifications([doc])
+  }
+
+  await dispatchEmailNotifications([doc])
+
+  return [doc]
+}
+
+async function processScheduledNotifications(referenceDate = new Date()) {
+  try {
+    if (!Array.isArray(events) || events.length === 0) {
+      await loadEvents()
+    }
+
+    if (!Array.isArray(users) || users.length === 0) {
+      await loadUsers()
+    }
+
+    const todayKey = formatDateKeyInTimezone(referenceDate)
+    if (!todayKey) {
+      return []
+    }
+
+    const createdNotifications = []
+
+    for (const event of events) {
+      if (!event || !event.start) continue
+
+      const eventDateKey = formatDateKeyInTimezone(event.start)
+      if (!eventDateKey) continue
+
+      const diff = differenceInDays(eventDateKey, todayKey)
+      if (diff === null) continue
+
+      const eventTitle = event.title || 'Opkomst'
+
+      if (event.isOpkomst) {
+        if (diff === 4) {
+          const makerIds = resolveOpkomstMakerIds(event)
+          if (makerIds.length > 0) {
+            const docs = await createNotificationsForUsers({
+              title: `Voorbereiding opkomst: ${eventTitle}`,
+              message: `Nog vier dagen tot "${eventTitle}". Stem de voorbereidingen af en zorg dat alles klaar is.`,
+              userIds: makerIds,
+              type: 'opkomst-makers-reminder',
+              eventId: event.id,
+              url: buildEventUrl(event.id),
+              metadata: {
+                schedule: 'four-days-before',
+                eventDateKey
+              }
+            })
+            if (docs.length > 0) {
+              createdNotifications.push(docs)
+            }
+          }
+        }
+
+        if (diff === 1) {
+          const participantIds = resolveEventParticipantIds(event)
+          if (participantIds.length > 0) {
+            const docs = await createNotificationsForUsers({
+              title: `Opkomst morgen: ${eventTitle}`,
+              message: 'Herinnering: controleer je aanwezigheid en laatste voorbereidingen voor de opkomst van morgen.',
+              userIds: participantIds,
+              type: 'opkomst-attendance-reminder',
+              eventId: event.id,
+              url: buildEventUrl(event.id),
+              metadata: {
+                schedule: 'one-day-before',
+                eventDateKey
+              }
+            })
+            if (docs.length > 0) {
+              createdNotifications.push(docs)
+            }
+          }
+        }
+      }
+
+      if (event.isSchoonmaak && diff === 6) {
+        const cleanerIds = resolveSchoonmakerIds(event)
+        if (cleanerIds.length > 0) {
+          const friendlyDate = formatFriendlyDate(event.start)
+          const docs = await createNotificationsForUsers({
+            title: `Schoonmaak reminder: ${eventTitle}`,
+            message: `Je bent ingepland voor schoonmaak op ${friendlyDate}. Plan het moment en zorg dat het uiterlijk vrijdag is geregeld.`,
+            userIds: cleanerIds,
+            type: 'schoonmaak-reminder',
+            eventId: event.id,
+            url: buildEventUrl(event.id),
+            metadata: {
+              schedule: 'six-days-before',
+              eventDateKey
+            }
+          })
+          if (docs.length > 0) {
+            createdNotifications.push(docs)
+          }
+        }
+      }
+    }
+
+    return createdNotifications.flat()
+  } catch (error) {
+    console.error('[notifications] Geplande notificaties genereren mislukt:', error)
+    logSystemError(error, { action: 'processScheduledNotifications', status: 500 })
+    return []
+  }
 }
 
 async function syncUserAttendanceForFutureOpkomsten(userId, shouldBePresent) {
@@ -398,10 +1456,16 @@ async function deleteUserById(id) {
 
 async function saveEvent(event) {
   const db = await getDb()
+  const normalizedEvent = {
+    ...event,
+    opkomstmakerIds: sanitizeIdArray(event.opkomstmakerIds),
+    schoonmakerIds: sanitizeIdArray(event.schoonmakerIds),
+    participants: sanitizeIdArray(event.participants)
+  }
   
   await db.collection('events').updateOne(
     { id: event.id },
-    { $set: event },
+    { $set: normalizedEvent },
     { upsert: true }
   )
 }
@@ -855,6 +1919,7 @@ export async function performDailySnapshotAndComparison() {
 
     // Get today's and yesterday's date strings
     const today = new Date()
+    await processScheduledNotifications(today)
     const yesterday = new Date(today)
     yesterday.setDate(yesterday.getDate() - 1)
     
@@ -948,6 +2013,21 @@ function scheduleDailySnapshot() {
   }, msUntilMidnight)
   
   infoLog(`Daily snapshot and comparison scheduled for midnight (in ${Math.round(msUntilMidnight / 1000 / 60)} minutes)`)
+}
+
+function startScheduledNotificationWorker() {
+  if (process.env.VERCEL) {
+    infoLog('[notifications] Scheduled notification worker is disabled on Vercel')
+    return
+  }
+
+  setInterval(() => {
+    processUserScheduledNotifications().catch((error) => {
+      logSystemError(error, { action: 'scheduledNotificationWorker', status: 500 })
+    })
+  }, SCHEDULED_NOTIFICATION_INTERVAL_MS)
+
+  infoLog(`[notifications] Scheduled notification worker active (every ${Math.round(SCHEDULED_NOTIFICATION_INTERVAL_MS / 1000)}s)`)
 }
 
 // E-mail setup
@@ -1451,6 +2531,10 @@ async function buildPaymentRequestPdf(request, attachments = []) {
 // Cold start
 await loadUsers()
 await loadEvents()
+await loadPushSubscriptions()
+await loadNotifications()
+await processScheduledNotifications()
+await processUserScheduledNotifications()
 await ensureMailerTransport()
 configureDailyReport({
   sendEmail: async ({ subject, text, html }) => {
@@ -1476,6 +2560,7 @@ configureDailyReport({
 await cleanupExpiredResetCodes() // Clean up old reset codes on startup
 await cleanupOldSnapshots() // Remove stale daily snapshots on startup
 scheduleDailySnapshot() // Initialize daily database snapshot and comparison system
+startScheduledNotificationWorker()
 
 // One-time cleanup: Remove old changeLog collection if it exists
 try {
@@ -1698,12 +2783,15 @@ async function sendActiveStatusChangeEmail(user, newActiveStatus) {
 // Profiel bijwerken
 apiRouter.put('/user/profile', async (req, res) => {
   try {
-    const { userId, active } = req.body
+    const { userId, active, notificationPreferences } = req.body
     if (!userId) return res.status(400).json({ error: 'Gebruikers-ID is vereist' })
     const uid = parseInt(userId, 10)
     const idx = users.findIndex(u => u.id === uid)
     if (idx < 0) return res.status(404).json({ error: 'Gebruiker niet gevonden' })
     
+    // Ensure we never drop preferences; default to all optional channels off
+    users[idx].notificationPreferences = normalizeNotificationPreferences(users[idx].notificationPreferences || {})
+
     const previousActiveStatus = users[idx].active
     
     let attendanceSync = { updatedEvents: 0 }
@@ -1716,6 +2804,10 @@ apiRouter.put('/user/profile', async (req, res) => {
         attendanceSync = await syncUserAttendanceForFutureOpkomsten(uid, active)
         await sendActiveStatusChangeEmail(users[idx], active)
       }
+    }
+
+    if (notificationPreferences && typeof notificationPreferences === 'object') {
+      users[idx].notificationPreferences = normalizeNotificationPreferences(notificationPreferences)
     }
     
     await saveUser(users[idx])
@@ -1746,8 +2838,8 @@ apiRouter.post('/events', async (req, res) => {
     const {
       title, start, end, allDay,
       location, description,
-      isOpkomst, opkomstmakers,
-      isSchoonmaak, schoonmakers,
+      isOpkomst, opkomstmakers, opkomstmakerIds,
+      isSchoonmaak, schoonmakers, schoonmakerIds,
       schoonmaakOptions,
       userId,
       participants: requestedParticipants = []
@@ -1765,6 +2857,9 @@ apiRouter.post('/events', async (req, res) => {
     const id = Math.random().toString(36).substr(2, 6)
     const isOpkomstFlag = !!isOpkomst
     const isSchoonmaakFlag = !!isSchoonmaak
+    const opkomstMakerIdList = sanitizeIdArray(opkomstmakerIds)
+    const schoonmakerIdList = sanitizeIdArray(schoonmakerIds)
+
     const newEv = {
       id,
       title,
@@ -1775,8 +2870,10 @@ apiRouter.post('/events', async (req, res) => {
       description: description || '',
       isOpkomst: isOpkomstFlag,
       opkomstmakers: opkomstmakers || '',
+      opkomstmakerIds: opkomstMakerIdList,
       isSchoonmaak: isSchoonmaakFlag,
       schoonmakers: schoonmakers || '',
+      schoonmakerIds: schoonmakerIdList,
       schoonmaakOptions: schoonmaakOptions || [],
       participants: sanitizedParticipants
     }
@@ -1814,6 +2911,25 @@ apiRouter.put('/events/:id', async (req, res) => {
     const idx = events.findIndex(e => e.id === id)
     if (idx < 0) return res.status(404).json({ msg: 'Niet gevonden' })
     const updated = { ...events[idx], ...req.body }
+
+    if (req.body?.opkomstmakerIds !== undefined) {
+      updated.opkomstmakerIds = sanitizeIdArray(req.body.opkomstmakerIds)
+    } else if (!Array.isArray(updated.opkomstmakerIds)) {
+      updated.opkomstmakerIds = sanitizeIdArray(updated.opkomstmakerIds)
+    }
+
+    if (req.body?.schoonmakerIds !== undefined) {
+      updated.schoonmakerIds = sanitizeIdArray(req.body.schoonmakerIds)
+    } else if (!Array.isArray(updated.schoonmakerIds)) {
+      updated.schoonmakerIds = sanitizeIdArray(updated.schoonmakerIds)
+    }
+
+    if (req.body?.participants !== undefined) {
+      updated.participants = sanitizeIdArray(req.body.participants)
+    } else if (!Array.isArray(updated.participants)) {
+      updated.participants = sanitizeIdArray(updated.participants)
+    }
+
     events[idx] = updated
     await saveEvent(updated)
     res.json(updated)
@@ -1888,6 +3004,218 @@ apiRouter.put('/events/:id/attendance', async (req, res) => {
     console.error(err)
     logSystemError(err, { action: 'PUT /api/events/:id/attendance', status: 500, metadata: req.body })
     res.status(500).json({ msg: 'Bijwerken aanwezigheid mislukt' })
+  }
+})
+
+// Push notifications & subscriptions
+apiRouter.get('/push/public-key', (req, res) => {
+  if (!VAPID_PUBLIC_KEY) {
+    return res.status(503).json({ error: 'Push notificaties zijn niet geconfigureerd' })
+  }
+  res.json({ publicKey: VAPID_PUBLIC_KEY })
+})
+
+apiRouter.post('/push/subscribe', async (req, res) => {
+  try {
+    if (!isWebPushConfigured) {
+      return res.status(503).json({ error: 'Push notificaties zijn niet beschikbaar' })
+    }
+
+    const { userId, subscription, userAgent, deviceName } = req.body || {}
+    if (!userId || !subscription) {
+      return res.status(400).json({ error: 'Gebruikers-ID en subscription zijn vereist' })
+    }
+
+    await upsertPushSubscription({ userId, subscription, userAgent, deviceName })
+    res.json({ ok: true })
+  } catch (error) {
+    console.error('[push] Registratie mislukt:', error)
+    logSystemError(error, { action: 'POST /api/push/subscribe', status: 500, metadata: req.body })
+    res.status(500).json({ error: 'Registratie van pushmeldingen mislukt' })
+  }
+})
+
+apiRouter.post('/push/unsubscribe', async (req, res) => {
+  try {
+    const { endpoint } = req.body || {}
+    if (!endpoint) {
+      return res.status(400).json({ error: 'Endpoint is vereist' })
+    }
+
+    await removePushSubscriptionByEndpoint(endpoint)
+    res.json({ ok: true })
+  } catch (error) {
+    console.error('[push] Uitschrijven mislukt:', error)
+    logSystemError(error, { action: 'POST /api/push/unsubscribe', status: 500, metadata: req.body })
+    res.status(500).json({ error: 'Uitschrijven van pushmeldingen mislukt' })
+  }
+})
+
+apiRouter.get('/notifications', (req, res) => {
+  const { userId, limit = '50' } = req.query
+  const normalizedUserId = sanitizeUserId(userId)
+  if (normalizedUserId === null) {
+    return res.status(400).json({ error: 'Ongeldig gebruikers-ID' })
+  }
+
+  const max = Math.max(1, Math.min(200, parseInt(limit, 10) || 50))
+  const userNotifications = notifications
+    .filter((notification) => notificationVisibleToUser(notification, normalizedUserId))
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, max)
+    .map((notification) => mapNotificationForClient(notification, normalizedUserId))
+    .filter(Boolean)
+
+  const unreadCount = notifications.filter((notification) => {
+    if (!notificationVisibleToUser(notification, normalizedUserId)) return false
+    return !hasUserReadNotification(notification, normalizedUserId)
+  }).length
+
+  res.json({
+    notifications: userNotifications,
+    unreadCount,
+    push: {
+      enabled: isWebPushConfigured
+    }
+  })
+})
+
+apiRouter.post('/notifications/mark-read', async (req, res) => {
+  try {
+    const { userId, notificationIds, read = true } = req.body || {}
+    if (!userId) {
+      return res.status(400).json({ error: 'Gebruikers-ID is vereist' })
+    }
+    const result = await markNotificationsAsRead(userId, notificationIds, read)
+    res.json({ ok: true, updated: result.updated })
+  } catch (error) {
+    console.error('[notifications] Markeren als gelezen mislukt:', error)
+    logSystemError(error, { action: 'POST /api/notifications/mark-read', status: 500, metadata: req.body })
+    res.status(500).json({ error: 'Notificaties konden niet worden bijgewerkt' })
+  }
+})
+
+apiRouter.post('/notifications/mark-all-read', async (req, res) => {
+  try {
+    const { userId } = req.body || {}
+    if (!userId) {
+      return res.status(400).json({ error: 'Gebruikers-ID is vereist' })
+    }
+    const result = await markAllNotificationsAsRead(userId)
+    res.json({ ok: true, updated: result.updated })
+  } catch (error) {
+    console.error('[notifications] Alles markeren mislukt:', error)
+    logSystemError(error, { action: 'POST /api/notifications/mark-all-read', status: 500, metadata: req.body })
+    res.status(500).json({ error: 'Notificaties konden niet worden bijgewerkt' })
+  }
+})
+
+apiRouter.post('/notifications/manual', async (req, res) => {
+  try {
+    const { userId, title, message, recipientIds = [], eventId = null, url = null, priority = 'default' } = req.body || {}
+    if (!userId || !isUserAdmin(userId)) {
+      return res.status(403).json({ error: 'Alleen beheerders mogen notificaties versturen' })
+    }
+    if (!title || !message) {
+      return res.status(400).json({ error: 'Titel en bericht zijn verplicht' })
+    }
+
+    let recipients = Array.isArray(recipientIds) && recipientIds.length > 0
+      ? sanitizeIdArray(recipientIds)
+      : users.filter((user) => Boolean(user?.active)).map((user) => user.id).filter(Number.isFinite)
+
+    if (recipients.length === 0) {
+      return res.status(400).json({ error: 'Geen ontvangers gevonden voor deze notificatie' })
+    }
+
+    const notificationsCreated = await createNotificationsForUsers({
+      title,
+      message,
+      userIds: recipients,
+      type: 'manual',
+      eventId: eventId || null,
+      url: url || buildEventUrl(eventId),
+      metadata: { createdBy: sanitizeUserId(userId), manual: true },
+      priority
+    })
+
+    logEvent({
+      action: 'notification-manual-sent',
+      metadata: {
+        createdBy: sanitizeUserId(userId),
+        recipientCount: notificationsCreated.length,
+        eventId: eventId || null
+      }
+    })
+
+    res.json({
+      ok: true,
+      notifications: notificationsCreated.map((notification) => mapNotificationForClient(notification, null))
+    })
+  } catch (error) {
+    console.error('[notifications] Handmatige notificatie versturen mislukt:', error)
+    logSystemError(error, { action: 'POST /api/notifications/manual', status: 500, metadata: req.body })
+    res.status(500).json({ error: 'Handmatige notificatie versturen mislukt' })
+  }
+})
+
+apiRouter.get('/notifications/scheduled', async (_req, res) => {
+  try {
+    const items = await listScheduledNotifications()
+    res.json({ items })
+  } catch (error) {
+    console.error('[notifications] Ophalen geplande meldingen mislukt:', error)
+    logSystemError(error, { action: 'GET /api/notifications/scheduled', status: 500 })
+    res.status(500).json({ error: 'Geplande meldingen konden niet worden opgehaald' })
+  }
+})
+
+apiRouter.post('/notifications/schedule', async (req, res) => {
+  try {
+    const { title, message, sendAt, audience = 'all', recipientIds = [], priority = 'normal', cta = null, attachments = [] } = req.body || {}
+    if (!title || !message) {
+      return res.status(400).json({ error: 'Titel en bericht zijn verplicht' })
+    }
+    const record = await createScheduledNotification({
+      title,
+      message,
+      sendAt,
+      audience,
+      recipientIds,
+      priority,
+      cta,
+      attachments,
+      status: 'scheduled'
+    })
+    res.json({ notification: record })
+  } catch (error) {
+    console.error('[notifications] Inplannen van melding mislukt:', error)
+    logSystemError(error, { action: 'POST /api/notifications/schedule', status: 500, metadata: req.body })
+    res.status(500).json({ error: 'Inplannen van melding mislukt' })
+  }
+})
+
+apiRouter.put('/notifications/schedule/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    const updated = await updateScheduledNotificationRecord(id, req.body || {})
+    res.json({ notification: updated })
+  } catch (error) {
+    console.error('[notifications] Bijwerken geplande melding mislukt:', error)
+    logSystemError(error, { action: 'PUT /api/notifications/schedule/:id', status: 500, metadata: req.body })
+    res.status(error.message === 'Niet gevonden' ? 404 : 500).json({ error: 'Geplande melding kon niet worden bijgewerkt' })
+  }
+})
+
+apiRouter.delete('/notifications/schedule/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    await cancelScheduledNotificationRecord(id)
+    res.json({ ok: true })
+  } catch (error) {
+    console.error('[notifications] Annuleren geplande melding mislukt:', error)
+    logSystemError(error, { action: 'DELETE /api/notifications/schedule/:id', status: 500, metadata: req.params })
+    res.status(500).json({ error: 'Geplande melding kon niet worden geannuleerd' })
   }
 })
 

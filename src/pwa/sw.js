@@ -17,6 +17,11 @@ const CACHE_VERSION = 'v1'
 const API_CACHE_NAME = `${CACHE_PREFIX}-api-${CACHE_VERSION}`
 const STATIC_CACHE_NAME = `${CACHE_PREFIX}-static-${CACHE_VERSION}`
 const IMAGE_CACHE_NAME = `${CACHE_PREFIX}-images-${CACHE_VERSION}`
+const DEFAULT_NOTIFICATION_TITLE = 'Stamjer'
+const DEFAULT_NOTIFICATION_BODY = 'Nieuwe update beschikbaar'
+const DEFAULT_NOTIFICATION_URL = '/kalender'
+const DEFAULT_NOTIFICATION_ICON = '/icons/192x192.png'
+const DEFAULT_NOTIFICATION_BADGE = '/stam_H.png'
 
 // Ensure new service worker activates immediately.
 self.skipWaiting()
@@ -109,42 +114,110 @@ self.addEventListener('sync', (event) => {
   }
 })
 
-// Push notifications (for future enablement).
+// Push notifications handling
 self.addEventListener('push', (event) => {
-  let payload = {}
+  event.waitUntil((async () => {
+    let payload = {}
 
-  if (event.data) {
-    try {
-      payload = event.data.json()
-    } catch (error) {
-      payload = { body: event.data.text() }
-      console.warn('[SW] Push payload not JSON, falling back to text', error)
-    }
-  }
-
-  const options = {
-    body: payload.body || 'Nieuwe update beschikbaar',
-    icon: '/stam_H.png',
-    badge: '/stam_H.png',
-    data: { url: payload.url || '/' },
-    actions: [
-      {
-        action: 'open',
-        title: 'Openen',
-        icon: '/stam_H.png'
+    if (event.data) {
+      try {
+        payload = event.data.json()
+      } catch (error) {
+        console.warn('[SW] Push payload not JSON, falling back to text', error)
+        payload = { body: event.data.text() }
       }
-    ]
-  }
+    }
 
-  event.waitUntil(self.registration.showNotification('Stamjer', options))
+    const notificationData = {
+      ...(payload.data || {}),
+      url: payload.data?.url || payload.url || DEFAULT_NOTIFICATION_URL,
+      type: payload.data?.type || payload.type || 'general',
+      notificationId: payload.data?.notificationId || payload.notificationId || null,
+      eventId: payload.data?.eventId || payload.eventId || null,
+      metadata: payload.data?.metadata || payload.metadata || {}
+    }
+
+    const title = payload.title || DEFAULT_NOTIFICATION_TITLE
+    const options = {
+      body: payload.body || DEFAULT_NOTIFICATION_BODY,
+      icon: payload.icon || DEFAULT_NOTIFICATION_ICON,
+      badge: payload.badge || DEFAULT_NOTIFICATION_BADGE,
+      data: notificationData,
+      tag: payload.tag,
+      renotify: payload.renotify ?? false,
+      requireInteraction: payload.requireInteraction ?? false,
+      actions: Array.isArray(payload.actions) && payload.actions.length > 0
+        ? payload.actions
+        : [
+            {
+              action: 'open',
+              title: 'Openen',
+              icon: payload.icon || DEFAULT_NOTIFICATION_ICON
+            }
+          ]
+    }
+
+    await self.registration.showNotification(title, options)
+    await broadcastMessage({ type: 'notification-received', payload: options.data })
+  })())
 })
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  if (event.action === 'open' || !event.action) {
-    event.waitUntil(self.clients.openWindow(event.notification.data?.url || '/'))
+
+  if (event.action && event.action !== 'open') {
+    return
   }
+
+  const targetUrl = event.notification.data?.url || DEFAULT_NOTIFICATION_URL
+
+  event.waitUntil((async () => {
+    await openClientWindow(targetUrl, event.notification.data)
+    await broadcastMessage({ type: 'notification-clicked', payload: event.notification.data })
+  })())
 })
+
+async function openClientWindow(url, payload = {}) {
+  try {
+    const resolvedUrl = new URL(url, self.location.origin).href
+    const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+
+    for (const client of clientList) {
+      if (!client?.url) continue
+      if (client.url === resolvedUrl || client.url === resolvedUrl.replace(self.location.origin, '')) {
+        if ('focus' in client) {
+          await client.focus()
+        }
+        client.postMessage({ type: 'notification-clicked', payload })
+        return client
+      }
+    }
+
+    const newClient = await self.clients.openWindow(resolvedUrl)
+    if (newClient) {
+      newClient.postMessage({ type: 'notification-clicked', payload })
+    }
+    return newClient
+  } catch (error) {
+    console.error('[SW] Failed to open client window for notification', error)
+    return null
+  }
+}
+
+async function broadcastMessage(message) {
+  try {
+    const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    clientList.forEach((client) => {
+      try {
+        client.postMessage(message)
+      } catch (error) {
+        console.warn('[SW] Failed to post message to client', error)
+      }
+    })
+  } catch (error) {
+    console.warn('[SW] Failed to broadcast message to clients', error)
+  }
+}
 
 async function processQueuedFormSubmissions() {
   try {

@@ -251,17 +251,9 @@ export default function StrepenPage() {
         {/* aria-live region for toggle feedback */}
         <div className="visually-hidden" aria-live="polite">{liveMsg}</div>
 
-        {/* <header className="strepen-header">
-          <h1>Strepen</h1>
-        </header> */}
-
         {/* Mobile header with selector + filters */}
         {isMobile ? (
           <div className="strepen-mobile-header">
-            {/* <div className="mobile-event-title">
-              <div className="mobile-event-main">{selectedEvent.title}</div>
-              <div className="mobile-event-sub">{capitalizeWeekday(selectedEvent.start)}</div>
-            </div> */}
             <div className="mobile-controls">
               <label htmlFor="event-select" className="sr-only">Selecteer opkomst</label>
               <select
@@ -345,7 +337,7 @@ export default function StrepenPage() {
           <div className="mobile-user-list">
             {filteredUsers.map(u => {
               const isPart = selectedEvent.participants.includes(u.id)
-              const present = attendance[u.id]
+              const present = Boolean(attendance[u.id])
               const isChanged = present !== isPart
               return (
                 <div key={u.id} className={`user-card ${isPart ? 'participant' : 'non-participant'} ${isChanged ? 'modified' : ''}`}>
@@ -393,7 +385,7 @@ export default function StrepenPage() {
             </div>
             {sortedUsers.map(u => {
               const isPart = selectedEvent.participants.includes(u.id)
-              const present = attendance[u.id]
+              const present = Boolean(attendance[u.id])
               const defaultState = present === isPart
 
               return (

@@ -311,17 +311,23 @@
   border-radius: var(--radius-md);
   transition: all var(--duration-fast) var(--ease-out);
   color: var(--secondary-500);
-}
+} */
 
 .password-toggle:hover:not(:disabled) {
   background: var(--secondary-100);
   color: var(--secondary-700);
   transform: scale(1.1);
-}
+} */
 
 .password-toggle:focus-visible {
   outline: 2px solid var(--primary-500);
   outline-offset: 2px;
+}
+
+/* Hide native Edge password reveal icon (we use a custom toggle button) */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
 }
 
 /* Checkbox Component */

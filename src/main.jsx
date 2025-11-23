@@ -1,5 +1,7 @@
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
+import { SpeedInsights } from '@vercel/speed-insights/react'
+import { Analytics } from '@vercel/analytics/react'
 import App from './App'
 import './index.css'
 import './styles/shared.css'
@@ -9,7 +11,9 @@ const bootstrapPWA = () => {
     return
   }
 
-  if (import.meta.env.DEV) {
+  const enableDevSW = import.meta.env.VITE_ENABLE_PWA_DEV === 'true'
+
+  if (import.meta.env.DEV && !enableDevSW) {
     navigator.serviceWorker
       .getRegistrations?.()
       .then((registrations) => registrations.forEach((registration) => registration.unregister()))
@@ -45,5 +49,11 @@ bootstrapPWA()
 ReactDOM.createRoot(document.getElementById('root')).render(
   <BrowserRouter>
     <App />
+    {import.meta.env.PROD ? (
+      <>
+        <Analytics />
+        <SpeedInsights />
+      </>
+    ) : null}
   </BrowserRouter>
 )

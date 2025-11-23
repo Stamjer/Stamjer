@@ -556,6 +556,124 @@ export function useUpdateAttendance(options = {}) {
 // UTILITY HOOKS
 // ================================================================
 
+// ================================================================
+// NOTIFICATIONS
+// ================================================================
+
+export function useNotifications(userId, options = {}) {
+  return useQuery({
+    queryKey: queryKeys.notifications.list(userId || 'anonymous'),
+    queryFn: async () => {
+      if (!userId) {
+        return { notifications: [], unreadCount: 0, push: { enabled: false } }
+      }
+      const response = await api.getNotifications(userId)
+      const notifications = Array.isArray(response?.notifications) ? response.notifications : []
+      const unreadCount = Number.isFinite(response?.unreadCount) ? response.unreadCount : 0
+      const push = response?.push || { enabled: false }
+      return { notifications, unreadCount, push }
+    },
+    enabled: Boolean(userId),
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: true,
+    ...options
+  })
+}
+
+export function useMarkNotificationsRead(options = {}) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ userId, notificationIds, read = true }) =>
+      api.markNotificationsRead(userId, notificationIds, read),
+    onSuccess: (_data, variables) => {
+      if (variables?.userId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.notifications.list(variables.userId) })
+      }
+    },
+    ...options
+  })
+}
+
+export function useMarkAllNotificationsRead(options = {}) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ userId }) =>
+      api.markAllNotificationsRead(userId),
+    onSuccess: (_data, variables) => {
+      if (variables?.userId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.notifications.list(variables.userId) })
+      }
+    },
+    ...options
+  })
+}
+
+export function useSendManualNotification(options = {}) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ userId, payload }) =>
+      api.sendManualNotification(userId, payload),
+    onSuccess: (_data, variables) => {
+      const userId = variables?.payload?.userId || variables?.userId
+      if (userId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.notifications.list(userId) })
+      }
+    },
+    ...options
+  })
+}
+
+export function useScheduledNotifications(options = {}) {
+  return useQuery({
+    queryKey: queryKeys.notifications.scheduled(),
+    queryFn: api.getScheduledNotifications,
+    staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
+    ...options
+  })
+}
+
+export function useScheduleNotification(options = {}) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload) => api.scheduleNotification(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.notifications.scheduled() })
+    },
+    ...options
+  })
+}
+
+export function useUpdateScheduledNotification(options = {}) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ notificationId, payload }) =>
+      api.updateScheduledNotification(notificationId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.notifications.scheduled() })
+    },
+    ...options
+  })
+}
+
+export function useCancelScheduledNotification(options = {}) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (notificationId) =>
+      api.cancelScheduledNotification(notificationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.notifications.scheduled() })
+    },
+    ...options
+  })
+}
+
 /**
  * Hook to prefetch events data
  * Useful for preloading data before navigation

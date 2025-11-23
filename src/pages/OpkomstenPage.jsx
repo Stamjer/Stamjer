@@ -1161,6 +1161,16 @@ export default function OpkomstenPage() {
                     )}
                   </div>
                 </div>
+                {/* Add check to see if there are makers */}
+                {event.opkomstmakers && (
+                  <div className="opkomst-list__makers-badges">
+                    {event.opkomstmakers.split(',').map((maker, index) => (
+                      <span key={index} className="opkomst-list__maker-pill">
+                        {maker.trim()}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 
                 <div className="card-actions">
                   <label className="attendance-toggle">
@@ -1242,32 +1252,6 @@ export default function OpkomstenPage() {
                     )}
                   </div>
                 </div>
-
-                {/* Description Section */}
-                {(event.description || event.location || event.opkomstmakers) && (
-                  <div className="content-section">
-                    <div className="section-title">Details</div>
-                    <div className="description-content">
-                      {event.opkomstmakers && (
-                        <div style={{ marginBottom: 'var(--space-3)' }}>
-                          <div style={{ fontSize: '0.7rem', fontWeight: 'var(--font-weight-semibold)', color: 'var(--secondary-600)', marginBottom: 'var(--space-1)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                            Opkomstmakers
-                          </div>
-                          <div className="opkomst-list__makers-badges">
-                            {event.opkomstmakers.split(',').map((maker, index) => (
-                              <span key={index} className="opkomst-list__maker-pill">
-                                {maker.trim()}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {event.description && (
-                        <p className="description-text">{event.description}</p>
-                      )}
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           ))}

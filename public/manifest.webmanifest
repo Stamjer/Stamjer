@@ -1,0 +1,82 @@
+{
+  "id": "/",
+  "name": "Stamjer - De Hertog Stam Agenda",
+  "short_name": "Stamjer",
+  "description": "Agenda en opkomsten beheer voor de Hertog Stam",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "dir": "ltr",
+  "lang": "nl-NL",
+  "categories": ["productivity", "business", "utilities"],
+  "icons": [
+    {
+      "src": "/icons/192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "Kalender",
+      "short_name": "Kalender",
+      "description": "Bekijk de kalender",
+      "url": "/kalender",
+      "icons": [
+        {
+          "src": "/icons/96x96.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Opkomsten",
+      "short_name": "Opkomsten",
+      "description": "Bekijk opkomsten overzicht",
+      "url": "/opkomsten",
+      "icons": [
+        {
+          "src": "/icons/96x96.png",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/icons/720x1280.png",
+      "type": "image/png",
+      "sizes": "720x1280",
+      "form_factor": "narrow"
+    },
+    {
+      "src": "/icons/1280x720.png",
+      "type": "image/png",
+      "sizes": "1280x720",
+      "form_factor": "wide"
+    }
+  ]
+}

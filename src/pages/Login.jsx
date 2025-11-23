@@ -31,7 +31,7 @@ export default function Login({ setUser }) {
   const [showPassword, setShowPassword] = useState(false)
   const [isFormValid, setIsFormValid] = useState(false)
   const [fieldErrors, setFieldErrors] = useState({})
-  const [rememberMe, setRememberMe] = useState(false)
+  const [rememberMe, setRememberMe] = useState(true)
   
   const navigate = useNavigate()
 
@@ -86,14 +86,11 @@ export default function Login({ setUser }) {
     try {
       const data = await login(email, password)
       
-      // Store user data
-      if (rememberMe) {
-        localStorage.setItem('user', JSON.stringify(data.user))
-        localStorage.setItem('rememberMe', 'true')
-      } else {
-        sessionStorage.setItem('user', JSON.stringify(data.user))
-        localStorage.removeItem('rememberMe')
-      }
+      // Store user data locally so login persists
+      localStorage.setItem('user', JSON.stringify(data.user))
+      localStorage.setItem('rememberMe', 'true')
+      // Keep sessionStorage in sync for existing flows
+      sessionStorage.setItem('user', JSON.stringify(data.user))
       
       setUser(data.user)
       

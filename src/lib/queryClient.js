@@ -96,6 +96,14 @@ export const queryKeys = {
     details: () => [...queryKeys.users.all, 'detail'],
     detail: (id) => [...queryKeys.users.details(), id],
     profile: () => [...queryKeys.users.all, 'profile']
+  },
+
+  // Notifications
+  notifications: {
+    all: ['notifications'],
+    list: (userId) => [...queryKeys.notifications.all, { userId }],
+    scheduled: () => [...queryKeys.notifications.all, 'scheduled'],
+    scheduledDetail: (id) => [...queryKeys.notifications.scheduled(), id]
   }
 }
 

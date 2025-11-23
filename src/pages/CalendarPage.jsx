@@ -17,7 +17,7 @@
 
 // React core imports
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-
+import { useSearchParams } from 'react-router-dom'
 // FullCalendar imports for calendar functionality
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
@@ -1168,6 +1168,7 @@ export default function CalendarPage() {
   const [currentUser, setCurrentUser] = useState(null)
   const isMobile = useIsMobile()
   const [viewDate, setViewDate] = useState(new Date())
+  const [searchParams, setSearchParams] = useSearchParams()
 
   // Ref for calendar wrapper to handle scroll detection
   const calendarWrapperRef = useRef(null)
@@ -1192,6 +1193,26 @@ export default function CalendarPage() {
     data: users = [], 
     isLoading: usersLoading 
   } = useUsers()
+
+  useEffect(() => {
+    const eventIdParam = searchParams.get('event')
+    if (!eventIdParam) {
+      return
+    }
+
+    if (!Array.isArray(events) || events.length === 0) {
+      return
+    }
+
+    const matchingEvent = events.find((evt) => evt.id === eventIdParam)
+    if (matchingEvent) {
+      setSelectedEvent(matchingEvent)
+    }
+
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('event')
+    setSearchParams(nextParams, { replace: true })
+  }, [events, searchParams, setSearchParams])
 
   // ================================================================
   // MUTATION HOOKS - OPTIMISTIC UPDATES

@@ -92,6 +92,7 @@ vite.config.js.timestamp-*
 *.sln
 *.sw?
 *.docx
+docs
 
 # Additional system files
 Thumbs.db
