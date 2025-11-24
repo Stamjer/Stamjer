@@ -112,12 +112,27 @@ function NotificationAdminPage({ user }) {
     return undefined
   }, [user?.sessionToken])
 
+  useEffect(() => {
+    if (!adminId || !sessionToken) {
+      navigate('/login', { replace: true })
+    }
+  }, [adminId, sessionToken, navigate])
+
   const { data: usersResponse = [], isLoading: isUsersLoading } = useUsers({ enabled: isAdmin })
   const {
     data: scheduledResponse = [],
     isFetching: isScheduledFetching,
     error: scheduledError
-  } = useScheduledNotifications({ enabled: isAdmin, retry: false, sessionToken })
+  } = useScheduledNotifications({
+    enabled: isAdmin,
+    retry: false,
+    sessionToken,
+    onError: (error) => {
+      if (error?.status === 401) {
+        navigate('/login', { replace: true })
+      }
+    }
+  })
   const sendManualMutation = useSendManualNotification()
   const scheduleMutation = useScheduleNotification()
   const updateMutation = useUpdateScheduledNotification()
@@ -392,6 +407,11 @@ function NotificationAdminPage({ user }) {
     event.preventDefault()
     setFeedback('')
 
+    if (!adminId || !sessionToken) {
+      navigate('/login', { replace: true })
+      return
+    }
+
     if (!adminId) {
       setFeedback('Je bent niet ingelogd als admin.')
       return
@@ -428,6 +448,10 @@ function NotificationAdminPage({ user }) {
             resetForm()
           },
           onError: (error) => {
+            if (error?.status === 401) {
+              navigate('/login', { replace: true })
+              return
+            }
             setFeedback(error.message || 'Versturen is mislukt.')
           }
         }
@@ -466,6 +490,10 @@ function NotificationAdminPage({ user }) {
             resetForm()
           },
           onError: (error) => {
+            if (error?.status === 401) {
+              navigate('/login', { replace: true })
+              return
+            }
             setFeedback(error.message || 'Bijwerken is mislukt.')
           }
         }
@@ -479,6 +507,10 @@ function NotificationAdminPage({ user }) {
             resetForm()
           },
           onError: (error) => {
+            if (error?.status === 401) {
+              navigate('/login', { replace: true })
+              return
+            }
             setFeedback(error.message || 'Inplannen is mislukt.')
           }
         }
@@ -513,17 +545,24 @@ function NotificationAdminPage({ user }) {
     const confirmed = window.confirm(`Weet je zeker dat je "${scheduled.title}" wilt annuleren?`)
     if (!confirmed) return
 
-    cancelMutation.mutate({ notificationId: scheduled.id, sessionToken }, {
-      onSuccess: () => {
-        setFeedback('Geplande melding geannuleerd.')
-        if (editingId === scheduled.id) {
-          resetForm()
+    cancelMutation.mutate(
+      { notificationId: scheduled.id, sessionToken },
+      {
+        onSuccess: () => {
+          setFeedback('Geplande melding geannuleerd.')
+          if (editingId === scheduled.id) {
+            resetForm()
+          }
+        },
+        onError: (error) => {
+          if (error?.status === 401) {
+            navigate('/login', { replace: true })
+            return
+          }
+          setFeedback(error.message || 'Annuleren is mislukt.')
         }
-      },
-      onError: (error) => {
-        setFeedback(error.message || 'Annuleren is mislukt.')
       }
-    })
+    )
   }
 
   return (

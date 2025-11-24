@@ -79,13 +79,27 @@ registerRoute(
   'GET'
 )
 
-// Static assets (JS, CSS, workers)
+// Static assets (JS, CSS, workers) — skip Vercel analytics to avoid noise
 registerRoute(
-  ({ request }) => ['style', 'script', 'worker'].includes(request.destination),
+  ({ request, url }) =>
+    ['style', 'script', 'worker'].includes(request.destination) &&
+    !url.pathname.startsWith('/_vercel/'),
   new StaleWhileRevalidate({
     cacheName: STATIC_CACHE_NAME,
     plugins: [new CacheableResponsePlugin({ statuses: [200] })]
   })
+)
+
+// Always bypass SW for Vercel analytics/speed scripts; fail soft if network unavailable
+registerRoute(
+  ({ url }) => url.pathname.startsWith('/_vercel/'),
+  async ({ event }) => {
+    try {
+      return await fetch(event.request)
+    } catch (error) {
+      return new Response('', { status: 204 })
+    }
+  }
 )
 
 // Images
