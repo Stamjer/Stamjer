@@ -2358,7 +2358,34 @@ function scheduleDailySnapshot() {
   infoLog(`Daily snapshot and comparison scheduled for midnight (in ${Math.round(msUntilMidnight / 1000 / 60)} minutes)`)
 }
 
+function isCronRequestAuthorized(req) {
+  const cronHeader = req.headers['x-vercel-cron']
+  const secret = process.env.CRON_SECRET
+  const providedSecret = req.query?.secret || req.headers['x-cron-secret'] || req.headers['authorization']
+
+  if (cronHeader) {
+    return true
+  }
+
+  if (secret && providedSecret) {
+    if (typeof providedSecret === 'string' && providedSecret.startsWith('Bearer ')) {
+      return providedSecret.slice(7) === secret
+    }
+    if (Array.isArray(providedSecret)) {
+      return providedSecret.some((value) => value === secret)
+    }
+    return providedSecret === secret
+  }
+
+  return false
+}
+
 function startScheduledNotificationWorker() {
+  if (process.env.VERCEL) {
+    infoLog('[notifications] Vercel deployment detected; skip local interval and rely on cron endpoint')
+    return
+  }
+
   setInterval(() => {
     processUserScheduledNotifications().catch((error) => {
       logSystemError(error, { action: 'scheduledNotificationWorker', status: 500 })
@@ -4081,86 +4108,48 @@ apiRouter.post('/admin/trigger-daily-snapshot', async (req, res) => {
   }
 })
 
-// Public endpoint for Vercel Cron to trigger daily snapshot
-apiRouter.get('/cron-daily', async (req, res) => {
+// Public endpoint for Vercel Cron to process scheduled notifications
+const handleCronNotifications = async (req, res) => {
   try {
-    // Check if request is authorized (from Vercel Cron or with secret)
-    const cronHeader = req.headers['x-vercel-cron']
-    const secret = process.env.CRON_SECRET
-    const providedSecret = req.query?.secret || req.headers['x-cron-secret'] || req.headers['authorization']
-    
-    let authorized = false
-    
-    // Check Vercel Cron header
-    if (cronHeader) {
-      authorized = true
-    }
-    
-    // Check secret if provided
-    if (secret && providedSecret) {
-      if (typeof providedSecret === 'string' && providedSecret.startsWith('Bearer ')) {
-        authorized = providedSecret.slice(7) === secret
-      } else if (Array.isArray(providedSecret)) {
-        authorized = providedSecret.some((value) => value === secret)
-      } else {
-        authorized = providedSecret === secret
-      }
-    }
-    
-    if (!authorized) {
-      warnLog('Unauthorized cron-daily request attempt')
+    if (!isCronRequestAuthorized(req)) {
+      warnLog('Unauthorized cron-notifications request attempt')
       return res.status(401).json({ error: 'Unauthorized' })
     }
-    
-    infoLog('Daily snapshot cron triggered')
-    await performDailySnapshotAndComparison()
-    res.status(200).json({ ok: true, message: 'Daily snapshot and comparison completed successfully' })
-  } catch (err) {
-    console.error('Daily snapshot cron failed:', err)
-    logSystemError(err, { action: 'GET /api/cron-daily', status: 500 })
-    const message = err && err.message ? err.message : 'Unknown error'
-    res.status(500).json({ error: 'Failed to run daily snapshot', message })
-  }
-})
 
-// Also support POST method for cron-daily
-apiRouter.post('/cron-daily', async (req, res) => {
+    const sentIds = await processUserScheduledNotifications()
+    res.status(200).json({ ok: true, sent: sentIds.length, sentIds })
+  } catch (err) {
+    console.error('Scheduled notifications cron failed:', err)
+    logSystemError(err, { action: `${req.method} /api/cron-notifications`, status: 500 })
+    const message = err && err.message ? err.message : 'Unknown error'
+    res.status(500).json({ error: 'Failed to process scheduled notifications', message })
+  }
+}
+
+apiRouter.get('/cron-notifications', handleCronNotifications)
+apiRouter.post('/cron-notifications', handleCronNotifications)
+
+// Public endpoint for Vercel Cron to trigger daily snapshot
+const handleCronDaily = async (req, res) => {
   try {
-    const cronHeader = req.headers['x-vercel-cron']
-    const secret = process.env.CRON_SECRET
-    const providedSecret = req.query?.secret || req.headers['x-cron-secret'] || req.headers['authorization']
-    
-    let authorized = false
-    
-    if (cronHeader) {
-      authorized = true
-    }
-    
-    if (secret && providedSecret) {
-      if (typeof providedSecret === 'string' && providedSecret.startsWith('Bearer ')) {
-        authorized = providedSecret.slice(7) === secret
-      } else if (Array.isArray(providedSecret)) {
-        authorized = providedSecret.some((value) => value === secret)
-      } else {
-        authorized = providedSecret === secret
-      }
-    }
-    
-    if (!authorized) {
+    if (!isCronRequestAuthorized(req)) {
       warnLog('Unauthorized cron-daily request attempt')
       return res.status(401).json({ error: 'Unauthorized' })
     }
-    
-    infoLog('Daily snapshot cron triggered (POST)')
+
+    infoLog(`Daily snapshot cron triggered (${req.method})`)
     await performDailySnapshotAndComparison()
     res.status(200).json({ ok: true, message: 'Daily snapshot and comparison completed successfully' })
   } catch (err) {
     console.error('Daily snapshot cron failed:', err)
-    logSystemError(err, { action: 'POST /api/cron-daily', status: 500 })
+    logSystemError(err, { action: `${req.method} /api/cron-daily`, status: 500 })
     const message = err && err.message ? err.message : 'Unknown error'
     res.status(500).json({ error: 'Failed to run daily snapshot', message })
   }
-})
+}
+
+apiRouter.get('/cron-daily', handleCronDaily)
+apiRouter.post('/cron-daily', handleCronDaily)
 
 // iCalendar feed endpoint
 apiRouter.get('/calendar.ics', createICalendarHandler(async () => {
