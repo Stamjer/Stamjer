@@ -168,8 +168,14 @@ async function request(url, options = {}, timeout = DEFAULT_TIMEOUT) {
   }
 
   const controller = new AbortController()
+  const {
+    sessionToken: overrideSessionToken,
+    authToken: explicitAuthToken,
+    ...restOptions
+  } = options || {}
+
   const requestOptions = {
-    ...options,
+    ...restOptions,
     signal: controller.signal,
   }
 
@@ -189,7 +195,7 @@ async function request(url, options = {}, timeout = DEFAULT_TIMEOUT) {
 
   // Attach bearer token when available
   const storedUser = getStoredUser()
-  const token = storedUser?.sessionToken
+  const token = overrideSessionToken || explicitAuthToken || storedUser?.sessionToken
   if (token) {
     requestOptions.headers = {
       ...requestOptions.headers,
@@ -470,7 +476,7 @@ export async function markAllNotificationsRead(userId) {
   })
 }
 
-export async function sendManualNotification(userId, payload) {
+export async function sendManualNotification(userId, payload, sessionToken) {
   if (!userId) {
     throw new Error('Gebruikers-ID (admin) is verplicht om handmatige notificaties te versturen')
   }
@@ -483,13 +489,14 @@ export async function sendManualNotification(userId, payload) {
     body: {
       userId,
       ...payload
-    }
+    },
+    sessionToken
   })
 }
 
-export async function getScheduledNotifications() {
+export async function getScheduledNotifications(sessionToken) {
   try {
-    return await request('/notifications/scheduled')
+    return await request('/notifications/scheduled', { sessionToken })
   } catch (error) {
     const message = error?.message || ''
     const normalized = message.toLowerCase()
@@ -501,35 +508,38 @@ export async function getScheduledNotifications() {
   }
 }
 
-export async function scheduleNotification(payload) {
+export async function scheduleNotification(payload, sessionToken) {
   if (!payload || !payload.title || !payload.message) {
     throw new Error('Titel en bericht zijn verplicht om een melding in te plannen')
   }
 
   return request('/notifications/schedule', {
     method: 'POST',
-    body: payload
+    body: payload,
+    sessionToken
   })
 }
 
-export async function updateScheduledNotification(notificationId, payload) {
+export async function updateScheduledNotification(notificationId, payload, sessionToken) {
   if (!notificationId) {
     throw new Error('Notificatie-ID is verplicht om een geplande melding bij te werken')
   }
 
   return request(`/notifications/schedule/${notificationId}`, {
     method: 'PUT',
-    body: payload
+    body: payload,
+    sessionToken
   })
 }
 
-export async function cancelScheduledNotification(notificationId) {
+export async function cancelScheduledNotification(notificationId, sessionToken) {
   if (!notificationId) {
     throw new Error('Notificatie-ID is verplicht om een geplande melding te annuleren')
   }
 
   return request(`/notifications/schedule/${notificationId}`, {
-    method: 'DELETE'
+    method: 'DELETE',
+    sessionToken
   })
 }
 

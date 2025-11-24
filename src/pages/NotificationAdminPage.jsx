@@ -98,13 +98,26 @@ function NotificationAdminPage({ user }) {
 
   const isAdmin = Boolean(user?.isAdmin)
   const adminId = user?.id
+  const sessionToken = useMemo(() => {
+    if (user?.sessionToken) return user.sessionToken
+    try {
+      const raw = localStorage.getItem('user')
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        return parsed?.sessionToken
+      }
+    } catch {
+      return undefined
+    }
+    return undefined
+  }, [user?.sessionToken])
 
   const { data: usersResponse = [], isLoading: isUsersLoading } = useUsers({ enabled: isAdmin })
   const {
     data: scheduledResponse = [],
     isFetching: isScheduledFetching,
     error: scheduledError
-  } = useScheduledNotifications({ enabled: isAdmin, retry: false })
+  } = useScheduledNotifications({ enabled: isAdmin, retry: false, sessionToken })
   const sendManualMutation = useSendManualNotification()
   const scheduleMutation = useScheduleNotification()
   const updateMutation = useUpdateScheduledNotification()
@@ -408,7 +421,7 @@ function NotificationAdminPage({ user }) {
 
     if (formState.scheduleType === 'now' && !editingId) {
       sendManualMutation.mutate(
-        { userId: adminId, payload },
+        { userId: adminId, payload, sessionToken },
         {
           onSuccess: () => {
             setFeedback('Melding succesvol verstuurd.')
@@ -446,7 +459,7 @@ function NotificationAdminPage({ user }) {
 
     if (editingId) {
       updateMutation.mutate(
-        { notificationId: editingId, payload: schedulePayload },
+        { notificationId: editingId, payload: schedulePayload, sessionToken },
         {
           onSuccess: () => {
             setFeedback('Geplande melding bijgewerkt.')
@@ -458,15 +471,18 @@ function NotificationAdminPage({ user }) {
         }
       )
     } else {
-      scheduleMutation.mutate(schedulePayload, {
-        onSuccess: () => {
-          setFeedback('Melding ingepland.')
-          resetForm()
-        },
-        onError: (error) => {
-          setFeedback(error.message || 'Inplannen is mislukt.')
+      scheduleMutation.mutate(
+        { payload: schedulePayload, sessionToken },
+        {
+          onSuccess: () => {
+            setFeedback('Melding ingepland.')
+            resetForm()
+          },
+          onError: (error) => {
+            setFeedback(error.message || 'Inplannen is mislukt.')
+          }
         }
-      })
+      )
     }
   }
 
@@ -497,7 +513,7 @@ function NotificationAdminPage({ user }) {
     const confirmed = window.confirm(`Weet je zeker dat je "${scheduled.title}" wilt annuleren?`)
     if (!confirmed) return
 
-    cancelMutation.mutate(scheduled.id, {
+    cancelMutation.mutate({ notificationId: scheduled.id, sessionToken }, {
       onSuccess: () => {
         setFeedback('Geplande melding geannuleerd.')
         if (editingId === scheduled.id) {

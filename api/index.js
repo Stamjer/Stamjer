@@ -426,6 +426,8 @@ let events = []
 let pushSubscriptions = []
 let notifications = []
 let scheduledNotifications = []
+let lastEventsLoadedAt = 0
+let lastNotificationsLoadedAt = 0
 // Remove in-memory pendingReset as we'll use MongoDB
 // const pendingReset = {}
 
@@ -459,6 +461,7 @@ async function loadEvents() {
       participants: sanitizeIdArray(event.participants)
     }))
   infoLog(`Loaded ${events.length} events from MongoDB`)
+  lastEventsLoadedAt = Date.now()
 }
 
 async function loadPushSubscriptions() {
@@ -495,6 +498,7 @@ async function loadNotifications() {
     )
   }
   infoLog(`[notifications] Loaded ${notifications.length} notifications from MongoDB`)
+  lastNotificationsLoadedAt = Date.now()
 }
 
 async function loadScheduledNotifications() {
@@ -504,6 +508,20 @@ async function loadScheduledNotifications() {
     .project({ _id: 0 })
     .toArray()
   infoLog(`[notifications] Loaded ${scheduledNotifications.length} scheduled notifications from MongoDB`)
+}
+
+async function ensureEventsFresh(maxAgeMs = 2000) {
+  const now = Date.now()
+  if (now - lastEventsLoadedAt > maxAgeMs || events.length === 0) {
+    await loadEvents()
+  }
+}
+
+async function ensureNotificationsFresh(maxAgeMs = 2000) {
+  const now = Date.now()
+  if (now - lastNotificationsLoadedAt > maxAgeMs || notifications.length === 0) {
+    await loadNotifications()
+  }
 }
 
 function sanitizeUserId(userId) {
@@ -1468,7 +1486,8 @@ async function createNotificationsForUsers({
 
   await db.collection('notifications').insertMany(docs)
 
-  notifications.push(...docs.map(({ _id, ...rest }) => rest))
+  notifications.push(...docs.map(({ _id, ...rest }) => normalizeNotificationRecord(rest)).filter(Boolean))
+  lastNotificationsLoadedAt = Date.now()
 
   await Promise.all(allowedUserIds.map((uid) => pruneNotificationsForUser(uid)))
 
@@ -3113,11 +3132,13 @@ apiRouter.get('/user/profile', (req, res) => {
 })
 
 // Evenementen ophalen
-apiRouter.get('/events', (req, res) => {
+apiRouter.get('/events', async (req, res) => {
+  await ensureEventsFresh()
   res.json({ events })
 })
 
-apiRouter.get('/events/opkomsten', (req, res) => {
+apiRouter.get('/events/opkomsten', async (req, res) => {
+  await ensureEventsFresh()
   res.json({ events: events.filter(e => e.isOpkomst) })
 })
 
@@ -3185,6 +3206,7 @@ apiRouter.post('/events', async (req, res) => {
 
     events.push(newEv)
     await saveEvent(newEv)
+    await ensureEventsFresh(0)
     res.json(newEv)
   } catch (err) {
     console.error(err)
@@ -3221,6 +3243,7 @@ apiRouter.put('/events/:id', async (req, res) => {
 
     events[idx] = updated
     await saveEvent(updated)
+    await ensureEventsFresh(0)
     res.json(updated)
   } catch (err) {
     console.error(err)
@@ -3237,6 +3260,7 @@ apiRouter.delete('/events/:id', async (req, res) => {
     if (idx < 0) return res.status(404).json({ msg: 'Niet gevonden' })
     const [removed] = events.splice(idx, 1)
     await deleteEventById(id)
+    await ensureEventsFresh(0)
     res.json({ msg: 'Evenement verwijderd', event: removed })
   } catch (err) {
     console.error(err)
@@ -3355,9 +3379,10 @@ apiRouter.post('/push/unsubscribe', async (req, res) => {
   }
 })
 
-apiRouter.get('/notifications', (req, res) => {
+apiRouter.get('/notifications', async (req, res) => {
   const auth = requireAuthenticatedUser(req, res)
   if (!auth) return
+  await ensureNotificationsFresh()
   const { limit = '50' } = req.query
   const normalizedUserId = auth.userId
 

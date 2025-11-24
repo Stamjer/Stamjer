@@ -614,8 +614,8 @@ export function useSendManualNotification(options = {}) {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ userId, payload }) =>
-      api.sendManualNotification(userId, payload),
+    mutationFn: async ({ userId, payload, sessionToken }) =>
+      api.sendManualNotification(userId, payload, sessionToken),
     onSuccess: (_data, variables) => {
       const userId = variables?.payload?.userId || variables?.userId
       if (userId) {
@@ -627,12 +627,13 @@ export function useSendManualNotification(options = {}) {
 }
 
 export function useScheduledNotifications(options = {}) {
+  const { sessionToken, ...rest } = options
   return useQuery({
     queryKey: queryKeys.notifications.scheduled(),
-    queryFn: api.getScheduledNotifications,
+    queryFn: () => api.getScheduledNotifications(sessionToken),
     staleTime: 60 * 1000,
     refetchInterval: 60 * 1000,
-    ...options
+    ...rest
   })
 }
 
@@ -640,7 +641,7 @@ export function useScheduleNotification(options = {}) {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (payload) => api.scheduleNotification(payload),
+    mutationFn: async ({ payload, sessionToken }) => api.scheduleNotification(payload, sessionToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.notifications.scheduled() })
     },
@@ -652,8 +653,8 @@ export function useUpdateScheduledNotification(options = {}) {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ notificationId, payload }) =>
-      api.updateScheduledNotification(notificationId, payload),
+    mutationFn: async ({ notificationId, payload, sessionToken }) =>
+      api.updateScheduledNotification(notificationId, payload, sessionToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.notifications.scheduled() })
     },
@@ -665,8 +666,8 @@ export function useCancelScheduledNotification(options = {}) {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (notificationId) =>
-      api.cancelScheduledNotification(notificationId),
+    mutationFn: async ({ notificationId, sessionToken }) =>
+      api.cancelScheduledNotification(notificationId, sessionToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.notifications.scheduled() })
     },
