@@ -1509,71 +1509,71 @@ async function processScheduledNotifications(referenceDate = new Date()) {
 
       const eventTitle = event.title || 'Opkomst'
 
-      if (event.isOpkomst) {
-        if (diff === 4) {
-          const makerIds = resolveOpkomstMakerIds(event)
-          if (makerIds.length > 0) {
-            const docs = await createNotificationsForUsers({
-              title: `Voorbereiding opkomst: ${eventTitle}`,
-              message: `Nog vier dagen tot "${eventTitle}". Stem de voorbereidingen af en zorg dat alles klaar is.`,
-              userIds: makerIds,
-              type: 'opkomst-makers-reminder',
-              eventId: event.id,
-              url: buildEventUrl(event.id),
-              metadata: {
-                schedule: 'four-days-before',
-                eventDateKey
-              }
-            })
-            if (docs.length > 0) {
-              createdNotifications.push(docs)
-            }
-          }
-        }
+      // if (event.isOpkomst) {
+      //   if (diff === 4) {
+      //     const makerIds = resolveOpkomstMakerIds(event)
+      //     if (makerIds.length > 0) {
+      //       const docs = await createNotificationsForUsers({
+      //         title: `Voorbereiding opkomst: ${eventTitle}`,
+      //         message: `Nog vier dagen tot "${eventTitle}". Stem de voorbereidingen af en zorg dat alles klaar is.`,
+      //         userIds: makerIds,
+      //         type: 'opkomst-makers-reminder',
+      //         eventId: event.id,
+      //         url: buildEventUrl(event.id),
+      //         metadata: {
+      //           schedule: 'four-days-before',
+      //           eventDateKey
+      //         }
+      //       })
+      //       if (docs.length > 0) {
+      //         createdNotifications.push(docs)
+      //       }
+      //     }
+      //   }
 
-        if (diff === 1) {
-          const participantIds = resolveEventParticipantIds(event)
-          if (participantIds.length > 0) {
-            const docs = await createNotificationsForUsers({
-              title: `Opkomst morgen: ${eventTitle}`,
-              message: 'Herinnering: controleer je aanwezigheid en laatste voorbereidingen voor de opkomst van morgen.',
-              userIds: participantIds,
-              type: 'opkomst-attendance-reminder',
-              eventId: event.id,
-              url: buildEventUrl(event.id),
-              metadata: {
-                schedule: 'one-day-before',
-                eventDateKey
-              }
-            })
-            if (docs.length > 0) {
-              createdNotifications.push(docs)
-            }
-          }
-        }
-      }
+      //   if (diff === 1) {
+      //     const participantIds = resolveEventParticipantIds(event)
+      //     if (participantIds.length > 0) {
+      //       const docs = await createNotificationsForUsers({
+      //         title: `Opkomst morgen: ${eventTitle}`,
+      //         message: 'Herinnering: controleer je aanwezigheid en laatste voorbereidingen voor de opkomst van morgen.',
+      //         userIds: participantIds,
+      //         type: 'opkomst-attendance-reminder',
+      //         eventId: event.id,
+      //         url: buildEventUrl(event.id),
+      //         metadata: {
+      //           schedule: 'one-day-before',
+      //           eventDateKey
+      //         }
+      //       })
+      //       if (docs.length > 0) {
+      //         createdNotifications.push(docs)
+      //       }
+      //     }
+      //   }
+      // }
 
-      if (event.isSchoonmaak && diff === 6) {
-        const cleanerIds = resolveSchoonmakerIds(event)
-        if (cleanerIds.length > 0) {
-          const friendlyDate = formatFriendlyDate(event.start)
-          const docs = await createNotificationsForUsers({
-            title: `Schoonmaak reminder: ${eventTitle}`,
-            message: `Je bent ingepland voor schoonmaak op ${friendlyDate}. Plan het moment en zorg dat het uiterlijk vrijdag is geregeld.`,
-            userIds: cleanerIds,
-            type: 'schoonmaak-reminder',
-            eventId: event.id,
-            url: buildEventUrl(event.id),
-            metadata: {
-              schedule: 'six-days-before',
-              eventDateKey
-            }
-          })
-          if (docs.length > 0) {
-            createdNotifications.push(docs)
-          }
-        }
-      }
+      // if (event.isSchoonmaak && diff === 6) {
+      //   const cleanerIds = resolveSchoonmakerIds(event)
+      //   if (cleanerIds.length > 0) {
+      //     const friendlyDate = formatFriendlyDate(event.start)
+      //     const docs = await createNotificationsForUsers({
+      //       title: `Schoonmaak reminder: ${eventTitle}`,
+      //       message: `Je bent ingepland voor schoonmaak op ${friendlyDate}. Plan het moment en zorg dat het uiterlijk vrijdag is geregeld.`,
+      //       userIds: cleanerIds,
+      //       type: 'schoonmaak-reminder',
+      //       eventId: event.id,
+      //       url: buildEventUrl(event.id),
+      //       metadata: {
+      //         schedule: 'six-days-before',
+      //         eventDateKey
+      //       }
+      //     })
+      //     if (docs.length > 0) {
+      //       createdNotifications.push(docs)
+      //     }
+      //   }
+      // }
     }
 
     return createdNotifications.flat()

@@ -89,8 +89,6 @@ export default function Login({ setUser }) {
       // Store user data locally so login persists
       localStorage.setItem('user', JSON.stringify(data.user))
       localStorage.setItem('rememberMe', 'true')
-      // Keep sessionStorage in sync for existing flows
-      sessionStorage.setItem('user', JSON.stringify(data.user))
       
       setUser(data.user)
       

@@ -5,12 +5,10 @@ import {
   changePassword,
   updateUserProfile,
   getEvents,
-  subscribePush,
-  getPushPublicKey,
-  unsubscribePush,
   getUserProfile
 } from '../services/api'
 import { invalidateEvents, invalidateUsers } from '../lib/queryClient'
+import { enablePushForUser, disablePushForUser, getPushCapability } from '../lib/pushClient'
 import CalendarSubscription from '../components/CalendarSubscription'
 import LocationLink from '../components/LocationLink'
 import ToggleSwitch from '../components/ToggleSwitch'
@@ -46,19 +44,6 @@ function normalizeNotificationSettings(settings = {}) {
     push: Boolean(settings.push),
     email: Boolean(settings.email)
   }
-}
-
-function urlBase64ToUint8Array(base64String) {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
-  const rawData = atob(base64)
-  const outputArray = new Uint8Array(rawData.length)
-
-  for (let index = 0; index < rawData.length; index += 1) {
-    outputArray[index] = rawData.charCodeAt(index)
-  }
-
-  return outputArray
 }
 
 function normalizeValue(value = '') {
@@ -180,25 +165,13 @@ export default function MyAccount({ user: userProp, onLogout }) {
   const [notificationSettings, setNotificationSettings] = useState(DEFAULT_NOTIFICATION_SETTINGS)
   const [notificationSettingsStatus, setNotificationSettingsStatus] = useState(null)
   const [isSavingNotificationSettings, setIsSavingNotificationSettings] = useState(false)
-  const pushSupported = useMemo(
-    () =>
-      typeof window !== 'undefined' &&
-      'serviceWorker' in navigator &&
-      'PushManager' in window &&
-      'Notification' in window,
-    []
-  )
-
   let user = userProp
   if (!user) {
     try {
-      const fromSession = sessionStorage.getItem('user')
-      const fromLocal = localStorage.getItem('user')
-      const raw = fromSession || fromLocal
+      const raw = localStorage.getItem('user')
       if (raw) user = JSON.parse(raw)
     } catch {
       localStorage.removeItem('user')
-      sessionStorage.removeItem('user')
     }
   }
 
@@ -272,7 +245,6 @@ export default function MyAccount({ user: userProp, onLogout }) {
         if (!freshUser) return
         const mergedUser = { ...user, ...freshUser, password: undefined }
         localStorage.setItem('user', JSON.stringify(mergedUser))
-        sessionStorage.setItem('user', JSON.stringify(mergedUser))
         if (!cancelled) {
           setNotificationSettings((prev) =>
             normalizeNotificationSettings(freshUser.notificationPreferences || prev)
@@ -544,7 +516,6 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
 
       const updatedUser = { ...user, active: newActiveStatus }
       localStorage.setItem('user', JSON.stringify(updatedUser))
-      sessionStorage.setItem('user', JSON.stringify(updatedUser))
 
       const attendanceUpdates = Number.isFinite(response?.attendanceUpdates) ? response.attendanceUpdates : 0
       const attendanceMessage =
@@ -578,31 +549,12 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
           notificationPreferences: normalized
         }
         localStorage.setItem('user', JSON.stringify(updatedUser))
-        sessionStorage.setItem('user', JSON.stringify(updatedUser))
       }
 
       return normalized
     },
     [user]
   )
-
-  const ensureServiceWorkerRegistration = useCallback(async () => {
-    if (!navigator?.serviceWorker) {
-      throw new Error('Service worker niet beschikbaar in deze browser.')
-    }
-
-    const existing = await navigator.serviceWorker.getRegistration()
-    if (existing) {
-      return existing.active ? existing : navigator.serviceWorker.ready
-    }
-
-    const devEnabled = import.meta.env.DEV && import.meta.env.VITE_ENABLE_PWA_DEV === 'true'
-    if (import.meta.env.DEV && !devEnabled) {
-      throw new Error('Pushmeldingen testen? Zet VITE_ENABLE_PWA_DEV=true en vernieuw de pagina.')
-    }
-
-    throw new Error('Service worker is nog niet actief. Vernieuw de pagina en probeer opnieuw.')
-  }, [])
 
   const handlePushPreferenceChange = async checked => {
     const previousSettings = notificationSettings
@@ -624,81 +576,36 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
 
     try {
       if (!checked) {
-        let unsubscribeFailed = false
-
-        if (pushSupported) {
-          try {
-            const registration = await navigator.serviceWorker.ready
-            const existingSubscription = await registration.pushManager.getSubscription()
-
-            if (existingSubscription) {
-              await unsubscribePush(existingSubscription.endpoint)
-              await existingSubscription.unsubscribe()
-            }
-          } catch (unsubscribeError) {
-            console.warn('MyAccount - Unable to unsubscribe push:', unsubscribeError)
-            unsubscribeFailed = true
-          }
-        }
-
-        if (unsubscribeFailed) {
-          const fallbackSettings = normalizeNotificationSettings(previousSettings)
-          setNotificationSettings(fallbackSettings)
-          localStorage.setItem('notificationSettings', JSON.stringify(fallbackSettings))
-          setNotificationSettingsStatus({
-            type: 'error',
-            message: 'Pushmeldingen konden niet worden uitgeschakeld. Probeer het opnieuw.'
-          })
-          return
-        }
-
-        try {
-          await persistNotificationPreferences(nextSettings)
-          setNotificationSettingsStatus({ type: 'success', message: 'Pushmeldingen uitgeschakeld.' })
-        } catch (persistError) {
-          console.error('MyAccount - Failed to persist push preference:', persistError)
-          setNotificationSettingsStatus({
-            type: 'error',
-            message: 'Pushmeldingen zijn uitgeschakeld, maar synchroniseren met de server lukte niet.'
-          })
-        }
+        await disablePushForUser()
+        await persistNotificationPreferences(nextSettings)
+        setNotificationSettingsStatus({ type: 'success', message: 'Pushmeldingen uitgeschakeld.' })
         return
       }
 
-      if (!pushSupported) {
-        throw new Error('Deze browser ondersteunt geen pushmeldingen. Download Stamjer als PWA om deze functie te gebruiken. Vraag aan een admin als je niet weet hoe dit moet.')
+      const capability = getPushCapability()
+      if (!capability.supported) {
+        throw new Error('Pushmeldingen worden niet ondersteund op dit apparaat.')
       }
 
-      const permission = await Notification.requestPermission()
-      if (permission !== 'granted') {
-        throw new Error('Je hebt geen toestemming gegeven voor pushmeldingen.')
+      const enableResult = await enablePushForUser(user.id)
+
+      if (enableResult.status === 'blocked') {
+        const fallbackSettings = normalizeNotificationSettings({ ...previousSettings, push: false })
+        setNotificationSettings(fallbackSettings)
+        await persistNotificationPreferences(fallbackSettings)
+        setNotificationSettingsStatus({
+          type: 'error',
+          message: enableResult.message || 'Pushmeldingen zijn geblokkeerd in je browserinstellingen.'
+        })
+        return
       }
-
-      const registration = await ensureServiceWorkerRegistration()
-      const readyRegistration = registration.active ? registration : await navigator.serviceWorker.ready
-      const { vapidPublicKey, publicKey } = await getPushPublicKey()
-      const key = vapidPublicKey || publicKey
-
-      if (!key) {
-        throw new Error('Publieke sleutel ontbreekt voor pushmeldingen.')
-      }
-
-      const existingSubscription = await readyRegistration.pushManager.getSubscription()
-      if (existingSubscription) {
-        await unsubscribePush(existingSubscription.endpoint)
-        await existingSubscription.unsubscribe()
-      }
-
-      const subscription = await readyRegistration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(key)
-      })
-
-      await subscribePush(user.id, subscription.toJSON())
 
       try {
         await persistNotificationPreferences(nextSettings)
-        setNotificationSettingsStatus({ type: 'success', message: 'Pushmeldingen zijn ingeschakeld.' })
+        setNotificationSettingsStatus({
+          type: 'success',
+          message: enableResult.message || 'Pushmeldingen zijn ingeschakeld.'
+        })
       } catch (persistError) {
         console.error('MyAccount - Failed to persist push preference:', persistError)
         setNotificationSettingsStatus({

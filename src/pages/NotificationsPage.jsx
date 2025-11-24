@@ -5,8 +5,8 @@ import {
   useMarkNotificationsRead,
   useMarkAllNotificationsRead
 } from '../hooks/useQueries'
-import { subscribePush, getPushPublicKey } from '../services/api'
 import { formatNotificationMessageMarkup } from '../lib/formatNotificationMessage'
+import { enablePushForUser, getPushCapability, getPushSubscriptionStatus } from '../lib/pushClient'
 import './NotificationPage.css'
 
 const NOTIFICATION_TYPE_LABELS = {
@@ -71,19 +71,6 @@ function formatRelativeTime(isoString) {
   return RELATIVE_TIME_FORMATTER.format(value, unit)
 }
 
-function urlBase64ToUint8Array(base64String) {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
-  const rawData = atob(base64)
-  const outputArray = new Uint8Array(rawData.length)
-
-  for (let index = 0; index < rawData.length; index += 1) {
-    outputArray[index] = rawData.charCodeAt(index)
-  }
-
-  return outputArray
-}
-
 function coerceClientUrl(target) {
   try {
     const normalized = new URL(target, window.location.origin)
@@ -123,51 +110,33 @@ function NotificationsPage({ user }) {
   const pushServerEnabled = Boolean(notificationsData.push?.enabled)
   const accountPushPreferred = Boolean(user?.notificationPreferences?.push)
 
-  const pushSupported = useMemo(() => (
-    typeof window !== 'undefined' &&
-    'serviceWorker' in navigator &&
-    'PushManager' in window &&
-    'Notification' in window
-  ), [])
+  const pushSupported = useMemo(() => getPushCapability().supported, [])
 
-  const canEnablePush = pushSupported && pushServerEnabled && subscriptionStatus !== 'subscribed'
+  const canEnablePush =
+    pushSupported &&
+    pushServerEnabled &&
+    subscriptionStatus !== 'subscribed' &&
+    subscriptionStatus !== 'blocked'
 
   useEffect(() => {
-    if (!hasUser || !pushSupported) {
-      setSubscriptionStatus(pushSupported ? 'disabled' : 'unsupported')
+    if (!hasUser) {
+      setSubscriptionStatus('disabled')
       return
     }
 
     let isMounted = true
 
     const detectSubscription = async () => {
-      try {
-        const registration = await navigator.serviceWorker.ready
-        const activeSubscription = await registration.pushManager.getSubscription()
-        if (!isMounted) return
-
-        if (activeSubscription) {
-          setSubscriptionStatus('subscribed')
-        } else if (Notification.permission === 'denied') {
-          setSubscriptionStatus('denied')
-        } else if (Notification.permission === 'granted') {
-          setSubscriptionStatus('granted')
-        } else {
-          setSubscriptionStatus('default')
-        }
-      } catch (error) {
-        console.warn('[notifications] Kan push-status niet bepalen:', error)
-        if (isMounted) {
-          setSubscriptionStatus(Notification.permission === 'denied' ? 'denied' : 'unknown')
-        }
-      }
+      const status = await getPushSubscriptionStatus()
+      if (!isMounted) return
+      setSubscriptionStatus(status.status)
     }
 
     detectSubscription()
     return () => {
       isMounted = false
     }
-  }, [hasUser, pushSupported])
+  }, [hasUser])
 
   useEffect(() => {
     if (!navigator?.serviceWorker) return undefined
@@ -255,55 +224,43 @@ function NotificationsPage({ user }) {
   }
 
   const handleEnablePush = async () => {
-    if (!pushSupported || !hasUser) return
+    if (!hasUser) return
 
-    const ensureServiceWorkerRegistration = async () => {
-      if (!navigator?.serviceWorker) {
-        throw new Error('Service worker niet beschikbaar in deze browser.')
-      }
-
-      const existing = await navigator.serviceWorker.getRegistration()
-      if (existing) return existing
-
-      const devEnabled = import.meta.env.DEV && import.meta.env.VITE_ENABLE_PWA_DEV === 'true'
-      if (import.meta.env.DEV && !devEnabled) {
-        throw new Error('Service worker staat uit in ontwikkelmodus. Zet VITE_ENABLE_PWA_DEV=true en ververs de pagina om push te testen.')
-      }
-
-      throw new Error('Service worker nog niet actief. Vernieuw de pagina nadat je VITE_ENABLE_PWA_DEV=true hebt gezet.')
+    const capability = getPushCapability()
+    if (!capability.supported) {
+      setSubscriptionStatus('unsupported')
+      setStatusMessage('Deze browser ondersteunt geen pushmeldingen.')
+      return
+    }
+    if (!capability.online) {
+      setSubscriptionStatus('offline')
+      setStatusMessage('Geen internet. Pushmeldingen worden geactiveerd zodra je online bent.')
+      return
     }
 
     try {
       setIsSubscribing(true)
       setStatusMessage('Pushmeldingen worden ingeschakeld...')
-      const permission = await Notification.requestPermission()
-      if (permission !== 'granted') {
-        setSubscriptionStatus(permission)
-        setStatusMessage('Je moet toestemming geven om pushmeldingen te ontvangen.')
+      const result = await enablePushForUser(user.id)
+
+      if (result.status === 'blocked') {
+        setSubscriptionStatus('blocked')
+        setStatusMessage(result.message || 'Pushmeldingen zijn geblokkeerd in je browserinstellingen.')
         return
       }
 
-      const registration = await ensureServiceWorkerRegistration()
-      const readyRegistration = registration.active ? registration : await navigator.serviceWorker.ready
-      const { vapidPublicKey, publicKey, enabled = true } = await getPushPublicKey()
-      const key = vapidPublicKey || publicKey
-
-      if (!enabled || !key) {
-        throw new Error('Pushmeldingen zijn niet geconfigureerd. Probeer het later opnieuw of neem contact op met een admin.')
+      if (result.status === 'unsupported') {
+        setSubscriptionStatus('unsupported')
+        setStatusMessage(result.message || 'Pushmeldingen worden niet ondersteund op dit apparaat.')
+        return
       }
 
-      const subscription = await readyRegistration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(key)
-      })
-
-      await subscribePush(user.id, subscription.toJSON())
-
-      setStatusMessage('Pushmeldingen zijn geactiveerd.')
+      setStatusMessage(result.message || 'Pushmeldingen zijn ingeschakeld.')
       setSubscriptionStatus('subscribed')
       refetch()
     } catch (error) {
       console.error('[notifications] Push instellen mislukt:', error)
+      setSubscriptionStatus('error')
       setStatusMessage(error?.message || 'Pushmeldingen inschakelen is mislukt. Probeer het later opnieuw.')
     } finally {
       setIsSubscribing(false)
@@ -324,20 +281,24 @@ function NotificationsPage({ user }) {
       )
     }
 
+    if (subscriptionStatus === 'blocked') {
+      return <p className="notification-status error">Pushmeldingen zijn door de browser geblokkeerd. Pas de instellingen aan om ze te activeren.</p>
+    }
+
+    if (subscriptionStatus === 'offline') {
+      return <p className="notification-status">Geen internet. We proberen pushmeldingen te activeren zodra je online bent.</p>
+    }
+
+    if (subscriptionStatus === 'subscribed') {
+      return <p className="notification-status success">Pushmeldingen zijn actief op dit toestel.</p>
+    }
+
     if (accountPushPreferred && subscriptionStatus !== 'subscribed') {
       return (
         <p className="notification-status">
           Pushmeldingen staan aan voor je account. Activeer ze op dit toestel met de knop hieronder.
         </p>
       )
-    }
-
-    if (subscriptionStatus === 'denied') {
-      return <p className="notification-status error">Pushmeldingen zijn door de browser geblokkeerd. Pas de instellingen aan om ze te activeren.</p>
-    }
-
-    if (subscriptionStatus === 'subscribed') {
-      return <p className="notification-status success"></p>
     }
 
     return null
@@ -388,7 +349,7 @@ function NotificationsPage({ user }) {
               type="button"
               className="btn btn-primary notification-enable-btn"
               onClick={handleEnablePush}
-              disabled={isSubscribing}
+              disabled={isSubscribing || subscriptionStatus === 'offline'}
             >
               {isSubscribing ? 'Bezig...' : 'Pushmeldingen inschakelen'}
             </button>

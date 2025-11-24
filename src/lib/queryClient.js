@@ -26,11 +26,11 @@ import { QueryClient } from '@tanstack/react-query'
 
 const defaultQueryOptions = {
   queries: {
-    // Cache for 5 minutes before considering stale
-    staleTime: 5 * 60 * 1000,
+    // Always treat server data as source of truth
+    staleTime: 0,
     
-    // Keep in cache for 10 minutes after component unmount
-    gcTime: 10 * 60 * 1000,
+    // Keep cache modestly long-lived but always refetch on view
+    gcTime: 5 * 60 * 1000,
     
     // Retry failed queries twice with exponential backoff
     retry: 2,
@@ -38,10 +38,10 @@ const defaultQueryOptions = {
     // Exponential backoff capped at 10s
     retryDelay: (attempt) => Math.min(1000 * (2 ** attempt), 10000),
     
-    // Optimize refetch behavior for performance
-    refetchOnWindowFocus: false, // Prevent unnecessary refetches
-    refetchOnReconnect: true,    // Only refetch on reconnect
-    refetchOnMount: false,        // Don't refetch on every mount
+    // Always refresh when user views a page
+    refetchOnWindowFocus: 'always',
+    refetchOnReconnect: true,
+    refetchOnMount: 'always',
     
     // Network mode for better offline handling
     networkMode: 'online',

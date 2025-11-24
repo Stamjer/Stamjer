@@ -1,6 +1,6 @@
 {
   "name": "stamjer",
-  "version": "1.9.1",
+  "version": "1.9.2",
   "description": "Een React + Vite kalender applicatie met gebruikersauthenticatie en evenementbeheer",
   "private": true,
   "type": "module",

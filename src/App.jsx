@@ -29,9 +29,11 @@ import { AppErrorBoundary, PageErrorBoundary, setupGlobalErrorHandling } from '.
 import { ToastProvider } from './hooks/useToast'
 import { CalendarIcon, ClipboardIcon, EuroIcon, TrophyIcon, UserIcon, LoginIcon, NotificationIcon } from './components/icons'
 import NotificationCenter from './components/notifications/NotificationCenter'
+import PullToRefresh from './components/PullToRefresh'
 
 // Query client configuration
 import { queryClient } from './lib/queryClient'
+import { performHardReset } from './lib/hardReset'
 
 // Import styles
 import './styles/shared.css'
@@ -263,6 +265,10 @@ function App() {
     }
   }, [])
 
+  const handleHardReset = useCallback(() => {
+    performHardReset()
+  }, [])
+
   useEffect(() => {
     setIsMobileMenuOpen(false)
   }, [location.pathname])
@@ -437,6 +443,7 @@ function App() {
           }}
         >
         <div className="app-container">
+          <PullToRefresh onRefresh={handleHardReset} />
           <a href="#main" className="skip-link">Ga naar hoofdinhoud</a>
           {/* Conditional Navigation Bar */}
           {!shouldHideNavigation && (

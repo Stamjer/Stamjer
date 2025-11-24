@@ -17,16 +17,12 @@ function resolveStoredUser(fallbackUser) {
   }
 
   try {
-    const serialized =
-      sessionStorage.getItem('user') ||
-      localStorage.getItem('user')
-
+    const serialized = localStorage.getItem('user')
     if (serialized) {
       return JSON.parse(serialized)
     }
   } catch {
     localStorage.removeItem('user')
-    sessionStorage.removeItem('user')
   }
 
   return null

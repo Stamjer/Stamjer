@@ -41,10 +41,8 @@ const JSON_HEADERS = {
 function getStoredUser() {
   try {
     const rawLocal = typeof localStorage !== 'undefined' ? localStorage.getItem('user') : null
-    const rawSession = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('user') : null
-    const raw = rawLocal || rawSession
-    if (!raw) return null
-    return JSON.parse(raw)
+    if (!rawLocal) return null
+    return JSON.parse(rawLocal)
   } catch {
     return null
   }
@@ -421,14 +419,19 @@ export async function subscribePush(userId, subscription, metadata = {}) {
   })
 }
 
-export async function unsubscribePush(endpoint) {
-  if (!endpoint) {
-    throw new Error('Endpoint is vereist om pushmeldingen uit te schrijven')
+export async function unsubscribePush(target) {
+  const { endpoint, deviceId } =
+    typeof target === 'string'
+      ? { endpoint: target }
+      : (target || {})
+
+  if (!endpoint && !deviceId) {
+    throw new Error('Endpoint of deviceId is vereist om pushmeldingen uit te schrijven')
   }
 
   return request('/push/unsubscribe', {
     method: 'POST',
-    body: { endpoint }
+    body: { endpoint, deviceId }
   })
 }
 
