@@ -2539,7 +2539,7 @@ function escapeHtml(value = '') {
 }
 
 function sanitizeIban(iban = '') {
-  return iban.replace(/\s+/g, '').toUpperCase()
+  return safeTrimmedString(iban, 64).replace(/\s+/g, '').toUpperCase()
 }
 
 function formatIban(iban = '') {
@@ -2601,6 +2601,100 @@ function sanitizeFileName(value = '') {
     .replace(/^-+|-+$/g, '')
     .replace(/-{2,}/g, '-')
     .slice(0, 60) || 'stamjer'
+}
+
+function safeTrimmedString(value, maxLength = 5000) {
+  if (value === null || value === undefined) {
+    return ''
+  }
+
+  const raw = typeof value === 'string' ? value : String(value)
+  return raw.trim().slice(0, maxLength)
+}
+
+const PAYMENT_ATTACHMENT_TYPES = new Set(['image/jpeg', 'image/png', 'application/pdf'])
+
+function detectAttachmentTypeFromBuffer(buffer) {
+  if (!buffer || buffer.length < 4) {
+    return ''
+  }
+
+  const isPdf =
+    buffer.length >= 5 &&
+    buffer[0] === 0x25 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x44 &&
+    buffer[3] === 0x46 &&
+    buffer[4] === 0x2d
+
+  if (isPdf) {
+    return 'application/pdf'
+  }
+
+  const isPng =
+    buffer.length >= 8 &&
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47 &&
+    buffer[4] === 0x0d &&
+    buffer[5] === 0x0a &&
+    buffer[6] === 0x1a &&
+    buffer[7] === 0x0a
+
+  if (isPng) {
+    return 'image/png'
+  }
+
+  const isJpg =
+    buffer.length >= 3 &&
+    buffer[0] === 0xff &&
+    buffer[1] === 0xd8 &&
+    buffer[2] === 0xff
+
+  if (isJpg) {
+    return 'image/jpeg'
+  }
+
+  return ''
+}
+
+function resolveAttachmentType(declaredType, fileName, buffer) {
+  const normalizedDeclaredType = safeTrimmedString(declaredType, 120).toLowerCase()
+  if (normalizedDeclaredType === 'image/jpg') {
+    return 'image/jpeg'
+  }
+  if (PAYMENT_ATTACHMENT_TYPES.has(normalizedDeclaredType)) {
+    return normalizedDeclaredType
+  }
+
+  const detectedType = detectAttachmentTypeFromBuffer(buffer)
+  if (PAYMENT_ATTACHMENT_TYPES.has(detectedType)) {
+    return detectedType
+  }
+
+  const extension = safeTrimmedString(fileName, 120).toLowerCase().split('.').pop() || ''
+  if (extension === 'jpg' || extension === 'jpeg') {
+    return 'image/jpeg'
+  }
+  if (extension === 'png') {
+    return 'image/png'
+  }
+  if (extension === 'pdf') {
+    return 'application/pdf'
+  }
+
+  return ''
+}
+
+function buildReplyTo(name, email) {
+  const safeEmail = safeTrimmedString(email, 254).toLowerCase()
+  if (!safeEmail || !validator.isEmail(safeEmail)) {
+    return undefined
+  }
+
+  const safeName = safeTrimmedString(name, 120).replace(/[\r\n]+/g, ' ')
+  return safeName ? `${safeName} <${safeEmail}>` : safeEmail
 }
 
 async function buildPaymentRequestPdf(request, attachments = []) {
@@ -2782,6 +2876,7 @@ async function buildPaymentRequestPdf(request, attachments = []) {
   const summaryRows = [
     ['Naam', request.requesterName || 'Onbekend'],
     ['E-mailadres', request.requesterEmail || '-'],
+    ['Betaald aan', request.paidTo || '-'],
     ['Datum uitgave', formatDateDisplay(request.expenseDate)],
     ['Onderwerp', request.expenseTitle || '-'],
     ['Bedrag', formatCurrency(request.amount)],
@@ -2857,10 +2952,28 @@ async function buildPaymentRequestPdf(request, attachments = []) {
     const { width: pageWidth, height: pageHeight } = attachmentPage.getSize()
 
     let embeddedImage
-    if (attachment.type === 'image/png') {
-      embeddedImage = await pdfDoc.embedPng(attachment.buffer)
-    } else {
-      embeddedImage = await pdfDoc.embedJpg(attachment.buffer)
+    try {
+      if (attachment.type === 'image/png') {
+        embeddedImage = await pdfDoc.embedPng(attachment.buffer)
+      } else {
+        embeddedImage = await pdfDoc.embedJpg(attachment.buffer)
+      }
+    } catch {
+      attachmentPage.drawText(`Bijlage ${i + 1}: ${attachment.name}`, {
+        x: leftMargin,
+        y: pageHeight - topMargin,
+        size: 14,
+        font: fontBold,
+        color: headingColor
+      })
+      attachmentPage.drawText('Deze afbeelding kon niet als preview in de PDF worden opgenomen.', {
+        x: leftMargin,
+        y: pageHeight - topMargin - 24,
+        size: 11,
+        font: fontRegular,
+        color: textColor
+      })
+      continue
     }
 
     const maxImageWidth = pageWidth - 2 * leftMargin
@@ -3831,6 +3944,7 @@ apiRouter.post('/payment-requests', async (req, res) => {
       requesterName = '',
       requesterEmail = '',
       expenseTitle = '',
+      paidTo = '',
       expenseDate,
       amount,
       description = '',
@@ -3842,16 +3956,20 @@ apiRouter.post('/payment-requests', async (req, res) => {
     } = req.body || {}
 
     const errors = []
-    const trimmedName = requesterName.trim()
-    const trimmedEmail = requesterEmail.trim().toLowerCase()
+    const trimmedName = safeTrimmedString(requesterName, 120)
+    const trimmedEmail = safeTrimmedString(requesterEmail, 254).toLowerCase()
     const normalizedPaymentMethod = paymentMethod === 'paymentLink' ? 'paymentLink' : 'iban'
-    const trimmedExpenseTitle = expenseTitle.trim()
-    const trimmedDescription = description.toString().trim()
-    const trimmedNotes = notes.toString().trim()
+    const trimmedExpenseTitle = safeTrimmedString(expenseTitle, 200)
+    const trimmedPaidTo = safeTrimmedString(paidTo, 200)
+    const trimmedDescription = safeTrimmedString(description, 6000)
+    const trimmedNotes = safeTrimmedString(notes, 3000)
     const sanitizedIban = normalizedPaymentMethod === 'iban' ? sanitizeIban(iban) : ''
-    const trimmedPaymentLink = normalizedPaymentMethod === 'paymentLink' ? paymentLink.trim() : ''
+    const trimmedPaymentLink = normalizedPaymentMethod === 'paymentLink' ? safeTrimmedString(paymentLink, 1024) : ''
     const submittedAt = new Date()
-    const amountNumber = Number.parseFloat(amount)
+    const normalizedAmount = typeof amount === 'string'
+      ? amount.replace(',', '.').trim()
+      : amount
+    const amountNumber = Number.parseFloat(normalizedAmount)
     const expenseDateValue = expenseDate ? new Date(expenseDate) : null
 
     if (!trimmedName) {
@@ -3864,6 +3982,10 @@ apiRouter.post('/payment-requests', async (req, res) => {
 
     if (!trimmedExpenseTitle) {
       errors.push('Omschrijf kort waarvoor je hebt betaald.')
+    }
+
+    if (!trimmedPaidTo) {
+      errors.push('Vul in aan wie je hebt betaald.')
     }
 
     if (!expenseDateValue || Number.isNaN(expenseDateValue.getTime())) {
@@ -3901,24 +4023,25 @@ apiRouter.post('/payment-requests', async (req, res) => {
 
     for (let i = 0; i < attachmentPayload.length; i++) {
       const attachment = attachmentPayload[i] || {}
-      const base64Content = String(attachment.content || '').trim()
-      const declaredType = String(attachment.type || '').toLowerCase()
-      const originalName = (attachment.name || `bijlage-${i + 1}`).toString()
-      const safeName = originalName.trim() || `bijlage-${i + 1}.dat`
+      const base64Content = safeTrimmedString(attachment.content, PAYMENT_REQUEST_TOTAL_SIZE_LIMIT * 3)
+      const declaredType = safeTrimmedString(attachment.type, 120).toLowerCase()
+      const originalName = safeTrimmedString(attachment.name || `bijlage-${i + 1}`, 180)
+      const safeName = originalName || `bijlage-${i + 1}.dat`
 
       if (!base64Content) {
         errors.push(`Bijlage ${i + 1} bevat geen gegevens.`)
         continue
       }
 
-      if (!['image/jpeg', 'image/png', 'application/pdf'].includes(declaredType)) {
-        errors.push(`Bestandstype van bijlage ${safeName} wordt niet ondersteund.`)
+      const compactBase64 = base64Content.replace(/\s+/g, '')
+      if (!/^[A-Za-z0-9+/]+={0,2}$/.test(compactBase64)) {
+        errors.push(`Bijlage ${safeName} bevat geen geldige bestandsdata.`)
         continue
       }
 
       let buffer
       try {
-        buffer = Buffer.from(base64Content, 'base64')
+        buffer = Buffer.from(compactBase64, 'base64')
       } catch {
         errors.push(`Bijlage ${safeName} kon niet worden gelezen.`)
         continue
@@ -3926,6 +4049,12 @@ apiRouter.post('/payment-requests', async (req, res) => {
 
       if (!buffer || !buffer.length) {
         errors.push(`Bijlage ${safeName} bevat een leeg bestand.`)
+        continue
+      }
+
+      const normalizedType = resolveAttachmentType(declaredType, safeName, buffer)
+      if (!normalizedType) {
+        errors.push(`Bestandstype van bijlage ${safeName} wordt niet ondersteund.`)
         continue
       }
 
@@ -3939,7 +4068,7 @@ apiRouter.post('/payment-requests', async (req, res) => {
 
       sanitizedAttachments.push({
         name: safeName,
-        type: declaredType,
+        type: normalizedType,
         buffer
       })
     }
@@ -3953,8 +4082,9 @@ apiRouter.post('/payment-requests', async (req, res) => {
       return res.status(400).json({ msg: errors[0], errors })
     }
 
-    const matchedUser = Number.isInteger(Number.parseInt(userId, 10))
-      ? users.find((u) => u.id === Number.parseInt(userId, 10))
+    const matchedUserId = sanitizeUserId(userId)
+    const matchedUser = matchedUserId !== null
+      ? users.find((u) => u.id === matchedUserId)
       : null
 
     const mailer = await ensureMailerTransport()
@@ -3965,6 +4095,7 @@ apiRouter.post('/payment-requests', async (req, res) => {
     const pdfBuffer = await buildPaymentRequestPdf({
       requesterName: trimmedName,
       requesterEmail: trimmedEmail,
+      paidTo: trimmedPaidTo,
       expenseTitle: trimmedExpenseTitle,
       expenseDate: expenseDateValue,
       amount: amountNumber,
@@ -3980,7 +4111,8 @@ apiRouter.post('/payment-requests', async (req, res) => {
     const pdfFileName = `Declaratie-${sanitizeFileName(trimmedExpenseTitle || trimmedName)}-${submittedAt.toISOString().split('T')[0]}.pdf`
     const formattedAmount = formatCurrency(amountNumber)
     const formattedDate = formatDateDisplay(expenseDateValue)
-    const subject = `Declaratie: ${trimmedName} – ${formattedAmount}`
+    const subject = `Declaratie: ${trimmedName} - ${formattedAmount}`
+    const replyTo = buildReplyTo(trimmedName, trimmedEmail)
 
     const descriptionHtml = escapeHtml(trimmedDescription || 'Geen aanvullende omschrijving.').replace(/\r?\n/g, '<br />')
     const notesHtml = escapeHtml(trimmedNotes).replace(/\r?\n/g, '<br />')
@@ -4002,6 +4134,10 @@ apiRouter.post('/payment-requests', async (req, res) => {
             <td style="padding: 8px; border: 1px solid #e2e8f0;"><a href="mailto:${escapeHtml(trimmedEmail)}">${escapeHtml(trimmedEmail)}</a></td>
           </tr>
           <tr>
+            <td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: 600;">Betaald aan</td>
+            <td style="padding: 8px; border: 1px solid #e2e8f0;">${escapeHtml(trimmedPaidTo)}</td>
+          </tr>
+          <tr>
             <td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: 600;">Datum uitgave</td>
             <td style="padding: 8px; border: 1px solid #e2e8f0;">${escapeHtml(formattedDate)}</td>
           </tr>
@@ -4017,8 +4153,8 @@ apiRouter.post('/payment-requests', async (req, res) => {
             <td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: 600;">Betaalmethode</td>
             <td style="padding: 8px; border: 1px solid #e2e8f0;">
               ${normalizedPaymentMethod === 'paymentLink'
-                ? `Betaallink${trimmedPaymentLink ? ` – <a href="${escapeHtml(trimmedPaymentLink)}" target="_blank" rel="noopener noreferrer">Open link</a>` : ''}`
-                : `IBAN – ${escapeHtml(formatIban(sanitizedIban))}`}
+                ? `Betaallink${trimmedPaymentLink ? ` - <a href="${escapeHtml(trimmedPaymentLink)}" target="_blank" rel="noopener noreferrer">Open link</a>` : ''}`
+                : `IBAN - ${escapeHtml(formatIban(sanitizedIban))}`}
             </td>
           </tr>
         </tbody>
@@ -4036,6 +4172,7 @@ apiRouter.post('/payment-requests', async (req, res) => {
       '',
       `Naam: ${trimmedName}`,
       `E-mail: ${trimmedEmail}`,
+      `Betaald aan: ${trimmedPaidTo}`,
       `Datum uitgave: ${formattedDate}`,
       `Onderwerp: ${trimmedExpenseTitle}`,
       `Bedrag: ${formattedAmount}`,
@@ -4052,7 +4189,7 @@ apiRouter.post('/payment-requests', async (req, res) => {
     const sendResult = await mailer.sendMail({
       from: process.env.SMTP_FROM || 'stamjer.mpd@gmail.com',
       to: PAYMENT_REQUEST_EMAIL,
-      replyTo: `${trimmedName} <${trimmedEmail}>`,
+      replyTo,
       subject,
       html: htmlBody,
       text: textBodyLines,
@@ -4072,6 +4209,7 @@ apiRouter.post('/payment-requests', async (req, res) => {
         requesterEmail: trimmedEmail,
         amount: amountNumber,
         expenseTitle: trimmedExpenseTitle,
+        paidTo: trimmedPaidTo,
         paymentMethod: normalizedPaymentMethod,
         attachments: sanitizedAttachments.length,
         ibanMasked: normalizedPaymentMethod === 'iban' ? maskIban(sanitizedIban) : null

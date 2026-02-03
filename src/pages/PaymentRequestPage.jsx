@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { withSupportContact } from '../config/appInfo'
 import { submitPaymentRequest } from '../services/api'
 import './PaymentRequestPage.css'
@@ -10,6 +10,22 @@ const SUPPORTED_TYPES = [
   'image/png',
   'application/pdf'
 ]
+const EXTENSION_TO_TYPE = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  pdf: 'application/pdf'
+}
+
+function resolveFileType(file) {
+  const directType = String(file?.type || '').toLowerCase()
+  if (SUPPORTED_TYPES.includes(directType)) {
+    return directType
+  }
+
+  const extension = String(file?.name || '').toLowerCase().split('.').pop()
+  return EXTENSION_TO_TYPE[extension] || ''
+}
 
 function resolveStoredUser(fallbackUser) {
   if (fallbackUser) {
@@ -22,7 +38,13 @@ function resolveStoredUser(fallbackUser) {
       return JSON.parse(serialized)
     }
   } catch {
-    localStorage.removeItem('user')
+    try {
+      localStorage.removeItem('user')
+    } catch (cleanupError) {
+      if (import.meta.env.DEV) {
+        console.debug('Could not clear invalid local user cache:', cleanupError)
+      }
+    }
   }
 
   return null
@@ -65,12 +87,36 @@ export default function PaymentRequestPage({ user: userProp }) {
   const [errorMessage, setErrorMessage] = useState(null)
   const [validationErrors, setValidationErrors] = useState({})
 
+  useEffect(() => {
+    const fullName = [resolvedUser?.firstName, resolvedUser?.lastName].filter(Boolean).join(' ').trim()
+    const fallbackEmail = resolvedUser?.email || ''
+
+    setFormData((prev) => {
+      const next = { ...prev }
+      if (!next.requesterName && fullName) {
+        next.requesterName = fullName
+      }
+      if (!next.requesterEmail && fallbackEmail) {
+        next.requesterEmail = fallbackEmail
+      }
+      return next
+    })
+  }, [resolvedUser?.firstName, resolvedUser?.lastName, resolvedUser?.email])
+
   const handleInputChange = (event) => {
     const { name, value } = event.target
     setFormData((prev) => ({
       ...prev,
       [name]: value
     }))
+    setValidationErrors((prev) => {
+      if (!prev[name]) {
+        return prev
+      }
+      const next = { ...prev }
+      delete next[name]
+      return next
+    })
   }
 
   const handlePaymentMethodChange = (event) => {
@@ -82,6 +128,12 @@ export default function PaymentRequestPage({ user: userProp }) {
         ? { paymentLink: '' }
         : { iban: '' })
     }))
+    setValidationErrors((prev) => {
+      const next = { ...prev }
+      delete next.iban
+      delete next.paymentLink
+      return next
+    })
   }
 
   const handleFileChange = (event) => {
@@ -89,8 +141,8 @@ export default function PaymentRequestPage({ user: userProp }) {
     const newErrors = {}
 
     const filteredFiles = files.filter((file) => {
-      if (!SUPPORTED_TYPES.includes(file.type)) {
-        newErrors.file = 'Alleen afbeeldingen (JPG, PNG, WEBP) en PDF-bestanden zijn toegestaan.'
+      if (!resolveFileType(file)) {
+        newErrors.file = 'Alleen afbeeldingen (JPG, PNG) en PDF-bestanden zijn toegestaan.'
         return false
       }
       if (file.size > MAX_FILE_SIZE) {
@@ -100,12 +152,17 @@ export default function PaymentRequestPage({ user: userProp }) {
       return true
     })
 
+    if (attachments.length + filteredFiles.length > MAX_FILES) {
+      newErrors.file = `Je kunt maximaal ${MAX_FILES} bestanden toevoegen.`
+    }
+
     const combined = [...attachments, ...filteredFiles].slice(0, MAX_FILES)
     setAttachments(combined)
     setValidationErrors((prev) => ({
-      ...prev,
-      ...newErrors
+      ...Object.fromEntries(Object.entries(prev).filter(([key]) => key !== 'file')),
+      ...(newErrors.file ? { file: newErrors.file } : {})
     }))
+    event.target.value = ''
   }
 
   const removeAttachment = (index) => {
@@ -190,7 +247,7 @@ export default function PaymentRequestPage({ user: userProp }) {
           const [, base64Content = ''] = dataUrl.split(',')
           return {
             name: file.name,
-            type: file.type,
+            type: resolveFileType(file),
             size: file.size,
             content: base64Content
           }
@@ -243,6 +300,21 @@ export default function PaymentRequestPage({ user: userProp }) {
                 required
               />
               {validationErrors.requesterName && <span className="form-error">{validationErrors.requesterName}</span>}
+            </div>
+
+            <div className={`form-field${validationErrors.requesterEmail ? ' has-error' : ''}`}>
+              <label htmlFor="requesterEmail">E-mailadres</label>
+              <input
+                id="requesterEmail"
+                name="requesterEmail"
+                type="email"
+                placeholder="naam@voorbeeld.nl"
+                value={formData.requesterEmail}
+                onChange={handleInputChange}
+                autoComplete="email"
+                required
+              />
+              {validationErrors.requesterEmail && <span className="form-error">{validationErrors.requesterEmail}</span>}
             </div>
 
             <div className={`form-field${validationErrors.expenseTitle ? ' has-error' : ''}`}>
@@ -307,7 +379,7 @@ export default function PaymentRequestPage({ user: userProp }) {
           </div>
 
           <div className="form-field">
-            <label>Hoe wil je betaald worden?</label>
+            <label id="payment-method-label">Hoe wil je betaald worden?</label>
             <div className="payment-method-options" role="radiogroup" aria-labelledby="payment-method-label">
               <label className="payment-method-option">
                 <input
