@@ -16,6 +16,20 @@ const EXTENSION_TO_TYPE = {
   png: 'image/png',
   pdf: 'application/pdf'
 }
+const DRAFT_STORAGE_PREFIX = 'paymentRequestDraft'
+const DRAFT_FIELDS = [
+  'requesterName',
+  'requesterEmail',
+  'expenseTitle',
+  'paidTo',
+  'expenseDate',
+  'amount',
+  'description',
+  'paymentMethod',
+  'iban',
+  'paymentLink',
+  'notes'
+]
 
 function resolveFileType(file) {
   const directType = String(file?.type || '').toLowerCase()
@@ -78,14 +92,108 @@ function readFileAsDataUrl(file) {
   })
 }
 
+function getDraftStorageKey(user) {
+  const userPart = user?.id ? String(user.id) : 'anonymous'
+  return `${DRAFT_STORAGE_PREFIX}:${userPart}`
+}
+
+function readStoredDraft(storageKey, fallbackData) {
+  try {
+    const raw = localStorage.getItem(storageKey)
+    if (!raw) {
+      return fallbackData
+    }
+
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') {
+      return fallbackData
+    }
+
+    const next = { ...fallbackData }
+    DRAFT_FIELDS.forEach((field) => {
+      const value = parsed[field]
+      if (typeof value === 'string') {
+        next[field] = value
+      }
+    })
+
+    if (next.paymentMethod !== 'iban' && next.paymentMethod !== 'paymentLink') {
+      next.paymentMethod = 'iban'
+    }
+
+    if (next.paymentMethod === 'iban') {
+      next.paymentLink = ''
+    } else {
+      next.iban = ''
+    }
+
+    return next
+  } catch (error) {
+    try {
+      localStorage.removeItem(storageKey)
+    } catch (cleanupError) {
+      if (import.meta.env.DEV) {
+        console.debug('Could not clear invalid declaratie draft:', cleanupError)
+      }
+    }
+    if (import.meta.env.DEV) {
+      console.debug('Could not read declaratie draft:', error)
+    }
+    return fallbackData
+  }
+}
+
+function writeStoredDraft(storageKey, formData) {
+  try {
+    const payload = {}
+    DRAFT_FIELDS.forEach((field) => {
+      const value = formData[field]
+      payload[field] = typeof value === 'string' ? value : ''
+    })
+    localStorage.setItem(storageKey, JSON.stringify(payload))
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.debug('Could not store declaratie draft:', error)
+    }
+  }
+}
+
+function clearStoredDraft(storageKey) {
+  try {
+    localStorage.removeItem(storageKey)
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.debug('Could not clear declaratie draft:', error)
+    }
+  }
+}
+
 export default function PaymentRequestPage({ user: userProp }) {
-  const resolvedUser = useMemo(() => resolveStoredUser(userProp), [userProp])
-  const [formData, setFormData] = useState(() => getInitialFormData(resolvedUser))
+  const resolvedUser = useMemo(
+    () => resolveStoredUser(userProp),
+    [userProp]
+  )
+  const draftStorageKey = getDraftStorageKey(resolvedUser)
+  const [formData, setFormData] = useState(() => {
+    const initialData = getInitialFormData(resolvedUser)
+    return readStoredDraft(getDraftStorageKey(resolvedUser), initialData)
+  })
   const [attachments, setAttachments] = useState([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [statusMessage, setStatusMessage] = useState(null)
   const [errorMessage, setErrorMessage] = useState(null)
   const [validationErrors, setValidationErrors] = useState({})
+
+  useEffect(() => {
+    const initialData = getInitialFormData({
+      firstName: resolvedUser?.firstName,
+      lastName: resolvedUser?.lastName,
+      email: resolvedUser?.email
+    })
+    setFormData(readStoredDraft(draftStorageKey, initialData))
+    setAttachments([])
+    setValidationErrors({})
+  }, [draftStorageKey, resolvedUser?.firstName, resolvedUser?.lastName, resolvedUser?.email])
 
   useEffect(() => {
     const fullName = [resolvedUser?.firstName, resolvedUser?.lastName].filter(Boolean).join(' ').trim()
@@ -102,6 +210,10 @@ export default function PaymentRequestPage({ user: userProp }) {
       return next
     })
   }, [resolvedUser?.firstName, resolvedUser?.lastName, resolvedUser?.email])
+
+  useEffect(() => {
+    writeStoredDraft(draftStorageKey, formData)
+  }, [draftStorageKey, formData])
 
   const handleInputChange = (event) => {
     const { name, value } = event.target
@@ -170,6 +282,7 @@ export default function PaymentRequestPage({ user: userProp }) {
   }
 
   const resetForm = () => {
+    clearStoredDraft(draftStorageKey)
     setFormData(getInitialFormData(resolvedUser))
     setAttachments([])
     setValidationErrors({})
