@@ -3319,14 +3319,6 @@ const __dirname = dirname(__filename)
 
 const app = express()
 
-app.use((req, res, next) => {
-  const host = (req.headers.host || '').toLowerCase()
-  if (process.env.DISABLE_WWW_REDIRECT !== 'true' && host === 'www.stamjer.nl') {
-    return res.redirect(308, `https://stamjer.nl${req.originalUrl || req.url || '/'}`)
-  }
-  return next()
-})
-
 function parseOrigins(value = '') {
   return value
     .split(',')
