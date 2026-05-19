@@ -536,3 +536,84 @@
     align-items: flex-start;
   }
 }
+
+/* ================================================================
+   ADMIN USER MANAGEMENT
+   ================================================================ */
+
+.account-card-admin-users {
+  grid-column: 1 / -1;
+  margin-top: var(--space-4);
+}
+
+.admin-users-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.admin-user-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--secondary-50, #f8fafc);
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--secondary-100, #e2e8f0);
+}
+
+.admin-user-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  flex: 1;
+}
+
+.admin-user-name {
+  font-weight: var(--font-weight-medium, 500);
+  color: var(--secondary-800);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-user-pills {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.admin-status-select {
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--secondary-200, #e2e8f0);
+  border-radius: var(--radius-sm, 6px);
+  font-size: 0.875rem;
+  background-color: white;
+  color: var(--secondary-700);
+  cursor: pointer;
+  min-width: 9rem;
+  flex-shrink: 0;
+}
+
+.admin-status-select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.admin-users-loading {
+  color: var(--secondary-500);
+  font-size: 0.9375rem;
+}
+
+@media (max-width: 640px) {
+  .admin-user-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .admin-status-select {
+    width: 100%;
+  }
+}

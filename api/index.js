@@ -102,21 +102,26 @@ const SCHEDULED_NOTIFICATION_INTERVAL_MS = Math.max(
   parseInt(process.env.SCHEDULED_NOTIFICATION_INTERVAL_MS, 10) || 30000,
   5000
 )
+const NOTIFICATIONS_ENABLED = false
 
-if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
-  try {
-    if (!/^https?:\/\//i.test(VAPID_SUBJECT) && !/^mailto:/i.test(VAPID_SUBJECT)) {
-      warnLog(`VAPID_SUBJECT (${VAPID_SUBJECT}) is niet een geldige https/mailto waarde; Apple Web Push kan weigeren. Overweeg een https-origin.`)
+if (NOTIFICATIONS_ENABLED) {
+  if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+    try {
+      if (!/^https?:\/\//i.test(VAPID_SUBJECT) && !/^mailto:/i.test(VAPID_SUBJECT)) {
+        warnLog(`VAPID_SUBJECT (${VAPID_SUBJECT}) is niet een geldige https/mailto waarde; Apple Web Push kan weigeren. Overweeg een https-origin.`)
+      }
+      webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
+      isWebPushConfigured = true
+      infoLog('Web Push notificaties geconfigureerd')
+    } catch (error) {
+      isWebPushConfigured = false
+      warnLog(`Web Push configuratie mislukt: ${error.message}`)
     }
-    webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
-    isWebPushConfigured = true
-    infoLog('Web Push notificaties geconfigureerd')
-  } catch (error) {
-    isWebPushConfigured = false
-    warnLog(`Web Push configuratie mislukt: ${error.message}`)
+  } else {
+    warnLog('Web Push notificaties zijn uitgeschakeld: VAPID keys ontbreken')
   }
 } else {
-  warnLog('Web Push notificaties zijn uitgeschakeld: VAPID keys ontbreken')
+  infoLog('[notifications] Disabled by configuration')
 }
 
 function maskEmail(email = '') {
@@ -438,6 +443,11 @@ let lastNotificationsLoadedAt = 0
 // Remove in-memory pendingReset as we'll use MongoDB
 // const pendingReset = {}
 
+function normalizeUserStatus(status) {
+  if (status === 'legacy' || status === 'inactive' || status === 'active') return status
+  return 'active'
+}
+
 // Gegevens inladen
 async function loadUsers() {
   const db = await getDb()
@@ -449,7 +459,8 @@ async function loadUsers() {
       list.map((user) => ({
         ...user,
         notificationPreferences: normalizeNotificationPreferences(user.notificationPreferences || {}),
-        sessionVersion: Number.isFinite(user.sessionVersion) ? user.sessionVersion : 0
+        sessionVersion: Number.isFinite(user.sessionVersion) ? user.sessionVersion : 0,
+        status: normalizeUserStatus(user.status)
       }))
     )
   infoLog(`Loaded ${users.length} users from MongoDB`)
@@ -472,6 +483,11 @@ async function loadEvents() {
 }
 
 async function loadPushSubscriptions() {
+  if (!NOTIFICATIONS_ENABLED) {
+    pushSubscriptions = []
+    return
+  }
+
   const db = await getDb()
   pushSubscriptions = await db.collection('pushSubscriptions')
     .find({})
@@ -481,6 +497,12 @@ async function loadPushSubscriptions() {
 }
 
 async function loadNotifications() {
+  if (!NOTIFICATIONS_ENABLED) {
+    notifications = []
+    lastNotificationsLoadedAt = Date.now()
+    return
+  }
+
   const db = await getDb()
   const now = Date.now()
   const missingExpiryIds = []
@@ -509,6 +531,11 @@ async function loadNotifications() {
 }
 
 async function loadScheduledNotifications() {
+  if (!NOTIFICATIONS_ENABLED) {
+    scheduledNotifications = []
+    return
+  }
+
   const db = await getDb()
   scheduledNotifications = await db.collection('scheduledNotifications')
     .find({})
@@ -525,6 +552,11 @@ async function ensureEventsFresh(maxAgeMs = 2000) {
 }
 
 async function ensureNotificationsFresh(maxAgeMs = 2000) {
+  if (!NOTIFICATIONS_ENABLED) {
+    notifications = []
+    return
+  }
+
   const now = Date.now()
   if (now - lastNotificationsLoadedAt > maxAgeMs || notifications.length === 0) {
     await loadNotifications()
@@ -773,14 +805,18 @@ function resolveEventParticipantIds(event) {
   if (Array.isArray(event.participants) && event.participants.length > 0) {
     return sanitizeIdArray(event.participants)
   }
-  // Fall back to all active users if participants list is empty
+  // Fall back to all active-status users with active enrollment if participants list is empty
   if (Array.isArray(users) && users.length > 0) {
-    return users.filter((user) => Boolean(user?.active)).map((user) => user.id).filter(Number.isFinite)
+    return users.filter((user) => Boolean(user?.active) && (user?.status || 'active') === 'active').map((user) => user.id).filter(Number.isFinite)
   }
   return []
 }
 
 async function upsertPushSubscription({ userId, subscription, userAgent = '', deviceName = '' }) {
+  if (!NOTIFICATIONS_ENABLED) {
+    return { disabled: true }
+  }
+
   const normalizedUserId = sanitizeUserId(userId)
   if (normalizedUserId === null) {
     throw new Error('Ongeldig gebruikers-ID voor push-subscriptie')
@@ -847,6 +883,10 @@ async function upsertPushSubscription({ userId, subscription, userAgent = '', de
 }
 
 async function removePushSubscriptionByEndpoint(endpoint) {
+  if (!NOTIFICATIONS_ENABLED) {
+    return
+  }
+
   if (!endpoint) return
   const db = await getDb()
   await db.collection('pushSubscriptions').deleteOne({ endpoint })
@@ -854,6 +894,10 @@ async function removePushSubscriptionByEndpoint(endpoint) {
 }
 
 async function pruneNotificationsForUser(userId) {
+  if (!NOTIFICATIONS_ENABLED) {
+    return
+  }
+
   const normalizedUserId = sanitizeUserId(userId)
   if (normalizedUserId === null) return
 
@@ -908,6 +952,10 @@ async function pruneNotificationsForUser(userId) {
 }
 
 async function markNotificationsAsRead(userId, notificationIds, read = true) {
+  if (!NOTIFICATIONS_ENABLED) {
+    return { updated: 0, disabled: true }
+  }
+
   const normalizedUserId = sanitizeUserId(userId)
   if (normalizedUserId === null) {
     throw new Error('Ongeldig gebruikers-ID voor notificaties')
@@ -971,6 +1019,10 @@ async function markNotificationsAsRead(userId, notificationIds, read = true) {
 }
 
 async function markAllNotificationsAsRead(userId) {
+  if (!NOTIFICATIONS_ENABLED) {
+    return { updated: 0, disabled: true }
+  }
+
   const normalizedUserId = sanitizeUserId(userId)
   if (normalizedUserId === null) {
     throw new Error('Ongeldig gebruikers-ID voor notificaties')
@@ -1012,17 +1064,30 @@ async function markAllNotificationsAsRead(userId) {
 }
 
 async function ensureScheduledLoaded() {
+  if (!NOTIFICATIONS_ENABLED) {
+    scheduledNotifications = []
+    return
+  }
+
   if (!Array.isArray(scheduledNotifications) || scheduledNotifications.length === 0) {
     await loadScheduledNotifications()
   }
 }
 
 async function listScheduledNotifications() {
+  if (!NOTIFICATIONS_ENABLED) {
+    return []
+  }
+
   await ensureScheduledLoaded()
   return scheduledNotifications
 }
 
 async function createScheduledNotification(payload) {
+  if (!NOTIFICATIONS_ENABLED) {
+    return null
+  }
+
   const nowIso = new Date().toISOString()
   const sendAtDate = payload.sendAt ? new Date(payload.sendAt) : new Date(nowIso)
   if (!Number.isFinite(sendAtDate.getTime())) {
@@ -1058,6 +1123,10 @@ async function createScheduledNotification(payload) {
 }
 
 async function updateScheduledNotificationRecord(id, payload) {
+  if (!NOTIFICATIONS_ENABLED) {
+    return null
+  }
+
   await ensureScheduledLoaded()
   const nowIso = new Date().toISOString()
   const idx = scheduledNotifications.findIndex((item) => item.id === id)
@@ -1093,6 +1162,10 @@ async function updateScheduledNotificationRecord(id, payload) {
 }
 
 async function cancelScheduledNotificationRecord(id) {
+  if (!NOTIFICATIONS_ENABLED) {
+    return
+  }
+
   await ensureScheduledLoaded()
   const db = await getDb()
   await db.collection('scheduledNotifications').deleteOne({ id })
@@ -1120,6 +1193,10 @@ async function resolveScheduledRecipients(scheduled) {
 }
 
 async function processUserScheduledNotifications(referenceDate = new Date()) {
+  if (!NOTIFICATIONS_ENABLED) {
+    return []
+  }
+
   try {
     if (!Array.isArray(users) || users.length === 0) {
       await loadUsers()
@@ -1490,6 +1567,10 @@ async function createNotificationsForUsers({
   metadata = {},
   priority = 'default'
 }) {
+  if (!NOTIFICATIONS_ENABLED) {
+    return []
+  }
+
   const normalizedUserIds = Array.from(new Set(userIds.map(sanitizeUserId).filter((id) => id !== null)))
   if (normalizedUserIds.length === 0) {
     return []
@@ -1554,6 +1635,10 @@ async function createNotificationsForUsers({
 }
 
 async function processScheduledNotifications(referenceDate = new Date()) {
+  if (!NOTIFICATIONS_ENABLED) {
+    return []
+  }
+
   try {
     if (!Array.isArray(events) || events.length === 0) {
       await loadEvents()
@@ -2381,6 +2466,11 @@ function isCronRequestAuthorized(req) {
 }
 
 function startScheduledNotificationWorker() {
+  if (!NOTIFICATIONS_ENABLED) {
+    infoLog('[notifications] Disabled: scheduled notification worker not started')
+    return
+  }
+
   if (process.env.VERCEL) {
     infoLog('[notifications] Vercel deployment detected; skip local interval and rely on cron endpoint')
     return
@@ -3185,7 +3275,8 @@ apiRouter.get('/users', async (req, res) => {
       lastName: u.lastName,
       email: u.email,
       role: u.role,
-      active: Boolean(u.active)
+      active: Boolean(u.active),
+      status: u.status || 'active'
     }))
     res.json(safeUsers)
   } catch (err) {
@@ -3195,19 +3286,29 @@ apiRouter.get('/users', async (req, res) => {
   }
 })
 
-apiRouter.get('/users/full', (req, res) => {
-  const streepjes = calculateStreepjes()
-  res.json({
-    users: users.map(u => ({
-      id: u.id,
-      firstName: u.firstName,
-      lastName: u.lastName,
-      email: u.email,
-      active: u.active,
-      isAdmin: u.isAdmin || false,
-      streepjes: streepjes[u.id] || 0
-    }))
-  })
+apiRouter.get('/users/full', async (req, res) => {
+  try {
+    await loadUsers()
+    if (users.length === 0) await loadUsers()
+
+    const streepjes = calculateStreepjes()
+    res.json({
+      users: users.map(u => ({
+        id: u.id,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        email: u.email,
+        active: u.active,
+        isAdmin: u.isAdmin || false,
+        streepjes: streepjes[u.id] || 0,
+        status: u.status || 'active'
+      }))
+    })
+  } catch (err) {
+    console.error('Fout bij ophalen volledige gebruikerslijst:', err)
+    logSystemError(err, { action: 'GET /api/users/full', status: 500 })
+    res.status(500).json({ error: 'Opvragen volledige gebruikerslijst mislukt', message: err.message })
+  }
 })
 
 // Helper function to send active status change notification email
@@ -3301,6 +3402,55 @@ apiRouter.put('/user/profile', async (req, res) => {
   }
 })
 
+// Status bijwerken (alleen admin)
+apiRouter.patch('/users/:id/status', async (req, res) => {
+  try {
+    const { userId, status } = req.body
+    if (!userId || !isUserAdmin(userId)) return res.status(403).json({ error: 'Alleen beheerders' })
+
+    const validStatuses = ['active', 'inactive', 'legacy']
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Ongeldige status. Kies uit: active, inactive, legacy' })
+    }
+
+    const targetId = sanitizeUserId(req.params.id)
+    if (targetId === null) return res.status(400).json({ error: 'Ongeldig gebruikers-ID' })
+
+    const idx = users.findIndex(u => u.id === targetId)
+    if (idx < 0) return res.status(404).json({ error: 'Gebruiker niet gevonden' })
+
+    const previousStatus = users[idx].status || 'active'
+    if (previousStatus === status) {
+      return res.json({ user: { id: targetId, status }, msg: 'Status ongewijzigd' })
+    }
+
+    users[idx].status = status
+
+    // Sync opkomst attendance based on status change
+    if (previousStatus === 'active' && status !== 'active') {
+      await syncUserAttendanceForFutureOpkomsten(targetId, false)
+    } else if (previousStatus !== 'active' && status === 'active' && users[idx].active) {
+      await syncUserAttendanceForFutureOpkomsten(targetId, true)
+    }
+
+    await saveUser(users[idx])
+    logEvent('user-status-changed', {
+      targetUserId: targetId,
+      changedBy: sanitizeUserId(userId),
+      previousStatus,
+      newStatus: status
+    })
+
+    res.json({
+      user: { id: targetId, status },
+      msg: `Status bijgewerkt naar ${status}`
+    })
+  } catch (err) {
+    logSystemError(err, { action: 'PATCH /api/users/:id/status', status: 500 })
+    res.status(500).json({ error: 'Status bijwerken mislukt' })
+  }
+})
+
 // Profiel ophalen (met voorkeuren)
 apiRouter.get('/user/profile', (req, res) => {
   const { userId } = req.query
@@ -3381,7 +3531,7 @@ apiRouter.post('/events', async (req, res) => {
         await loadUsers()
       }
       const activeUserIds = users
-        .filter(u => u.active)
+        .filter(u => u.active && (u.status || 'active') === 'active')
         .map(u => u.id)
         .filter(Number.isFinite)
 
@@ -3510,6 +3660,10 @@ apiRouter.put('/events/:id/attendance', async (req, res) => {
 
 // Push notifications & subscriptions
 apiRouter.get('/push/public-key', (req, res) => {
+  if (!NOTIFICATIONS_ENABLED) {
+    return res.json({ publicKey: null, enabled: false, disabled: true })
+  }
+
   if (!VAPID_PUBLIC_KEY) {
     return res.json({ publicKey: null, enabled: false, error: 'Push notificaties zijn niet geconfigureerd' })
   }
@@ -3517,6 +3671,10 @@ apiRouter.get('/push/public-key', (req, res) => {
 })
 
 apiRouter.post('/push/subscribe', async (req, res) => {
+  if (!NOTIFICATIONS_ENABLED) {
+    return res.json({ ok: true, disabled: true })
+  }
+
   try {
     if (!isWebPushConfigured) {
       return res.status(503).json({ error: 'Push notificaties zijn niet beschikbaar' })
@@ -3540,6 +3698,10 @@ apiRouter.post('/push/subscribe', async (req, res) => {
 })
 
 apiRouter.post('/push/unsubscribe', async (req, res) => {
+  if (!NOTIFICATIONS_ENABLED) {
+    return res.json({ ok: true, disabled: true })
+  }
+
   try {
     const auth = requireAuthenticatedUser(req, res)
     if (!auth) return
@@ -3568,6 +3730,10 @@ apiRouter.post('/push/unsubscribe', async (req, res) => {
 })
 
 apiRouter.get('/notifications', async (req, res) => {
+  if (!NOTIFICATIONS_ENABLED) {
+    return res.json({ notifications: [], unreadCount: 0, push: { enabled: false }, disabled: true })
+  }
+
   const auth = requireAuthenticatedUser(req, res)
   if (!auth) return
   await ensureNotificationsFresh()
@@ -3597,6 +3763,10 @@ apiRouter.get('/notifications', async (req, res) => {
 })
 
 apiRouter.post('/notifications/mark-read', async (req, res) => {
+  if (!NOTIFICATIONS_ENABLED) {
+    return res.json({ ok: true, updated: 0, disabled: true })
+  }
+
   try {
     const auth = requireAuthenticatedUser(req, res)
     if (!auth) return
@@ -3611,6 +3781,10 @@ apiRouter.post('/notifications/mark-read', async (req, res) => {
 })
 
 apiRouter.post('/notifications/mark-all-read', async (req, res) => {
+  if (!NOTIFICATIONS_ENABLED) {
+    return res.json({ ok: true, updated: 0, disabled: true })
+  }
+
   try {
     const auth = requireAuthenticatedUser(req, res)
     if (!auth) return
@@ -3624,6 +3798,10 @@ apiRouter.post('/notifications/mark-all-read', async (req, res) => {
 })
 
 apiRouter.post('/notifications/manual', async (req, res) => {
+  if (!NOTIFICATIONS_ENABLED) {
+    return res.json({ ok: true, disabled: true })
+  }
+
   try {
     const auth = requireAuthenticatedUser(req, res, { requireAdmin: true })
     if (!auth) return
@@ -3673,6 +3851,10 @@ apiRouter.post('/notifications/manual', async (req, res) => {
 })
 
 apiRouter.get('/notifications/scheduled', async (req, res) => {
+  if (!NOTIFICATIONS_ENABLED) {
+    return res.json({ items: [], disabled: true })
+  }
+
   try {
     const auth = requireAuthenticatedUser(req, res, { requireAdmin: true })
     if (!auth) return
@@ -3686,6 +3868,10 @@ apiRouter.get('/notifications/scheduled', async (req, res) => {
 })
 
 apiRouter.post('/notifications/schedule', async (req, res) => {
+  if (!NOTIFICATIONS_ENABLED) {
+    return res.json({ notification: null, disabled: true })
+  }
+
   try {
     const auth = requireAuthenticatedUser(req, res, { requireAdmin: true })
     if (!auth) return
@@ -3714,6 +3900,10 @@ apiRouter.post('/notifications/schedule', async (req, res) => {
 })
 
 apiRouter.put('/notifications/schedule/:id', async (req, res) => {
+  if (!NOTIFICATIONS_ENABLED) {
+    return res.json({ notification: null, disabled: true })
+  }
+
   try {
     const auth = requireAuthenticatedUser(req, res, { requireAdmin: true })
     if (!auth) return
@@ -3728,6 +3918,10 @@ apiRouter.put('/notifications/schedule/:id', async (req, res) => {
 })
 
 apiRouter.delete('/notifications/schedule/:id', async (req, res) => {
+  if (!NOTIFICATIONS_ENABLED) {
+    return res.json({ ok: true, disabled: true })
+  }
+
   try {
     const auth = requireAuthenticatedUser(req, res, { requireAdmin: true })
     if (!auth) return
@@ -4248,6 +4442,10 @@ apiRouter.post('/admin/trigger-daily-snapshot', async (req, res) => {
 
 // Public endpoint for Vercel Cron to process scheduled notifications
 const handleCronNotifications = async (req, res) => {
+  if (!NOTIFICATIONS_ENABLED) {
+    return res.status(200).json({ ok: true, disabled: true, sent: 0, sentIds: [] })
+  }
+
   try {
     if (!isCronRequestAuthorized(req)) {
       warnLog('Unauthorized cron-notifications request attempt')

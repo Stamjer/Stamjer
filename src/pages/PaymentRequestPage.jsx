@@ -31,14 +31,82 @@ const DRAFT_FIELDS = [
   'notes'
 ]
 
+const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'])
+
+function getFileExtension(fileName = '') {
+  return String(fileName).toLowerCase().split('.').pop() || ''
+}
+
 function resolveFileType(file) {
   const directType = String(file?.type || '').toLowerCase()
   if (SUPPORTED_TYPES.includes(directType)) {
     return directType
   }
 
-  const extension = String(file?.name || '').toLowerCase().split('.').pop()
+  const extension = getFileExtension(file?.name || '')
   return EXTENSION_TO_TYPE[extension] || ''
+}
+
+function isLikelyImageFile(file) {
+  const mimeType = String(file?.type || '').toLowerCase()
+  const extension = getFileExtension(file?.name || '')
+  return mimeType.startsWith('image/') || IMAGE_EXTENSIONS.has(extension)
+}
+
+function loadImageFromFile(file) {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file)
+    const image = new Image()
+
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl)
+      resolve(image)
+    }
+
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      reject(new Error('Afbeelding kan niet worden gelezen'))
+    }
+
+    image.src = objectUrl
+  })
+}
+
+async function normalizeImageFile(file) {
+  const image = await loadImageFromFile(file)
+  const maxDimension = 2400
+  const scale = Math.min(1, maxDimension / Math.max(image.width || 1, image.height || 1))
+  const width = Math.max(1, Math.round((image.width || 1) * scale))
+  const height = Math.max(1, Math.round((image.height || 1) * scale))
+
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const context = canvas.getContext('2d')
+
+  if (!context) {
+    throw new Error('Afbeelding kan niet worden verwerkt')
+  }
+
+  context.drawImage(image, 0, 0, width, height)
+
+  const qualities = [0.9, 0.82, 0.72, 0.62]
+  for (const quality of qualities) {
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality))
+    if (!blob) {
+      continue
+    }
+
+    if (blob.size <= MAX_FILE_SIZE) {
+      const baseName = String(file?.name || 'bijlage').replace(/\.[^.]+$/, '')
+      return new File([blob], `${baseName}.jpg`, {
+        type: 'image/jpeg',
+        lastModified: Date.now()
+      })
+    }
+  }
+
+  return null
 }
 
 function resolveStoredUser(fallbackUser) {
@@ -248,27 +316,48 @@ export default function PaymentRequestPage({ user: userProp }) {
     })
   }
 
-  const handleFileChange = (event) => {
+  const handleFileChange = async (event) => {
     const files = Array.from(event.target.files || [])
     const newErrors = {}
+    const processedFiles = []
 
-    const filteredFiles = files.filter((file) => {
-      if (!resolveFileType(file)) {
+    for (const file of files) {
+      let candidate = file
+      let candidateType = resolveFileType(candidate)
+
+      const canNormalizeImage = isLikelyImageFile(candidate)
+      const shouldNormalize = canNormalizeImage && (!candidateType || candidate.size > MAX_FILE_SIZE)
+
+      if (shouldNormalize) {
+        try {
+          const normalized = await normalizeImageFile(candidate)
+          if (normalized) {
+            candidate = normalized
+            candidateType = resolveFileType(candidate)
+          }
+        } catch {
+          // Keep original file and continue with regular validation below.
+        }
+      }
+
+      if (!candidateType) {
         newErrors.file = 'Alleen afbeeldingen (JPG, PNG) en PDF-bestanden zijn toegestaan.'
-        return false
+        continue
       }
-      if (file.size > MAX_FILE_SIZE) {
-        newErrors.file = 'Bestanden mogen maximaal 5MB groot zijn.'
-        return false
-      }
-      return true
-    })
 
-    if (attachments.length + filteredFiles.length > MAX_FILES) {
+      if (candidate.size > MAX_FILE_SIZE) {
+        newErrors.file = 'Bestanden mogen maximaal 5MB groot zijn. Grote foto\'s worden automatisch verkleind als dat kan.'
+        continue
+      }
+
+      processedFiles.push(candidate)
+    }
+
+    if (attachments.length + processedFiles.length > MAX_FILES) {
       newErrors.file = `Je kunt maximaal ${MAX_FILES} bestanden toevoegen.`
     }
 
-    const combined = [...attachments, ...filteredFiles].slice(0, MAX_FILES)
+    const combined = [...attachments, ...processedFiles].slice(0, MAX_FILES)
     setAttachments(combined)
     setValidationErrors((prev) => ({
       ...Object.fromEntries(Object.entries(prev).filter(([key]) => key !== 'file')),
@@ -601,7 +690,7 @@ export default function PaymentRequestPage({ user: userProp }) {
               id="attachments"
               name="attachments"
               type="file"
-              accept={SUPPORTED_TYPES.join(',')}
+              accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
               multiple
               onChange={handleFileChange}
             />

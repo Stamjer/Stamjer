@@ -227,7 +227,9 @@ export default function StrepenPage() {
     return <div className="strepen-page-wrapper"><div className="strepen-page"><div className="no-events">Geen opkomsten gevonden</div></div></div>
   }
 
-  const sortedUsers = [...users].sort((a, b) => {
+  const sortedUsers = [...users]
+    .filter(u => (u.status || 'active') !== 'legacy')
+    .sort((a, b) => {
     const aP = selectedEvent.participants.includes(a.id)
     const bP = selectedEvent.participants.includes(b.id)
     if (aP && !bP) return -1
@@ -344,6 +346,9 @@ export default function StrepenPage() {
                   <div className="user-card-main">
                     <div className="user-name">
                       {u.firstName} {u.lastName}
+                      {(u.status || 'active') === 'inactive' && (
+                        <span className="account-pill account-pill-inactive" style={{ marginLeft: '0.5rem', fontSize: '0.75rem', padding: '0.1rem 0.4rem' }}>Inactief</span>
+                      )}
                       {isChanged && <span className="changed-dot" aria-hidden="true"></span>}
                     </div>
                     <div className="user-meta">
@@ -396,7 +401,7 @@ export default function StrepenPage() {
                   }`}
                 >
                   <div className="cell name">
-                    {u.firstName}{!defaultState && <span className="modified-indicator"> *</span>}
+                    {u.firstName}{(u.status || 'active') === 'inactive' && <span className="account-pill account-pill-inactive" style={{ marginLeft: '0.4rem', fontSize: '0.7rem', padding: '0.1rem 0.35rem', verticalAlign: 'middle' }}>I</span>}{!defaultState && <span className="modified-indicator"> *</span>}
                     {isSaving && <span className="saving-indicator"> (opslaan...)</span>}
                   </div>
                   <div className="cell status">{isPart ? '✅' : '❌'}</div>

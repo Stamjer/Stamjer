@@ -496,8 +496,14 @@
 
   .nav-brand {
     width: 100%;
-    justify-content: space-between;
+    /* justify-content: space-between; */
     gap: 1rem;
+  }
+
+  .nav-title {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
   }
 
   .nav-logo-stack {

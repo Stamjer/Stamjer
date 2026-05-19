@@ -4,20 +4,21 @@ import { withSupportContact } from '../config/appInfo'
 import {
   changePassword,
   updateUserProfile,
+  updateUserStatus,
   getEvents,
   getUserProfile
 } from '../services/api'
 import { invalidateEvents, invalidateUsers } from '../lib/queryClient'
-import { enablePushForUser, disablePushForUser, getPushCapability } from '../lib/pushClient'
 import CalendarSubscription from '../components/CalendarSubscription'
 import LocationLink from '../components/LocationLink'
 import ToggleSwitch from '../components/ToggleSwitch'
 import './MyAccount.css'
 import './Auth.css'
 
-const DEFAULT_NOTIFICATION_SETTINGS = {
-  push: false,
-  email: false
+const USER_STATUS_LABELS = {
+  active: 'Actief',
+  inactive: 'Inactief',
+  legacy: 'Historisch'
 }
 
 const DATE_FORMAT_DAY_MONTH = new Intl.DateTimeFormat('nl-NL', {
@@ -38,13 +39,6 @@ const TIME_FORMAT_HM = new Intl.DateTimeFormat('nl-NL', {
   minute: '2-digit',
   hour12: false
 })
-
-function normalizeNotificationSettings(settings = {}) {
-  return {
-    push: Boolean(settings.push),
-    email: Boolean(settings.email)
-  }
-}
 
 function normalizeValue(value = '') {
   return value.trim().toLowerCase()
@@ -157,14 +151,16 @@ export default function MyAccount({ user: userProp, onLogout }) {
   })
   const [activeStatus, setActiveStatus] = useState(false)
   const [isUpdatingActive, setIsUpdatingActive] = useState(false)
+  const [userStatus, setUserStatus] = useState(userProp?.status || 'active')
+  const [allUsers, setAllUsers] = useState([])
+  const [isChangingStatus, setIsChangingStatus] = useState(false)
+  const [adminStatusError, setAdminStatusError] = useState(null)
+  const [adminStatusMessage, setAdminStatusMessage] = useState(null)
   const [userWithStreepjes, setUserWithStreepjes] = useState(null)
   const [opkomstEvents, setOpkomstEvents] = useState([])
   const [isOpkomstenLoading, setIsOpkomstenLoading] = useState(true)
   const [opkomstenError, setOpkomstenError] = useState(null)
   const [selectedOpkomst, setSelectedOpkomst] = useState(null)
-  const [notificationSettings, setNotificationSettings] = useState(DEFAULT_NOTIFICATION_SETTINGS)
-  const [notificationSettingsStatus, setNotificationSettingsStatus] = useState(null)
-  const [isSavingNotificationSettings, setIsSavingNotificationSettings] = useState(false)
   let user = userProp
   if (!user) {
     try {
@@ -190,6 +186,12 @@ export default function MyAccount({ user: userProp, onLogout }) {
         const currentUser = data.users.find(u => u.id === user.id)
         if (currentUser) {
           setUserWithStreepjes(currentUser)
+          if (currentUser.status) {
+            setUserStatus(currentUser.status)
+          }
+        }
+        if (user.isAdmin && data.users) {
+          setAllUsers(data.users)
         }
       } catch (loadError) {
         console.error('Error loading user data:', loadError)
@@ -206,34 +208,6 @@ export default function MyAccount({ user: userProp, onLogout }) {
     }
   }, [user])
 
-  useEffect(() => {
-    const storedRaw = localStorage.getItem('notificationSettings')
-    let storedSettings = {}
-
-    try {
-      storedSettings = storedRaw ? JSON.parse(storedRaw) : {}
-    } catch {
-      storedSettings = {}
-    }
-
-    const profileSettings = user?.notificationPreferences || {}
-    const hasProfilePrefs =
-      profileSettings && (
-        Object.prototype.hasOwnProperty.call(profileSettings, 'push') ||
-        Object.prototype.hasOwnProperty.call(profileSettings, 'email')
-      )
-    const effectiveStoredSettings = hasProfilePrefs ? storedSettings : {}
-
-    const mergedSettings = normalizeNotificationSettings({
-      ...DEFAULT_NOTIFICATION_SETTINGS,
-      ...(hasProfilePrefs ? profileSettings : {}),
-      ...effectiveStoredSettings
-    })
-
-    setNotificationSettings(mergedSettings)
-    setNotificationSettingsStatus(null)
-  }, [user])
-
   // Always refresh profile preferences from the server (keeps devices in sync)
   useEffect(() => {
     let cancelled = false
@@ -245,10 +219,8 @@ export default function MyAccount({ user: userProp, onLogout }) {
         if (!freshUser) return
         const mergedUser = { ...user, ...freshUser, password: undefined }
         localStorage.setItem('user', JSON.stringify(mergedUser))
-        if (!cancelled) {
-          setNotificationSettings((prev) =>
-            normalizeNotificationSettings(freshUser.notificationPreferences || prev)
-          )
+        if (freshUser.status) {
+          setUserStatus(freshUser.status)
         }
       } catch (err) {
         console.warn('MyAccount - Profiel verversen mislukt:', err?.message || err)
@@ -533,128 +505,36 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
     }
   }
 
-  const persistNotificationPreferences = useCallback(
-    async nextSettings => {
-      const normalized = normalizeNotificationSettings(nextSettings)
-      localStorage.setItem('notificationSettings', JSON.stringify(normalized))
+  const handleAdminStatusChange = useCallback(async (targetUserId, newStatus) => {
+    const targetUser = allUsers.find(u => u.id === targetUserId)
+    if (!targetUser) return
 
-      if (user?.id) {
-        const response = await updateUserProfile({
-          userId: user.id,
-          notificationPreferences: normalized
-        })
+    const newLabel = USER_STATUS_LABELS[newStatus] || newStatus
+    const currentLabel = USER_STATUS_LABELS[targetUser.status || 'active'] || (targetUser.status || 'active')
+    const confirmMsg = `Weet je zeker dat je de status van ${targetUser.firstName} ${targetUser.lastName} wilt wijzigen van "${currentLabel}" naar "${newLabel}"?`
+    if (!window.confirm(confirmMsg)) return
 
-        const updatedUser = {
-          ...(response?.user || user),
-          notificationPreferences: normalized
-        }
-        localStorage.setItem('user', JSON.stringify(updatedUser))
-      }
-
-      return normalized
-    },
-    [user]
-  )
-
-  const handlePushPreferenceChange = async checked => {
-    const previousSettings = notificationSettings
-    const nextSettings = normalizeNotificationSettings({ ...notificationSettings, push: checked })
-
-    setNotificationSettings(nextSettings)
-    setNotificationSettingsStatus(null)
-
-    if (!user?.id) {
-      setNotificationSettings(previousSettings)
-      setNotificationSettingsStatus({
-        type: 'error',
-        message: 'Log opnieuw in om pushmeldingen te beheren.'
-      })
-      return
-    }
-
-    setIsSavingNotificationSettings(true)
+    setIsChangingStatus(true)
+    setAdminStatusError(null)
+    setAdminStatusMessage(null)
 
     try {
-      if (!checked) {
-        await disablePushForUser()
-        await persistNotificationPreferences(nextSettings)
-        setNotificationSettingsStatus({ type: 'success', message: 'Pushmeldingen uitgeschakeld.' })
-        return
-      }
-
-      const capability = getPushCapability()
-      if (!capability.supported) {
-        throw new Error('Pushmeldingen worden niet ondersteund op dit apparaat.')
-      }
-
-      const enableResult = await enablePushForUser(user.id)
-
-      if (enableResult.status === 'blocked') {
-        const fallbackSettings = normalizeNotificationSettings({ ...previousSettings, push: false })
-        setNotificationSettings(fallbackSettings)
-        await persistNotificationPreferences(fallbackSettings)
-        setNotificationSettingsStatus({
-          type: 'error',
-          message: enableResult.message || 'Pushmeldingen zijn geblokkeerd in je browserinstellingen.'
-        })
-        return
-      }
-
-      try {
-        await persistNotificationPreferences(nextSettings)
-        setNotificationSettingsStatus({
-          type: 'success',
-          message: enableResult.message || 'Pushmeldingen zijn ingeschakeld.'
-        })
-      } catch (persistError) {
-        console.error('MyAccount - Failed to persist push preference:', persistError)
-        setNotificationSettingsStatus({
-          type: 'error',
-          message: 'Pushmeldingen staan aan, maar synchroniseren met de server lukte niet.'
-        })
-      }
+      await updateUserStatus(targetUserId, newStatus, id)
+      setAllUsers(prev => prev.map(u => u.id === targetUserId ? { ...u, status: newStatus } : u))
+      setAdminStatusMessage(`Status van ${targetUser.firstName} ${targetUser.lastName} bijgewerkt naar ${newLabel}.`)
+      invalidateUsers().catch(() => {})
     } catch (err) {
-      console.error('MyAccount - Push preference change failed:', err)
-      const fallbackSettings = checked
-        ? normalizeNotificationSettings({ ...previousSettings, push: false })
-        : normalizeNotificationSettings(previousSettings)
-      setNotificationSettings(fallbackSettings)
-      try {
-        await persistNotificationPreferences(fallbackSettings)
-      } catch (persistError) {
-        console.error('MyAccount - Failed to persist fallback push preference:', persistError)
+      setAdminStatusError(withSupportContact(err.message || 'Status bijwerken mislukt'))
+      // refresh list to revert UI
+      const response = await fetch('/api/users/full').catch(() => null)
+      if (response?.ok) {
+        const data = await response.json().catch(() => null)
+        if (data?.users) setAllUsers(data.users)
       }
-      setNotificationSettingsStatus({
-        type: 'error',
-        message: err?.message || 'Pushmeldingen bijwerken mislukt.'
-      })
     } finally {
-      setIsSavingNotificationSettings(false)
+      setIsChangingStatus(false)
     }
-  }
-
-  const handleEmailPreferenceChange = async checked => {
-    const previousSettings = notificationSettings
-    const nextSettings = normalizeNotificationSettings({ ...notificationSettings, email: checked })
-
-    setNotificationSettings(nextSettings)
-    setNotificationSettingsStatus(null)
-    setIsSavingNotificationSettings(true)
-
-    try {
-      await persistNotificationPreferences(nextSettings)
-      setNotificationSettingsStatus({ type: 'success', message: 'E-mailinstellingen bijgewerkt.' })
-    } catch (err) {
-      console.error('MyAccount - Email preference change failed:', err)
-      setNotificationSettings(previousSettings)
-      setNotificationSettingsStatus({
-        type: 'error',
-        message: err?.message || 'Bijwerken van e-mailinstelling mislukt.'
-      })
-    } finally {
-      setIsSavingNotificationSettings(false)
-    }
-  }
+  }, [allUsers, id])
 
   return (
     <>
@@ -689,6 +569,12 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
                       }`}
                     >
                       {user.isAdmin ? 'Administrator' : 'Gebruiker'}
+                    </span>
+                  </div>
+                  <div className="info-item">
+                    <label>Status</label>
+                    <span className={`account-pill account-pill-${userStatus}`}>
+                      {USER_STATUS_LABELS[userStatus]}
                     </span>
                   </div>
                   <div className="info-item">
@@ -782,65 +668,47 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
               </div>
               <div className="account-card-body">
                 <div className="setting-section setting-section-activity">
-                  <div className="setting-item">
-                    <div className="setting-label">
-                      <h6>Activiteit</h6>
-                      <p>
-                        {activeStatus
-                          ? 'Je bent automatisch aangemeld voor nieuwe opkomsten.'
-                          : 'Je bent automatisch afgemeld voor nieuwe opkomsten.'}
-                      </p>
+                  {userStatus === 'active' ? (
+                    <>
+                      <div className="setting-item">
+                        <div className="setting-label">
+                          <h6>Activiteit</h6>
+                          <p>
+                            {activeStatus
+                              ? 'Je bent automatisch aangemeld voor nieuwe opkomsten.'
+                              : 'Je bent automatisch afgemeld voor nieuwe opkomsten.'}
+                          </p>
+                        </div>
+                        <div className="toggle-container">
+                          <ToggleSwitch
+                            isToggled={activeStatus}
+                            onToggle={event => handleActiveStatusChange(event.target.checked)}
+                            disabled={isUpdatingActive}
+                            variant="notification"
+                          />
+                          <span className="toggle-label-text">
+                            {activeStatus ? 'Actief' : 'Inactief'}
+                            {isUpdatingActive && <small> (bezig...)</small>}
+                          </span>
+                        </div>
+                      </div>
+                      {message?.startsWith('Status succesvol bijgewerkt') && (
+                        <div className="setting-success">{message}</div>
+                      )}
+                      {error && <div className="setting-error">{error}</div>}
+                    </>
+                  ) : (
+                    <div className="setting-item-vertical">
+                      <div className="setting-label">
+                        <h6>Account status</h6>
+                        <p>
+                          {userStatus === 'inactive'
+                            ? 'Je account is momenteel inactief. Je wordt niet automatisch aangemeld voor opkomsten. Neem contact op met een beheerder als dit niet klopt.'
+                            : 'Je account is historisch. Je kunt de kalender bekijken, maar wordt niet aangemeld voor opkomsten.'}
+                        </p>
+                      </div>
                     </div>
-                    <div className="toggle-container">
-                      <ToggleSwitch
-                        isToggled={activeStatus}
-                        onToggle={event => handleActiveStatusChange(event.target.checked)}
-                        disabled={isUpdatingActive}
-                        variant="notification"
-                      />
-                      <span className="toggle-label-text">
-                        {activeStatus ? 'Actief' : 'Inactief'}
-                        {isUpdatingActive && <small> (bezig...)</small>}
-                      </span>
-                    </div>
-                  </div>
-
-                  {message?.startsWith('Status succesvol bijgewerkt') && (
-                    <div className="setting-success">{message}</div>
                   )}
-                  {error && <div className="setting-error">{error}</div>}
-                </div>
-
-                <div className="setting-section setting-section-notifications">
-                  <div className="setting-section__header">
-                    <h6>Meldingen</h6>
-                  </div>
-
-                  <div className="notification-toggle-list">
-                    <div className="notification-toggle">
-                      <div className="notification-toggle__label">
-                        <span>Pushmeldingen</span>
-                      </div>
-                      <ToggleSwitch
-                        isToggled={notificationSettings.push}
-                        onToggle={event => handlePushPreferenceChange(event.target.checked)}
-                        disabled={isSavingNotificationSettings}
-                        variant="notification"
-                      />
-                    </div>
-
-                    <div className="notification-toggle">
-                      <div className="notification-toggle__label">
-                        <span>E-mail updates</span>
-                      </div>
-                      <ToggleSwitch
-                        isToggled={notificationSettings.email}
-                        onToggle={event => handleEmailPreferenceChange(event.target.checked)}
-                        disabled={isSavingNotificationSettings}
-                        variant="notification"
-                      />
-                    </div>
-                  </div>
                 </div>
 
                 <div className="setting-section">
@@ -967,6 +835,51 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
             </div>
 
           </div>
+
+          {user.isAdmin && (
+            <div className="account-card account-card-admin-users">
+              <div className="account-card-header">
+                <h4>Gebruikersbeheer</h4>
+              </div>
+              <div className="account-card-body">
+                <div className="admin-users-list">
+                  {allUsers.length === 0 ? (
+                    <p className="admin-users-loading">Gebruikers laden...</p>
+                  ) : (
+                    allUsers
+                      .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, 'nl-NL'))
+                      .map(u => (
+                        <div key={u.id} className="admin-user-row">
+                          <div className="admin-user-info">
+                            <span className="admin-user-name">{u.firstName} {u.lastName}</span>
+                            <div className="admin-user-pills">
+                              {u.isAdmin && <span className="account-pill account-pill-admin">Admin</span>}
+                              <span className={`account-pill account-pill-${u.status || 'active'}`}>
+                                {USER_STATUS_LABELS[u.status || 'active']}
+                              </span>
+                            </div>
+                          </div>
+                          <select
+                            className="admin-status-select"
+                            value={u.status || 'active'}
+                            onChange={e => handleAdminStatusChange(u.id, e.target.value)}
+                            disabled={isChangingStatus}
+                            aria-label={`Status van ${u.firstName} ${u.lastName}`}
+                          >
+                            <option value="active">Actief</option>
+                            <option value="inactive">Inactief</option>
+                            <option value="legacy">Historisch</option>
+                          </select>
+                        </div>
+                      ))
+                  )}
+                </div>
+                {adminStatusError && <div className="setting-error" style={{ marginTop: '1rem' }}>{adminStatusError}</div>}
+                {adminStatusMessage && <div className="setting-success" style={{ marginTop: '1rem' }}>{adminStatusMessage}</div>}
+              </div>
+            </div>
+          )}
+
           <div className="account-footer">
             <button
               className="btn btn-danger"

@@ -3,18 +3,8 @@
  * OPKOMSTEN PAGE - CARD-BASED LAYOUT
  * ================================================================
  * 
- * Modern card-based design replacing the old tab.participant-toggle.participating {
-  background: linear-gradient(135deg, var(--primary-500) 0%, var(--primary-600) 100%);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
-}
-
-.participant-toggle.participating:hover {
-  background: linear-gradient(135deg, var(--primary-600) 0%, var(--primary-700) 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 3px 6px rgba(59, 130, 246, 0.4);
-}* Handles responsive design and admin participant management
+ * Modern card-based design replacing the old table layout.
+ * Handles responsive design and admin participant management.
  */
 
 /* ================================================================
@@ -178,14 +168,25 @@
   border-bottom: 1px solid var(--primary-200);
 }
 
-/* Opkomstmakers badges - reusing MyAccount.css pill styles */
-.opkomst-list__makers-badges {
+/* Opkomstmakers badges */
+.opkomsten-card__makers {
+  margin: 0;
+  color: var(--secondary-600);
+  font-weight: var(--font-weight-medium);
+  font-size: 0.8125rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.opkomsten-card__makers-badges {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2) !important;
 }
 
-.opkomst-list__maker-pill {
+.opkomsten-card__maker-pill {
   padding: 0.25rem 0.75rem;
   background: white !important;
   border: 1px solid var(--primary-100);
@@ -353,10 +354,10 @@
 }
 
 /* ================================================================
- * CHECKBOX COMPONENT STYLES (shared)
+ * ATTENDANCE CHECKBOX (PAGE-SCOPED)
  * ================================================================ */
 
-.checkbox-input {
+.attendance-checkbox-input {
   position: absolute;
   opacity: 0;
   cursor: pointer;
@@ -364,7 +365,7 @@
   width: 0;
 }
 
-.checkbox-custom {
+.attendance-checkbox-custom {
   height: 20px;
   width: 20px;
   background-color: white;
@@ -375,12 +376,12 @@
   display: inline-block;
 }
 
-.checkbox-input:checked + .checkbox-custom {
+.attendance-checkbox-input:checked + .attendance-checkbox-custom {
   background-color: var(--primary-600);
   border-color: var(--primary-600);
 }
 
-.checkbox-input:checked + .checkbox-custom::after {
+.attendance-checkbox-input:checked + .attendance-checkbox-custom::after {
   content: '';
   position: absolute;
   left: 6px;
@@ -392,33 +393,33 @@
   transform: rotate(45deg);
 }
 
-.checkbox-custom:hover {
+.attendance-checkbox-custom:hover {
   border-color: var(--secondary-400);
   transform: scale(1.05);
 }
 
-.checkbox-input:checked + .checkbox-custom:hover {
+.attendance-checkbox-input:checked + .attendance-checkbox-custom:hover {
   border-color: var(--primary-400);
   background-color: var(--primary-400);
 }
 
-.checkbox-input:disabled + .checkbox-custom {
+.attendance-checkbox-input:disabled + .attendance-checkbox-custom {
   background-color: var(--secondary-100);
   border-color: var(--secondary-300);
   cursor: not-allowed;
   opacity: 0.6;
 }
 
-.checkbox-input:disabled:checked + .checkbox-custom {
+.attendance-checkbox-input:disabled:checked + .attendance-checkbox-custom {
   background-color: var(--secondary-500);
   border-color: var(--secondary-500);
 }
 
-.checkbox-input:disabled:checked + .checkbox-custom::after {
+.attendance-checkbox-input:disabled:checked + .attendance-checkbox-custom::after {
   border-color: var(--secondary-100);
 }
 
-.checkbox-input:disabled ~ .checkbox-custom:hover {
+.attendance-checkbox-input:disabled ~ .attendance-checkbox-custom:hover {
   border-color: var(--secondary-300);
   background-color: var(--secondary-100);
   transform: none;

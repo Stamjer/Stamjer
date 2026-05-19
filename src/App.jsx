@@ -27,8 +27,7 @@ import { APP_VERSION, withSupportContact } from './config/appInfo'
 import ProtectedRoute from './components/ProtectedRoute'
 import { AppErrorBoundary, PageErrorBoundary, setupGlobalErrorHandling } from './components/ErrorBoundary'
 import { ToastProvider } from './hooks/useToast'
-import { CalendarIcon, ClipboardIcon, EuroIcon, TrophyIcon, UserIcon, LoginIcon, NotificationIcon } from './components/icons'
-import NotificationCenter from './components/notifications/NotificationCenter'
+import { CalendarIcon, ClipboardIcon, EuroIcon, TrophyIcon, UserIcon, LoginIcon } from './components/icons'
 import PullToRefresh from './components/PullToRefresh'
 
 // Query client configuration
@@ -49,8 +48,6 @@ const OpkomstenPage = lazy(() => import('./pages/OpkomstenPage'))
 const MyAccount = lazy(() => import('./pages/MyAccount'))
 const StrepenPage = lazy(() => import('./pages/StrepenPage'))
 const PaymentRequestPage = lazy(() => import('./pages/PaymentRequestPage'))
-const NotificationsPage = lazy(() => import('./pages/NotificationsPage'))
-const NotificationAdminPage = lazy(() => import('./pages/NotificationAdminPage'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 
 const ROUTE_LABELS = {
@@ -62,8 +59,6 @@ const ROUTE_LABELS = {
   '/declaraties': 'Declaraties',
   '/strepen': 'Strepen',
   '/account': 'Account',
-  '/meldingen': 'Meldingen',
-  '/meldingen/beheer': 'Meldingbeheer',
 }
 
 const NAV_ICON_MAP = {
@@ -74,8 +69,6 @@ const NAV_ICON_MAP = {
   '/account': UserIcon,
   '/login': LoginIcon,
   '/': LoginIcon,
-  '/meldingen': NotificationIcon,
-  '/meldingen/beheer': NotificationIcon,
 }
 
 
@@ -478,7 +471,6 @@ function App() {
                   </div>
                   <h1 className="nav-title">{ROUTE_LABELS[normalizedPathname] || 'Stamjer'}</h1>
 
-                  {user && <NotificationCenter user={user} />}
                 </div>
               </div>
 
@@ -606,20 +598,6 @@ function App() {
                   <ProtectedRoute user={user}>
                     <PageErrorBoundary pageName="My Account">
                       <MyAccount user={user} onLogout={handleLogout} />
-                    </PageErrorBoundary>
-                  </ProtectedRoute>
-                } />
-                <Route path="/meldingen" element={
-                  <ProtectedRoute user={user}>
-                    <PageErrorBoundary pageName="Meldingen">
-                      <NotificationsPage user={user} />
-                    </PageErrorBoundary>
-                  </ProtectedRoute>
-                } />
-                <Route path="/meldingen/beheer" element={
-                  <ProtectedRoute user={user}>
-                    <PageErrorBoundary pageName="Meldingbeheer">
-                      <NotificationAdminPage user={user} />
                     </PageErrorBoundary>
                   </ProtectedRoute>
                 } />

@@ -1163,12 +1163,21 @@ export default function OpkomstenPage() {
                 </div>
                 {/* Add check to see if there are makers */}
                 {event.opkomstmakers && (
-                  <div className="opkomst-list__makers-badges">
-                    {event.opkomstmakers.split(',').map((maker, index) => (
-                      <span key={index} className="opkomst-list__maker-pill">
-                        {maker.trim()}
-                      </span>
-                    ))}
+                  <div className="opkomsten-card__makers">
+                    <div className="opkomsten-card__makers-title">
+                      Opkomstmakers:
+                    </div>
+
+                    <div className="opkomsten-card__makers-badges">
+                      {event.opkomstmakers.split(',').map((maker, index) => (
+                        <span
+                          key={index}
+                          className="opkomsten-card__maker-pill"
+                        >
+                          {maker.trim()}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 )}
                 
@@ -1181,11 +1190,11 @@ export default function OpkomstenPage() {
                         (currentUser && event.participants && event.participants.includes(currentUser.id))
                       }
                       onChange={(e) => handleAttendanceChange(event.id, e.target.checked)}
-                      className="checkbox-input"
+                      className="attendance-checkbox-input"
                       disabled={!canChangeAttendance(event.start)}
                       title={!canChangeAttendance(event.start) ? 'Aanwezigheid kan alleen worden gewijzigd voor de datum van de opkomst' : ''}
                     />
-                    <span className="checkbox-custom"></span>
+                    <span className="attendance-checkbox-custom"></span>
                     <span className="attendance-label">
                       {(attendance[event.id] || (currentUser && event.participants && event.participants.includes(currentUser.id))) ? 'Aanwezig' : 'Afwezig'}
                     </span>
@@ -1213,22 +1222,24 @@ export default function OpkomstenPage() {
                   </div>
                   <div className="participants-content">
                     {currentUser && currentUser.isAdmin ? (
-                      // Admin view: Show all users with toggleable states
+                      // Admin view: Show all non-legacy users with toggleable states
                       <div className="admin-participants-grid">
                         {users.length > 0 ? (
                           users
+                            .filter(u => (u.status || 'active') !== 'legacy')
                             .sort((a, b) => a.firstName.localeCompare(b.firstName, 'nl-NL'))
                             .map(user => {
                               const isParticipating = event.participants && event.participants.includes(user.id)
+                              const isInactive = (user.status || 'active') === 'inactive'
                               return (
                                 <button
                                   key={user.id}
                                   type="button"
-                                  className={`participant-toggle ${isParticipating ? 'participating' : 'not-participating'}`}
+                                  className={`participant-toggle ${isParticipating ? 'participating' : 'not-participating'}${isInactive ? ' participant-toggle-inactive' : ''}`}
                                   onClick={() => handleAdminToggleParticipation(event.id, user.id)}
-                                  title={`Klik om ${isParticipating ? 'af te melden' : 'aan te melden'}: ${user.firstName}`}
+                                  title={`${isInactive ? '[Inactief] ' : ''}Klik om ${isParticipating ? 'af te melden' : 'aan te melden'}: ${user.firstName}`}
                                 >
-                                  {user.firstName}
+                                  {user.firstName}{isInactive ? ' •' : ''}
                                 </button>
                               )
                             })
@@ -1264,7 +1275,7 @@ export default function OpkomstenPage() {
           event={editingEvent}
           onClose={() => setEditingEvent(null)}
           onSave={handleAdd}
-          users={users}
+          users={users.filter(u => (u.status || 'active') === 'active')}
           currentUser={currentUser}
         />
       )}

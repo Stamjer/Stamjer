@@ -231,7 +231,7 @@ function generateVEvent(event) {
     lines.push(foldLine(`LOCATION:${location}`))
   }
   
-  // DESCRIPTION (build from description and opkomstmakers only)
+  // DESCRIPTION (build from description and participant labels)
   let description = ''
   
   if (event.description) {
@@ -244,6 +244,15 @@ function generateVEvent(event) {
       description += '\n\nOpkomstmakers: ' + event.opkomstmakers
     } else {
       description = 'Opkomstmakers: ' + event.opkomstmakers
+    }
+  }
+
+  // Add schoonmakers to description if it's a schoonmaak event
+  if (event.isSchoonmaak && event.schoonmakers) {
+    if (description) {
+      description += '\n\nSchoonmakers: ' + event.schoonmakers
+    } else {
+      description = 'Schoonmakers: ' + event.schoonmakers
     }
   }
   

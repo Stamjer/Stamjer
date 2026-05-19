@@ -403,147 +403,6 @@ export async function updateAttendance(eventId, userId, attending) {
 }
 
 // ================================================================
-// NOTIFICATIONS API
-// ================================================================
-
-export async function getPushPublicKey() {
-  return request('/push/public-key')
-}
-
-export async function subscribePush(userId, subscription, metadata = {}) {
-  if (!userId || !subscription) {
-    throw new Error('Gebruikers-ID en subscription zijn verplicht voor pushmeldingen')
-  }
-
-  return request('/push/subscribe', {
-    method: 'POST',
-    body: {
-      userId,
-      subscription,
-      ...metadata
-    }
-  })
-}
-
-export async function unsubscribePush(target) {
-  const { endpoint, deviceId } =
-    typeof target === 'string'
-      ? { endpoint: target }
-      : (target || {})
-
-  if (!endpoint && !deviceId) {
-    throw new Error('Endpoint of deviceId is vereist om pushmeldingen uit te schrijven')
-  }
-
-  return request('/push/unsubscribe', {
-    method: 'POST',
-    body: { endpoint, deviceId }
-  })
-}
-
-export async function getNotifications(userId) {
-  if (!userId) {
-    throw new Error('Gebruikers-ID is verplicht voor notificaties')
-  }
-
-  const params = new URLSearchParams({ userId: String(userId) })
-  return request(`/notifications?${params.toString()}`)
-}
-
-export async function markNotificationsRead(userId, notificationIds, read = true) {
-  if (!userId) {
-    throw new Error('Gebruikers-ID is verplicht om notificaties bij te werken')
-  }
-
-  return request('/notifications/mark-read', {
-    method: 'POST',
-    body: {
-      userId,
-      notificationIds,
-      read
-    }
-  })
-}
-
-export async function markAllNotificationsRead(userId) {
-  if (!userId) {
-    throw new Error('Gebruikers-ID is verplicht om notificaties bij te werken')
-  }
-
-  return request('/notifications/mark-all-read', {
-    method: 'POST',
-    body: { userId }
-  })
-}
-
-export async function sendManualNotification(userId, payload, sessionToken) {
-  if (!userId) {
-    throw new Error('Gebruikers-ID (admin) is verplicht om handmatige notificaties te versturen')
-  }
-  if (!payload || !payload.title || !payload.message) {
-    throw new Error('Titel en bericht zijn verplicht voor een handmatige notificatie')
-  }
-
-  return request('/notifications/manual', {
-    method: 'POST',
-    body: {
-      userId,
-      ...payload
-    },
-    sessionToken
-  })
-}
-
-export async function getScheduledNotifications(sessionToken) {
-  try {
-    return await request('/notifications/scheduled', { sessionToken })
-  } catch (error) {
-    const message = error?.message || ''
-    const normalized = message.toLowerCase()
-    if (message.includes('404') || normalized.includes('niet gevonden') || normalized.includes('informatie werd niet gevonden')) {
-      console.warn('[notifications] Geen endpoint gevonden voor geplande meldingen, leeg resultaat teruggegeven.')
-      return { items: [] }
-    }
-    throw error
-  }
-}
-
-export async function scheduleNotification(payload, sessionToken) {
-  if (!payload || !payload.title || !payload.message) {
-    throw new Error('Titel en bericht zijn verplicht om een melding in te plannen')
-  }
-
-  return request('/notifications/schedule', {
-    method: 'POST',
-    body: payload,
-    sessionToken
-  })
-}
-
-export async function updateScheduledNotification(notificationId, payload, sessionToken) {
-  if (!notificationId) {
-    throw new Error('Notificatie-ID is verplicht om een geplande melding bij te werken')
-  }
-
-  return request(`/notifications/schedule/${notificationId}`, {
-    method: 'PUT',
-    body: payload,
-    sessionToken
-  })
-}
-
-export async function cancelScheduledNotification(notificationId, sessionToken) {
-  if (!notificationId) {
-    throw new Error('Notificatie-ID is verplicht om een geplande melding te annuleren')
-  }
-
-  return request(`/notifications/schedule/${notificationId}`, {
-    method: 'DELETE',
-    sessionToken
-  })
-}
-
-// ================================================================
 // USERS API
 // ================================================================
 
@@ -583,6 +442,13 @@ export async function updateUserProfile(profileData) {
   return request('/user/profile', {
     method: 'PUT',
     body: profileData
+  })
+}
+
+export async function updateUserStatus(targetUserId, status, adminUserId) {
+  return request(`/users/${encodeURIComponent(targetUserId)}/status`, {
+    method: 'PATCH',
+    body: { userId: adminUserId, status }
   })
 }
 
@@ -652,23 +518,13 @@ export default {
   updateEvent,
   deleteEvent,
   updateAttendance,
-  getPushPublicKey,
-  subscribePush,
-  unsubscribePush,
-  getNotifications,
-  markNotificationsRead,
-  markAllNotificationsRead,
-  sendManualNotification,
-  getScheduledNotifications,
-  scheduleNotification,
-  updateScheduledNotification,
-  cancelScheduledNotification,
   
   // Users
   getUsers,
   getUsersFull,
   getUserProfile,
   updateUserProfile,
+  updateUserStatus,
 
   // Payment requests
   submitPaymentRequest,
