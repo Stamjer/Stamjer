@@ -25,13 +25,6 @@ const classNameMappings = {
   'table-wrapper-common': 'card-elevated',
 };
 
-// Files to check
-const filesToCheck = [
-  'src/**/*.jsx',
-  'src/**/*.js',
-  'src/**/*.css',
-];
-
 console.log('🔍 CSS Class Migration Checker\n');
 console.log('Checking for old class names that should be updated...\n');
 
@@ -59,7 +52,7 @@ function checkFile(filePath) {
       fileIssues.forEach(issue => console.log(issue));
       console.log('');
     }
-  } catch (error) {
+  } catch {
     // Ignore errors (file not found, etc.)
   }
 }
@@ -79,7 +72,7 @@ function checkDirectory(dir, pattern) {
         checkFile(filePath);
       }
     });
-  } catch (error) {
+  } catch {
     // Ignore errors
   }
 }
@@ -105,7 +98,7 @@ function checkCommonCssImports(dir) {
         }
       }
     });
-  } catch (error) {
+  } catch {
     // Ignore errors
   }
 }

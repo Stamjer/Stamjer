@@ -310,33 +310,81 @@
   position: relative;
   display: flex;
   align-items: center;
+  color: var(--secondary-300);
 }
 
 .password-field .form-input {
-  padding-right: var(--space-12);
+  width: 100%;
+  padding-inline-end: var(--space-12);
+}
+
+.password-field .form-input::placeholder {
+  color: var(--secondary-300);
 }
 
 .password-toggle {
   position: absolute;
-  right: var(--space-4);
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: var(--space-2);
-  border-radius: var(--radius-md);
-  transition: all var(--duration-fast) var(--ease-out);
+  inset-inline-end: var(--space-3);
+  top: 50%;
+  z-index: 1;
+
+  display: grid;
+  place-items: center;
+
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+
   color: var(--secondary-500);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-md);
+
+  cursor: pointer;
+
+  transform: translateY(-50%);
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
 }
 
 .password-toggle:hover:not(:disabled) {
-  background: var(--secondary-100);
   color: var(--secondary-700);
-  transform: scale(1.1);
+  background: var(--secondary-100);
+  transform: translateY(-50%) scale(1.08);
+}
+
+.password-toggle:active:not(:disabled) {
+  transform: translateY(-50%) scale(0.96);
 }
 
 .password-toggle:focus-visible {
   outline: 2px solid var(--primary-500);
   outline-offset: 2px;
+}
+
+.password-toggle:disabled {
+  color: var(--secondary-300);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.password-toggle svg {
+  width: 1.125rem;
+  height: 1.125rem;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .password-toggle {
+    transition: none;
+  }
+
+  .password-toggle:hover:not(:disabled),
+  .password-toggle:active:not(:disabled) {
+    transform: translateY(-50%);
+  }
 }
 
 /* Hide native Edge password reveal icon (we use a custom toggle button) */

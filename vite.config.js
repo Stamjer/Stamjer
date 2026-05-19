@@ -18,7 +18,6 @@ const PWA_INCLUDE_ASSETS = [
 export default defineConfig(async ({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const isBuild = command === 'build'
-  const isDev = command === 'serve'
   const enableDevSW = env.VITE_ENABLE_PWA_DEV === 'true'
 
   const plugins = [
@@ -105,12 +104,7 @@ export default defineConfig(async ({ command, mode }) => {
             'query-vendor': ['@tanstack/react-query']
           },
           // Better chunk naming for caching
-          chunkFileNames: (chunkInfo) => {
-            const facadeModuleId = chunkInfo.facadeModuleId
-              ? chunkInfo.facadeModuleId.split('/').pop()
-              : ''
-            return `assets/js/[name]-[hash].js`
-          },
+          chunkFileNames: 'assets/js/[name]-[hash].js',
           entryFileNames: 'assets/js/[name]-[hash].js',
           assetFileNames: (assetInfo) => {
             const info = assetInfo.name.split('.')

@@ -15,6 +15,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
+import { Eye, EyeOff } from "lucide-react";
 import { useNavigate } from 'react-router-dom'
 import { withSupportContact } from '../config/appInfo'
 import { login } from '../services/api'
@@ -224,7 +225,7 @@ export default function Login({ setUser }) {
                     aria-label={showPassword ? "Wachtwoord verbergen" : "Wachtwoord tonen"}
                     disabled={isLoading}
                   >
-                    {showPassword ? 'Verberg' : 'Toon'}
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
                 {fieldErrors.password && (

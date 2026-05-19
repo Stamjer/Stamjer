@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import { Eye, EyeOff } from "lucide-react";
 import { useNavigate } from 'react-router-dom'
 import { withSupportContact } from '../config/appInfo'
 import {
@@ -161,15 +162,19 @@ export default function MyAccount({ user: userProp, onLogout }) {
   const [isOpkomstenLoading, setIsOpkomstenLoading] = useState(true)
   const [opkomstenError, setOpkomstenError] = useState(null)
   const [selectedOpkomst, setSelectedOpkomst] = useState(null)
-  let user = userProp
-  if (!user) {
+  const user = useMemo(() => {
+    if (userProp) {
+      return userProp
+    }
+
     try {
       const raw = localStorage.getItem('user')
-      if (raw) user = JSON.parse(raw)
+      return raw ? JSON.parse(raw) : null
     } catch {
       localStorage.removeItem('user')
+      return null
     }
-  }
+  }, [userProp])
 
   useEffect(() => {
     const loadUserData = async () => {
@@ -210,7 +215,6 @@ export default function MyAccount({ user: userProp, onLogout }) {
 
   // Always refresh profile preferences from the server (keeps devices in sync)
   useEffect(() => {
-    let cancelled = false
     const fetchProfile = async () => {
       if (!user?.id) return
       try {
@@ -227,8 +231,7 @@ export default function MyAccount({ user: userProp, onLogout }) {
       }
     }
     fetchProfile()
-    return () => { cancelled = true }
-  }, [user?.id])
+  }, [user])
 
   useEffect(() => {
     if (!user) {
@@ -345,9 +348,7 @@ export default function MyAccount({ user: userProp, onLogout }) {
     }
   }, [user, navigate])
 
-  if (!user) return null
-
-  const { firstName, lastName, email, id } = user
+  const { firstName, lastName, email, id } = user || {}
   const streepjes = userWithStreepjes?.streepjes ?? 0
   const isStreepjesLoading = userWithStreepjes === null
 
@@ -522,7 +523,9 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
       await updateUserStatus(targetUserId, newStatus, id)
       setAllUsers(prev => prev.map(u => u.id === targetUserId ? { ...u, status: newStatus } : u))
       setAdminStatusMessage(`Status van ${targetUser.firstName} ${targetUser.lastName} bijgewerkt naar ${newLabel}.`)
-      invalidateUsers().catch(() => {})
+      invalidateUsers().catch(() => {
+        // Cache invalidation failures should not block the visible status update.
+      })
     } catch (err) {
       setAdminStatusError(withSupportContact(err.message || 'Status bijwerken mislukt'))
       // refresh list to revert UI
@@ -535,6 +538,8 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
       setIsChangingStatus(false)
     }
   }, [allUsers, id])
+
+  if (!user) return null
 
   return (
     <>
@@ -755,7 +760,7 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
                             onClick={() => togglePasswordVisibility('current')}
                             className="password-toggle"
                           >
-                            {showPasswords.current ? 'Verberg' : 'Toon'}
+                            {showPasswords.current ? <EyeOff size={18} /> : <Eye size={18} />}
                           </button>
                         </div>
                       </div>
@@ -783,7 +788,7 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
                             onClick={() => togglePasswordVisibility('new')}
                             className="password-toggle"
                           >
-                            {showPasswords.new ? 'Verberg' : 'Toon'}
+                           {showPasswords.new ? <EyeOff size={18} /> : <Eye size={18} />}
                           </button>
                         </div>
                       </div>
@@ -811,7 +816,7 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
                             onClick={() => togglePasswordVisibility('confirm')}
                             className="password-toggle"
                           >
-                            {showPasswords.confirm ? 'Verberg' : 'Toon'}
+                            {showPasswords.confirm ? <EyeOff size={18} /> : <Eye size={18} />}
                           </button>
                         </div>
                       </div>

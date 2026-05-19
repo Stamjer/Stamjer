@@ -20,7 +20,7 @@ import React, { useState, useEffect, useCallback, useMemo, lazy, Suspense, useRe
 import { Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
-import { APP_VERSION, withSupportContact } from './config/appInfo'
+import { APP_VERSION } from './config/appInfo'
 
 
 // Component imports
@@ -33,6 +33,7 @@ import PullToRefresh from './components/PullToRefresh'
 // Query client configuration
 import { queryClient } from './lib/queryClient'
 import { performHardReset } from './lib/hardReset'
+import { getCurrentSession, logout as logoutSession } from './services/api'
 
 // Import styles
 import './styles/shared.css'
@@ -120,38 +121,39 @@ function App() {
       const audio = new Audio(clickSoundUrl)
       audio.preload = 'auto'
       clickSoundRef.current = audio
-    } catch (e) {
+    } catch {
       // Ignore audio setup errors; playback will fallback to constructing on demand
     }
     return () => {
       if (clickSoundRef.current) {
         try {
           clickSoundRef.current.pause()
-        } catch {}
+        } catch {
+          // Ignore cleanup errors from browsers that block media operations.
+        }
         clickSoundRef.current = null
       }
     }
   }, [])
   
   /**
-   * Load user from localStorage on component mount
-   * This allows users to stay logged in when they refresh the page
+   * Load the secure cookie-backed session on component mount.
+   * localStorage is only a display cache; the server decides whether the session is valid.
    */
   useEffect(() => {
     const initializeUser = async () => {
       try {
-        const raw = localStorage.getItem('user')
-        if (raw) {
-          const userData = JSON.parse(raw)
-          // Validate user data structure and presence of sessionToken for API auth
-          if (userData && (userData.email || userData.id) && userData.sessionToken) {
-            setUser(userData)
-          } else {
-            localStorage.removeItem('user')
-          }
+        const data = await getCurrentSession()
+        if (data?.user && (data.user.email || data.user.id)) {
+          localStorage.setItem('user', JSON.stringify(data.user))
+          setUser(data.user)
+        } else {
+          localStorage.removeItem('user')
         }
       } catch (error) {
-        console.error('Error loading user from localStorage:', error)
+        if (error?.status !== 401) {
+          console.error('Error loading authenticated session:', error)
+        }
         localStorage.removeItem('user')
       } finally {
         setIsInitializing(false)
@@ -204,15 +206,19 @@ function App() {
    * Handle user logout
    * Clears user session and redirects to login page
    */
-  const handleLogout = useCallback(() => {
+  const handleLogout = useCallback(async () => {
     try {
+      await logoutSession()
       localStorage.removeItem('user')
+      localStorage.removeItem('rememberMe')
       setUser(null)
       navigate('/login')
       setIsMobileMenuOpen(false) // Close mobile menu on logout
     } catch (error) {
       console.error('Error during logout:', error)
       // Force logout even if there's an error
+      localStorage.removeItem('user')
+      localStorage.removeItem('rememberMe')
       setUser(null)
       navigate('/login')
       setIsMobileMenuOpen(false)
@@ -247,14 +253,14 @@ function App() {
       const audio = clickSoundRef.current || new Audio(clickSoundUrl)
       clickSoundRef.current = audio
       // Ensure fresh playback on rapid clicks
-      try { audio.pause() } catch {}
-      try { audio.currentTime = 0 } catch {}
+      try { audio.pause() } catch { /* Ignore playback reset errors */ }
+      try { audio.currentTime = 0 } catch { /* Ignore playback reset errors */ }
       const p = audio.play()
       if (p && typeof p.catch === 'function') {
         p.catch(() => { /* Ignore user-gesture or interruption errors */ })
       }
     } catch {
-      // No-op on audio errors
+      // Ignore audio errors; the logo action should never block navigation.
     }
   }, [])
 
@@ -374,36 +380,6 @@ function App() {
     })
 
     return items
-  }, [user])
-
-  const activeSection = useMemo(() => {
-    const label = ROUTE_LABELS[normalizedPathname]
-    const Icon = NAV_ICON_MAP[normalizedPathname]
-
-    if (!label) {
-      return null
-    }
-
-    return { label, Icon }
-  }, [normalizedPathname])
-
-  const navUserMeta = useMemo(() => {
-    if (!user) {
-      return null
-    }
-
-    const initials = [user.firstName, user.lastName]
-      .filter(Boolean)
-      .map((name) => name.trim().charAt(0).toUpperCase())
-      .filter(Boolean)
-      .slice(0, 2)
-      .join('')
-
-    return {
-      name: user.firstName || user.email || 'Gebruiker',
-      role: user.isAdmin ? 'Administrator' : 'Lid',
-      initials: initials || 'S',
-    }
   }, [user])
 
   // ================================================================

@@ -10,6 +10,7 @@
  */
 
 import React from 'react'
+import { MapPin } from 'lucide-react'
 import './LocationLink.css'
 
 /**
@@ -64,6 +65,7 @@ export default function LocationLink({ location, className = '', showIcon = true
       aria-label={`Open ${location} in kaarten`}
       title="Open in kaarten"
     >
+      {showIcon && <MapPin className="location-icon" aria-hidden="true" size={16} />}
       <span className="location-text">{location}</span>
     </a>
   )

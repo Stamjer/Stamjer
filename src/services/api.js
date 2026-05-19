@@ -177,6 +177,7 @@ async function request(url, options = {}, timeout = DEFAULT_TIMEOUT) {
   const requestOptions = {
     ...restOptions,
     signal: controller.signal,
+    credentials: 'include',
   }
 
   const shouldSerializeBody =
@@ -247,6 +248,26 @@ export async function login(email, password) {
   return request('/login', {
     method: 'POST',
     body: { email: normalizedEmail, password }
+  })
+}
+
+/**
+ * Get the currently authenticated user from the secure session cookie.
+ * @returns {Promise<Object>} Current session data
+ */
+export async function getCurrentSession() {
+  return request('/session', {
+    method: 'GET',
+  })
+}
+
+/**
+ * Logout the current device session.
+ * @returns {Promise<Object>} Logout result
+ */
+export async function logout() {
+  return request('/logout', {
+    method: 'POST',
   })
 }
 
@@ -508,6 +529,8 @@ export function addNetworkListeners(onOnline, onOffline) {
 export default {
   // Authentication
   login,
+  getCurrentSession,
+  logout,
   forgotPassword,
   resetPassword,
   changePassword,

@@ -86,7 +86,7 @@ export default function MobileAgenda({
       }
     })
     // Sort each day's events by start time
-    for (const [k, list] of map.entries()) {
+    for (const list of map.values()) {
       list.sort((a, b) => new Date(a.start) - new Date(b.start))
     }
     return map
@@ -95,9 +95,9 @@ export default function MobileAgenda({
   const dayKeysSorted = useMemo(() => Array.from(eventsByDay.keys()).sort(), [eventsByDay])
 
   // Collapsible state per day (default collapsed for past days)
-  const today = new Date()
-  today.setHours(0,0,0,0)
   const initialCollapsed = useMemo(() => {
+    const today = new Date()
+    today.setHours(0,0,0,0)
     const map = new Map()
     dayKeysSorted.forEach(key => {
       const d = new Date(key)

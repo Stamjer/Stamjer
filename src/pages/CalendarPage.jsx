@@ -172,9 +172,7 @@ function EventModal({ event, onClose, onDelete, onEdit, isAdmin = false, current
     }
   }, [event])
 
-  if (!event) return null
-
-  const { title, start, end, allDay, extendedProps } = event
+  const { title, start, end, allDay, extendedProps } = event || {}
 
   // Attendance state derived from event participants
   const participants = extendedProps?.participants || []
@@ -182,6 +180,8 @@ function EventModal({ event, onClose, onDelete, onEdit, isAdmin = false, current
   const [attending, setAttending] = useState(initialAttending)
   useEffect(() => { setAttending(initialAttending) }, [initialAttending])
   const attendanceDisabled = !currentUser || !canChangeAttendance(start)
+
+  if (!event) return null
 
   const handleDelete = async () => {
     if (!window.confirm('Weet je zeker dat je dit evenement wilt verwijderen?')) {

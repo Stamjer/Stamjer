@@ -196,7 +196,7 @@ export default function ForgotPassword() {
                           showNewPassword ? 'Wachtwoord verbergen' : 'Wachtwoord tonen'
                         }
                       >
-                        {showNewPassword ? 'Verberg' : 'Toon'}
+                        {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                       </button>
                     </div>
                   </div>

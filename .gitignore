@@ -113,6 +113,9 @@ Desktop.ini
 .tmp/
 .temp/
 
+# Local planning documents
+GROUPS_REMODEL_PLAN.md
+
 # OS generated files
 .DS_Store
 .DS_Store?

@@ -31,7 +31,7 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import expressStaticGzip from 'express-static-gzip'
 import { fileURLToPath } from 'url'
 import { dirname } from 'path'
-import { randomUUID, createHmac, timingSafeEqual } from 'crypto'
+import { randomUUID, randomBytes, createHmac, timingSafeEqual } from 'crypto'
 import webpush from 'web-push'
 import { MongoClient } from 'mongodb'
 import { createRequestLogger, configureDailyReport, logError as logSystemError, logEvent } from './logger.js'
@@ -71,6 +71,11 @@ const PAYMENT_REQUEST_TOTAL_SIZE_LIMIT = Math.max(parseInt(process.env.PAYMENT_R
 const NOTIFICATION_TTL_DAYS = Math.max(parseInt(process.env.NOTIFICATION_TTL_DAYS, 10) || 90, 7)
 const NOTIFICATION_TTL_MS = NOTIFICATION_TTL_DAYS * 24 * 60 * 60 * 1000
 const TOKEN_SECRET = process.env.TOKEN_SECRET || 'dev-token-secret-change-me'
+const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || 'stamjer_session'
+const SESSION_MAX_AGE_DAYS = Math.max(parseInt(process.env.SESSION_MAX_AGE_DAYS, 10) || 365, 1)
+const SESSION_MAX_AGE_MS = SESSION_MAX_AGE_DAYS * 24 * 60 * 60 * 1000
+const SESSION_TOUCH_INTERVAL_MS = Math.max(parseInt(process.env.SESSION_TOUCH_INTERVAL_HOURS, 10) || 24, 1) * 60 * 60 * 1000
+const SESSION_COOKIE_DOMAIN = process.env.SESSION_COOKIE_DOMAIN || ''
 const MAX_PUSH_SUBSCRIPTIONS_PER_USER = Math.max(parseInt(process.env.MAX_PUSH_SUBSCRIPTIONS_PER_USER, 10) || 5, 1)
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY || ''
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || ''
@@ -90,7 +95,9 @@ const PUSH_TOPIC =
       if (process.env.CLIENT_ORIGIN) {
         return new URL(process.env.CLIENT_ORIGIN).host
       }
-    } catch {}
+    } catch {
+      // Fall back to the default push topic below.
+    }
     return 'stamjer.nl'
   })()
 let isWebPushConfigured = false
@@ -181,6 +188,12 @@ async function ensureIndexes(db) {
     { keys: { expiresAt: 1 }, options: { expireAfterSeconds: 0, background: true, name: 'resetCodes_ttl_idx' }, description: 'resetCodes TTL' }
   ])
 
+  const sessionsCreated = await ensureCollectionIndexes(db.collection('sessions'), [
+    { keys: { sessionId: 1 }, options: { unique: true, background: true, name: 'sessions_id_unique_idx' }, description: 'sessions.sessionId unique' },
+    { keys: { userId: 1, revokedAt: 1 }, options: { background: true, name: 'sessions_user_revoked_idx' }, description: 'sessions per user' },
+    { keys: { expiresAt: 1 }, options: { expireAfterSeconds: 0, background: true, name: 'sessions_expiresAt_ttl_idx' }, description: `sessions TTL (${SESSION_MAX_AGE_DAYS} dagen)` }
+  ])
+
   // Add indexes for the daily snapshots collection
   const dailySnapshotsCollection = db.collection('dailySnapshots')
   await dropObsoleteSnapshotIndexes(dailySnapshotsCollection)
@@ -203,7 +216,7 @@ async function ensureIndexes(db) {
     { keys: { expiresAt: 1 }, options: { expireAfterSeconds: 0, background: true, name: 'notifications_expiresAt_ttl_idx' }, description: `notifications TTL (${NOTIFICATION_TTL_DAYS} dagen)` }
   ])
 
-  if (eventsCreated || usersCreated || resetCodesCreated || snapshotsCreated || pushSubscriptionsCreated || notificationsCreated) {
+  if (eventsCreated || usersCreated || resetCodesCreated || sessionsCreated || snapshotsCreated || pushSubscriptionsCreated || notificationsCreated) {
     infoLog('[indexes] Created or verified MongoDB indexes')
   }
 }
@@ -310,14 +323,6 @@ function base64UrlDecode(str) {
   return Buffer.from(padded, 'base64')
 }
 
-function signSessionToken(payload) {
-  const header = base64UrlEncode(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
-  const body = base64UrlEncode(JSON.stringify(payload))
-  const data = `${header}.${body}`
-  const signature = base64UrlEncode(createHmac('sha256', TOKEN_SECRET).update(data).digest())
-  return `${data}.${signature}`
-}
-
 function verifySessionToken(token) {
   if (!token || typeof token !== 'string' || !token.includes('.')) return null
   const [header, body, signature] = token.split('.')
@@ -342,6 +347,7 @@ function verifySessionToken(token) {
 function sanitizeClientString(input = '', maxLength = 120) {
   return input
     .toString()
+    // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u001f\u007f-\u009f]/g, '')
     .slice(0, maxLength)
 }
@@ -362,17 +368,53 @@ function ensureDeviceId() {
   }
 }
 
-function issueSessionToken(user, deviceId = ensureDeviceId()) {
-  user.sessionVersion = user.sessionVersion || 0
-  const payload = {
-    userId: user.id,
-    v: user.sessionVersion,
-    deviceId
-  }
-  return { token: signSessionToken(payload), deviceId }
+function parseCookieHeader(header = '') {
+  return header
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .reduce((cookies, part) => {
+      const index = part.indexOf('=')
+      if (index <= 0) return cookies
+      const key = decodeURIComponent(part.slice(0, index).trim())
+      const value = decodeURIComponent(part.slice(index + 1).trim())
+      cookies[key] = value
+      return cookies
+    }, {})
 }
 
-function extractAuthToken(req) {
+function getCookieSessionToken(req) {
+  const cookies = parseCookieHeader(req.headers?.cookie || '')
+  return typeof cookies[SESSION_COOKIE_NAME] === 'string' ? cookies[SESSION_COOKIE_NAME].trim() : ''
+}
+
+function getSessionCookieOptions({ maxAge = SESSION_MAX_AGE_MS } = {}) {
+  const options = {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'lax',
+    path: '/',
+    maxAge
+  }
+
+  if (SESSION_COOKIE_DOMAIN) {
+    options.domain = SESSION_COOKIE_DOMAIN
+  }
+
+  return options
+}
+
+function setSessionCookie(res, token) {
+  res.cookie(SESSION_COOKIE_NAME, token, getSessionCookieOptions())
+}
+
+function clearSessionCookie(res) {
+  const options = getSessionCookieOptions({ maxAge: 0 })
+  delete options.maxAge
+  res.clearCookie(SESSION_COOKIE_NAME, options)
+}
+
+function extractLegacyAuthToken(req) {
   const bearer = typeof req.headers?.authorization === 'string' ? req.headers.authorization.trim() : ''
   if (bearer && bearer.toLowerCase().startsWith('bearer ')) {
     return bearer.slice(7).trim()
@@ -382,25 +424,182 @@ function extractAuthToken(req) {
   )
 }
 
-function getAuthenticatedUser(req, { requireAdmin = false } = {}) {
-  const sessionToken = extractAuthToken(req)
-  let payload = null
+function hashSessionToken(token) {
+  return createHmac('sha256', TOKEN_SECRET).update(token).digest('hex')
+}
 
-  if (sessionToken) {
-    payload = verifySessionToken(sessionToken)
+function createOpaqueSessionToken() {
+  return `${randomUUID()}.${base64UrlEncode(randomBytes(32))}`
+}
+
+function parseOpaqueSessionToken(token = '') {
+  const [sessionId, secret, extra] = token.split('.')
+  if (extra || !sessionId || !secret) return null
+  if (sessionId.length > 80 || secret.length > 120) return null
+  return { sessionId, tokenHash: hashSessionToken(token) }
+}
+
+function normalizeSessionRecord(session) {
+  if (!session) return null
+  return {
+    ...session,
+    expiresAt: session.expiresAt instanceof Date ? session.expiresAt : new Date(session.expiresAt),
+    createdAt: session.createdAt instanceof Date ? session.createdAt : new Date(session.createdAt),
+    lastSeenAt: session.lastSeenAt instanceof Date ? session.lastSeenAt : new Date(session.lastSeenAt),
+    revokedAt: session.revokedAt ? (session.revokedAt instanceof Date ? session.revokedAt : new Date(session.revokedAt)) : null
+  }
+}
+
+function isSessionUsable(session) {
+  if (!session || session.revokedAt) return false
+  const expiresAt = session.expiresAt instanceof Date ? session.expiresAt : new Date(session.expiresAt)
+  return expiresAt.getTime() > Date.now()
+}
+
+async function findSessionByToken(token) {
+  const parsed = parseOpaqueSessionToken(token)
+  if (!parsed) return null
+
+  let session = sessions.find((candidate) =>
+    candidate.sessionId === parsed.sessionId &&
+    candidate.tokenHash === parsed.tokenHash
+  )
+
+  if (!session) {
+    const db = await getDb()
+    session = await db.collection('sessions').findOne(
+      { sessionId: parsed.sessionId, tokenHash: parsed.tokenHash },
+      { projection: { _id: 0 } }
+    )
+    session = normalizeSessionRecord(session)
+    if (session) {
+      sessions = [
+        session,
+        ...sessions.filter((candidate) => candidate.sessionId !== session.sessionId)
+      ]
+    }
   }
 
-  let user = payload && Number.isFinite(payload.userId)
-    ? users.find((u) => u.id === payload.userId)
-    : null
+  return isSessionUsable(session) ? session : null
+}
 
-  // Fallback: trust explicit userId when security is relaxed
-  if (!user) {
-    const fallbackUserId =
-      sanitizeUserId(req.body?.userId) ??
-      sanitizeUserId(req.query?.userId)
-    if (fallbackUserId !== null) {
-      user = users.find((u) => u.id === fallbackUserId)
+function mapUserForClient(user, session = null) {
+  if (!user) return null
+  const safeUser = { ...user }
+  delete safeUser.password
+  delete safeUser.sessionToken
+  safeUser.session = session
+    ? {
+        deviceId: session.deviceId,
+        createdAt: session.createdAt,
+        lastSeenAt: session.lastSeenAt,
+        expiresAt: session.expiresAt
+      }
+    : undefined
+  return safeUser
+}
+
+async function createUserSession(user, req) {
+  const token = createOpaqueSessionToken()
+  const parsed = parseOpaqueSessionToken(token)
+  const now = new Date()
+  const session = {
+    sessionId: parsed.sessionId,
+    tokenHash: parsed.tokenHash,
+    userId: user.id,
+    deviceId: ensureDeviceId(),
+    userAgent: sanitizeClientString(req.headers?.['user-agent'] || '', 300),
+    createdAt: now,
+    lastSeenAt: now,
+    expiresAt: new Date(now.getTime() + SESSION_MAX_AGE_MS),
+    revokedAt: null
+  }
+
+  const db = await getDb()
+  await db.collection('sessions').insertOne(session)
+  const safeSession = { ...session }
+  delete safeSession._id
+  sessions = [safeSession, ...sessions.filter((candidate) => candidate.sessionId !== safeSession.sessionId)]
+  return { token, session: safeSession }
+}
+
+async function touchSession(session) {
+  if (!session?.sessionId) return
+  const lastSeenAt = session.lastSeenAt instanceof Date ? session.lastSeenAt : new Date(session.lastSeenAt)
+  if (Date.now() - lastSeenAt.getTime() < SESSION_TOUCH_INTERVAL_MS) return
+
+  const now = new Date()
+  const expiresAt = new Date(now.getTime() + SESSION_MAX_AGE_MS)
+  session.lastSeenAt = now
+  session.expiresAt = expiresAt
+
+  const db = await getDb()
+  await db.collection('sessions').updateOne(
+    { sessionId: session.sessionId },
+    { $set: { lastSeenAt: now, expiresAt } }
+  )
+}
+
+async function revokeSession(sessionId) {
+  if (!sessionId) return
+  const revokedAt = new Date()
+  sessions = sessions.map((session) =>
+    session.sessionId === sessionId ? { ...session, revokedAt } : session
+  )
+  const db = await getDb()
+  await db.collection('sessions').updateOne(
+    { sessionId },
+    { $set: { revokedAt } }
+  )
+}
+
+async function revokeUserSessions(userId, { exceptSessionId = null } = {}) {
+  const uid = sanitizeUserId(userId)
+  if (uid === null) return
+
+  const revokedAt = new Date()
+  sessions = sessions.map((session) => {
+    if (session.userId !== uid || session.sessionId === exceptSessionId) return session
+    return { ...session, revokedAt }
+  })
+
+  const filter = {
+    userId: uid,
+    revokedAt: null
+  }
+  if (exceptSessionId) {
+    filter.sessionId = { $ne: exceptSessionId }
+  }
+
+  const db = await getDb()
+  await db.collection('sessions').updateMany(filter, { $set: { revokedAt } })
+}
+
+async function getAuthenticatedUser(req, { requireAdmin = false } = {}) {
+  const cookieToken = getCookieSessionToken(req)
+  let session = null
+  let user = null
+
+  if (cookieToken) {
+    session = await findSessionByToken(cookieToken)
+    if (session) {
+      user = users.find((u) => u.id === session.userId)
+      if (user) {
+        await touchSession(session)
+      }
+    }
+  }
+
+  const sessionToken = extractLegacyAuthToken(req)
+  let payload = null
+
+  if (!user && sessionToken) {
+    payload = verifySessionToken(sessionToken)
+    if (payload && Number.isFinite(payload.userId)) {
+      user = users.find((u) =>
+        u.id === payload.userId &&
+        (!Number.isFinite(payload.v) || payload.v === (u.sessionVersion || 0))
+      )
     }
   }
 
@@ -412,16 +611,17 @@ function getAuthenticatedUser(req, { requireAdmin = false } = {}) {
     return { error: 'AUTH_FORBIDDEN' }
   }
 
-  return { user, userId: user.id, token: sessionToken }
+  return { user, userId: user.id, token: cookieToken || sessionToken, session }
 }
 
-function requireAuthenticatedUser(req, res, { requireAdmin = false } = {}) {
-  const ctx = getAuthenticatedUser(req, { requireAdmin })
+async function requireAuthenticatedUser(req, res, { requireAdmin = false } = {}) {
+  const ctx = await getAuthenticatedUser(req, { requireAdmin })
   if (ctx.error === 'AUTH_REQUIRED') {
     res.status(401).json({ error: 'Authenticatie vereist' })
     return null
   }
   if (ctx.error === 'AUTH_INVALID') {
+    clearSessionCookie(res)
     res.status(401).json({ error: 'Ongeldige sessie' })
     return null
   }
@@ -435,6 +635,7 @@ function requireAuthenticatedUser(req, res, { requireAdmin = false } = {}) {
 // Tussenopslag gebruikers en evenementen
 let users = []
 let events = []
+let sessions = []
 let pushSubscriptions = []
 let notifications = []
 let scheduledNotifications = []
@@ -464,6 +665,21 @@ async function loadUsers() {
       }))
     )
   infoLog(`Loaded ${users.length} users from MongoDB`)
+}
+
+async function loadSessions() {
+  const db = await getDb()
+  const now = new Date()
+  sessions = (await db.collection('sessions')
+    .find({
+      revokedAt: null,
+      expiresAt: { $gt: now }
+    })
+    .project({ _id: 0 })
+    .toArray())
+    .map(normalizeSessionRecord)
+    .filter(Boolean)
+  infoLog(`Loaded ${sessions.length} active sessions from MongoDB`)
 }
 
 async function loadEvents() {
@@ -728,88 +944,6 @@ function differenceInDays(targetKey, referenceKey) {
   const referenceUtc = Date.UTC(ry, rm - 1, rd)
 
   return Math.round((targetUtc - referenceUtc) / (24 * 60 * 60 * 1000))
-}
-
-function formatFriendlyDate(dateInput, timeZone = 'Europe/Amsterdam') {
-  if (!dateInput) return ''
-  const date = dateInput instanceof Date ? dateInput : new Date(dateInput)
-  if (Number.isNaN(date.getTime())) return ''
-
-  const formatter = new Intl.DateTimeFormat('nl-NL', {
-    timeZone,
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long'
-  })
-
-  return formatter.format(date)
-}
-
-function resolveUserIdsFromCommaSeparatedNames(namesString = '') {
-  if (!namesString || !Array.isArray(users) || users.length === 0) {
-    return []
-  }
-
-  const requestedNames = namesString
-    .split(',')
-    .map((name) => name.trim())
-    .filter(Boolean)
-
-  if (requestedNames.length === 0) {
-    return []
-  }
-
-  const matchedIds = new Set()
-
-  requestedNames.forEach((name) => {
-    const lower = name.toLowerCase()
-    const match = users.find((user) => {
-      if (!user) return false
-      const firstName = (user.firstName || '').toLowerCase()
-      const lastName = (user.lastName || '').toLowerCase()
-      const fullName = `${firstName} ${lastName}`.trim()
-      return firstName === lower || fullName === lower || fullName.split(' ').includes(lower)
-    })
-    if (match && Number.isFinite(match.id)) {
-      matchedIds.add(match.id)
-    }
-  })
-
-  return Array.from(matchedIds)
-}
-
-function resolveOpkomstMakerIds(event) {
-  if (!event) return []
-  if (Array.isArray(event.opkomstmakerIds) && event.opkomstmakerIds.length > 0) {
-    return sanitizeIdArray(event.opkomstmakerIds)
-  }
-  if (typeof event.opkomstmakers === 'string' && event.opkomstmakers.trim().length > 0) {
-    return resolveUserIdsFromCommaSeparatedNames(event.opkomstmakers)
-  }
-  return []
-}
-
-function resolveSchoonmakerIds(event) {
-  if (!event) return []
-  if (Array.isArray(event.schoonmakerIds) && event.schoonmakerIds.length > 0) {
-    return sanitizeIdArray(event.schoonmakerIds)
-  }
-  if (typeof event.schoonmakers === 'string' && event.schoonmakers.trim().length > 0) {
-    return resolveUserIdsFromCommaSeparatedNames(event.schoonmakers)
-  }
-  return []
-}
-
-function resolveEventParticipantIds(event) {
-  if (!event) return []
-  if (Array.isArray(event.participants) && event.participants.length > 0) {
-    return sanitizeIdArray(event.participants)
-  }
-  // Fall back to all active-status users with active enrollment if participants list is empty
-  if (Array.isArray(users) && users.length > 0) {
-    return users.filter((user) => Boolean(user?.active) && (user?.status || 'active') === 'active').map((user) => user.id).filter(Number.isFinite)
-  }
-  return []
 }
 
 async function upsertPushSubscription({ userId, subscription, userAgent = '', deviceName = '' }) {
@@ -1620,7 +1754,10 @@ async function createNotificationsForUsers({
 
   await db.collection('notifications').insertMany(docs)
 
-  notifications.push(...docs.map(({ _id, ...rest }) => normalizeNotificationRecord(rest)).filter(Boolean))
+  notifications.push(...docs.map((doc) => {
+    const { _id: _mongoId, ...rest } = doc
+    return normalizeNotificationRecord(rest)
+  }).filter(Boolean))
   lastNotificationsLoadedAt = Date.now()
 
   await Promise.all(allowedUserIds.map((uid) => pruneNotificationsForUser(uid)))
@@ -1663,8 +1800,6 @@ async function processScheduledNotifications(referenceDate = new Date()) {
 
       const diff = differenceInDays(eventDateKey, todayKey)
       if (diff === null) continue
-
-      const eventTitle = event.title || 'Opkomst'
 
       // if (event.isOpkomst) {
       //   if (diff === 4) {
@@ -1855,6 +1990,25 @@ async function cleanupExpiredResetCodes() {
   }
 }
 
+async function cleanupExpiredSessions() {
+  try {
+    const db = await getDb()
+    const now = new Date()
+    const result = await db.collection('sessions').deleteMany({
+      $or: [
+        { expiresAt: { $lte: now } },
+        { revokedAt: { $exists: true, $ne: null } }
+      ]
+    })
+
+    if (result.deletedCount > 0) {
+      infoLog(`Cleaned up ${result.deletedCount} inactive sessions`)
+    }
+  } catch (error) {
+    warnLog('Warning: Could not clean up inactive sessions:', error.message)
+  }
+}
+
 async function cleanupOldSnapshots() {
   try {
     const db = await getDb()
@@ -1875,11 +2029,6 @@ async function cleanupOldSnapshots() {
   } catch (error) {
     warnLog(`[snapshots] Failed to clean up old snapshots: ${error.message}`)
   }
-}
-
-async function deleteUserById(id) {
-  const db = await getDb()
-  await db.collection('users').deleteOne({ id })
 }
 
 async function saveEvent(event) {
@@ -3098,6 +3247,7 @@ async function buildPaymentRequestPdf(request, attachments = []) {
 
 // Cold start
 await loadUsers()
+await loadSessions()
 await loadEvents()
 await loadPushSubscriptions()
 await loadNotifications()
@@ -3126,6 +3276,7 @@ configureDailyReport({
   }
 })
 await cleanupExpiredResetCodes() // Clean up old reset codes on startup
+await cleanupExpiredSessions() // Clean up old sessions on startup
 await cleanupOldSnapshots() // Remove stale daily snapshots on startup
 scheduleDailySnapshot() // Initialize daily database snapshot and comparison system
 startScheduledNotificationWorker()
@@ -3167,6 +3318,14 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
 const app = express()
+
+app.use((req, res, next) => {
+  const host = (req.headers.host || '').toLowerCase()
+  if (process.env.DISABLE_WWW_REDIRECT !== 'true' && host === 'www.stamjer.nl') {
+    return res.redirect(308, `https://stamjer.nl${req.originalUrl || req.url || '/'}`)
+  }
+  return next()
+})
 
 function parseOrigins(value = '') {
   return value
@@ -3233,7 +3392,7 @@ const corsOptions = {
     return callback(new Error('Not allowed by CORS'))
   },
   credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Session-Token'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }
 
@@ -3362,9 +3521,13 @@ async function sendActiveStatusChangeEmail(user, newActiveStatus) {
 // Profiel bijwerken
 apiRouter.put('/user/profile', async (req, res) => {
   try {
+    const auth = await requireAuthenticatedUser(req, res)
+    if (!auth) return
+
     const { userId, active, notificationPreferences } = req.body
     if (!userId) return res.status(400).json({ error: 'Gebruikers-ID is vereist' })
     const uid = parseInt(userId, 10)
+    if (uid !== auth.userId) return res.status(403).json({ error: 'Je kunt alleen je eigen profiel bijwerken' })
     const idx = users.findIndex(u => u.id === uid)
     if (idx < 0) return res.status(404).json({ error: 'Gebruiker niet gevonden' })
     
@@ -3405,8 +3568,11 @@ apiRouter.put('/user/profile', async (req, res) => {
 // Status bijwerken (alleen admin)
 apiRouter.patch('/users/:id/status', async (req, res) => {
   try {
+    const auth = await requireAuthenticatedUser(req, res, { requireAdmin: true })
+    if (!auth) return
+
     const { userId, status } = req.body
-    if (!userId || !isUserAdmin(userId)) return res.status(403).json({ error: 'Alleen beheerders' })
+    if (!userId || sanitizeUserId(userId) !== auth.userId) return res.status(403).json({ error: 'Alleen beheerders' })
 
     const validStatuses = ['active', 'inactive', 'legacy']
     if (!validStatuses.includes(status)) {
@@ -3452,11 +3618,17 @@ apiRouter.patch('/users/:id/status', async (req, res) => {
 })
 
 // Profiel ophalen (met voorkeuren)
-apiRouter.get('/user/profile', (req, res) => {
+apiRouter.get('/user/profile', async (req, res) => {
+  const auth = await requireAuthenticatedUser(req, res)
+  if (!auth) return
+
   const { userId } = req.query
   const uid = sanitizeUserId(userId)
   if (uid === null) {
     return res.status(400).json({ error: 'Ongeldig gebruikers-ID' })
+  }
+  if (uid !== auth.userId) {
+    return res.status(403).json({ error: 'Je kunt alleen je eigen profiel bekijken' })
   }
 
   const user = users.find((u) => u.id === uid)
@@ -3680,7 +3852,7 @@ apiRouter.post('/push/subscribe', async (req, res) => {
       return res.status(503).json({ error: 'Push notificaties zijn niet beschikbaar' })
     }
 
-    const auth = requireAuthenticatedUser(req, res)
+    const auth = await requireAuthenticatedUser(req, res)
     if (!auth) return
 
     const { subscription, userAgent, deviceName } = req.body || {}
@@ -3703,7 +3875,7 @@ apiRouter.post('/push/unsubscribe', async (req, res) => {
   }
 
   try {
-    const auth = requireAuthenticatedUser(req, res)
+    const auth = await requireAuthenticatedUser(req, res)
     if (!auth) return
 
     if (!Array.isArray(pushSubscriptions) || pushSubscriptions.length === 0) {
@@ -3734,7 +3906,7 @@ apiRouter.get('/notifications', async (req, res) => {
     return res.json({ notifications: [], unreadCount: 0, push: { enabled: false }, disabled: true })
   }
 
-  const auth = requireAuthenticatedUser(req, res)
+  const auth = await requireAuthenticatedUser(req, res)
   if (!auth) return
   await ensureNotificationsFresh()
   const { limit = '50' } = req.query
@@ -3768,7 +3940,7 @@ apiRouter.post('/notifications/mark-read', async (req, res) => {
   }
 
   try {
-    const auth = requireAuthenticatedUser(req, res)
+    const auth = await requireAuthenticatedUser(req, res)
     if (!auth) return
     const { notificationIds, read = true } = req.body || {}
     const result = await markNotificationsAsRead(auth.userId, notificationIds, read)
@@ -3786,7 +3958,7 @@ apiRouter.post('/notifications/mark-all-read', async (req, res) => {
   }
 
   try {
-    const auth = requireAuthenticatedUser(req, res)
+    const auth = await requireAuthenticatedUser(req, res)
     if (!auth) return
     const result = await markAllNotificationsAsRead(auth.userId)
     res.json({ ok: true, updated: result.updated })
@@ -3803,7 +3975,7 @@ apiRouter.post('/notifications/manual', async (req, res) => {
   }
 
   try {
-    const auth = requireAuthenticatedUser(req, res, { requireAdmin: true })
+    const auth = await requireAuthenticatedUser(req, res, { requireAdmin: true })
     if (!auth) return
 
     const { title, message, recipientIds = [], eventId = null, url = null, priority = 'default' } = req.body || {}
@@ -3856,7 +4028,7 @@ apiRouter.get('/notifications/scheduled', async (req, res) => {
   }
 
   try {
-    const auth = requireAuthenticatedUser(req, res, { requireAdmin: true })
+    const auth = await requireAuthenticatedUser(req, res, { requireAdmin: true })
     if (!auth) return
     const items = await listScheduledNotifications()
     res.json({ items })
@@ -3873,7 +4045,7 @@ apiRouter.post('/notifications/schedule', async (req, res) => {
   }
 
   try {
-    const auth = requireAuthenticatedUser(req, res, { requireAdmin: true })
+    const auth = await requireAuthenticatedUser(req, res, { requireAdmin: true })
     if (!auth) return
     const { title, message, sendAt, audience = 'all', recipientIds = [], priority = 'normal', cta = null, attachments = [] } = req.body || {}
     if (!title || !message) {
@@ -3905,7 +4077,7 @@ apiRouter.put('/notifications/schedule/:id', async (req, res) => {
   }
 
   try {
-    const auth = requireAuthenticatedUser(req, res, { requireAdmin: true })
+    const auth = await requireAuthenticatedUser(req, res, { requireAdmin: true })
     if (!auth) return
     const { id } = req.params
     const updated = await updateScheduledNotificationRecord(id, req.body || {})
@@ -3923,7 +4095,7 @@ apiRouter.delete('/notifications/schedule/:id', async (req, res) => {
   }
 
   try {
-    const auth = requireAuthenticatedUser(req, res, { requireAdmin: true })
+    const auth = await requireAuthenticatedUser(req, res, { requireAdmin: true })
     if (!auth) return
     const { id } = req.params
     await cancelScheduledNotificationRecord(id)
@@ -3936,6 +4108,29 @@ apiRouter.delete('/notifications/schedule/:id', async (req, res) => {
 })
 
 // AUTHENTICATIE
+apiRouter.get('/session', async (req, res) => {
+  try {
+    const auth = await getAuthenticatedUser(req)
+    if (auth.error) {
+      clearSessionCookie(res)
+      return res.status(401).json({ error: 'Geen geldige sessie' })
+    }
+
+    let session = auth.session
+    if (!session) {
+      const issued = await createUserSession(auth.user, req)
+      setSessionCookie(res, issued.token)
+      session = issued.session
+    }
+
+    res.json({ user: mapUserForClient(auth.user, session) })
+  } catch (error) {
+    console.error('Session lookup error details:', error)
+    logSystemError(error, { action: 'GET /api/session', status: 500 })
+    res.status(500).json({ msg: 'Sessie ophalen mislukt' })
+  }
+})
+
 apiRouter.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body
@@ -3955,11 +4150,11 @@ apiRouter.post('/login', async (req, res) => {
 
     if (!match) return res.status(400).json({ msg: 'Onjuist wachtwoord' })
 
-    // Create a persistent device token for subsequent authenticated requests
-    const { token: sessionToken, deviceId } = issueSessionToken(u)
+    const { token, session } = await createUserSession(u, req)
+    setSessionCookie(res, token)
     await saveUser(u)
 
-    res.json({ user: { ...u, password: undefined, sessionToken, deviceId } })
+    res.json({ user: mapUserForClient(u, session) })
   } catch (err) {
     console.error('Login error details:', err)
     logSystemError(err, { action: 'POST /api/login', status: 500, metadata: req.body })
@@ -3969,8 +4164,12 @@ apiRouter.post('/login', async (req, res) => {
 
 apiRouter.post('/logout', async (req, res) => {
   try {
-    const auth = requireAuthenticatedUser(req, res)
+    const auth = await requireAuthenticatedUser(req, res)
     if (!auth) return
+
+    if (auth.session?.sessionId) {
+      await revokeSession(auth.session.sessionId)
+    }
 
     const idx = users.findIndex((u) => u.id === auth.userId)
     if (idx >= 0) {
@@ -3978,6 +4177,7 @@ apiRouter.post('/logout', async (req, res) => {
       await saveUser(users[idx])
     }
 
+    clearSessionCookie(res)
     res.json({ ok: true })
   } catch (error) {
     console.error('Logout error details:', error)
@@ -4093,7 +4293,9 @@ apiRouter.post('/reset-password', async (req, res) => {
     }
 
     users[idx].password = await bcrypt.hash(newPassword, 10)
+    users[idx].sessionVersion = (users[idx].sessionVersion || 0) + 1
     await saveUser(users[idx])
+    await revokeUserSessions(users[idx].id)
     await deleteResetCode(rawEmail) // Clean up used reset code
 
     // 7) Success response
@@ -4110,18 +4312,24 @@ apiRouter.post('/reset-password', async (req, res) => {
 // Wachtwoord wijzigen
 apiRouter.post('/change-password', async (req, res) => {
   try {
+    const auth = await requireAuthenticatedUser(req, res)
+    if (!auth) return
+
     const { email, currentPassword, newPassword } = req.body
     
     // Normalize email to lowercase for consistent comparison
     const normalizedEmail = email.trim().toLowerCase()
     const u = users.find(u => u.email.toLowerCase() === normalizedEmail)
     if (!u) return res.status(404).json({ msg: 'Gebruiker niet gevonden' })
+    if (u.id !== auth.userId) return res.status(403).json({ msg: 'Je kunt alleen je eigen wachtwoord wijzigen' })
 
     const valid = await bcrypt.compare(currentPassword, u.password)
     if (!valid) return res.status(400).json({ msg: 'Huidig wachtwoord onjuist' })
 
     u.password = await bcrypt.hash(newPassword, 10)
+    u.sessionVersion = (u.sessionVersion || 0) + 1
     await saveUser(u)
+    await revokeUserSessions(u.id, { exceptSessionId: auth.session?.sessionId || null })
     res.json({ msg: 'Wachtwoord gewijzigd' })
   } catch (err) {
     console.error(err)

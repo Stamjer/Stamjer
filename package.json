@@ -44,6 +44,7 @@
     "dotenv": "^17.0.1",
     "express": "^5.1.0",
     "express-static-gzip": "^3.0.0",
+    "lucide-react": "^1.16.0",
     "mongodb": "^6.17.0",
     "nodemailer": "^7.0.4",
     "pdf-lib": "^1.17.1",

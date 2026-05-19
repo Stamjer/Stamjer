@@ -59,7 +59,7 @@ export default function LocationInput({ value, onChange, placeholder, disabled, 
       // Timeout after 10 seconds
       setTimeout(() => {
         clearInterval(checkLoaded)
-        if (!isLoaded) {
+        if (!(window.google && window.google.maps && window.google.maps.places)) {
           setLoadError('Locatie service laden duurde te lang')
         }
       }, 10000)
