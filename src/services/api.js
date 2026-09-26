@@ -443,6 +443,13 @@ export async function getUsersFull() {
   return request('/users/full')
 }
 
+export async function createUser(userData) {
+  return request('/users', {
+    method: 'POST',
+    body: userData
+  })
+}
+
 /**
  * Get user profile
  * @returns {Promise<Object>} User profile data
@@ -545,6 +552,7 @@ export default {
   // Users
   getUsers,
   getUsersFull,
+  createUser,
   getUserProfile,
   updateUserProfile,
   updateUserStatus,

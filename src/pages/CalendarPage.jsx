@@ -110,6 +110,10 @@ function canChangeAttendance(eventStart) {
   return eventDay > today
 }
 
+function isActiveMember(user) {
+  return Boolean(user?.active) && (user.status || 'active') === 'active'
+}
+
 // ================================================================
 // EVENT MODAL COMPONENT
 // ================================================================
@@ -746,7 +750,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
 
       if (!isEdit && formData.isOpkomst) {
         const activeParticipantIds = users
-          .filter(user => Boolean(user?.active))
+          .filter(isActiveMember)
           .map(user => parseInt(user.id, 10))
           .filter(Number.isFinite)
         eventData.participants = activeParticipantIds
@@ -1193,6 +1197,7 @@ export default function CalendarPage() {
     data: users = [], 
     isLoading: usersLoading 
   } = useUsers()
+  const activeMemberUsers = useMemo(() => users.filter(isActiveMember), [users])
 
   useEffect(() => {
     const eventIdParam = searchParams.get('event')
@@ -1603,7 +1608,7 @@ export default function CalendarPage() {
             <NewEventForm
               onClose={() => setShowNewForm(false)}
               onAdd={(eventData) => handleAdd(eventData, false)}
-              users={users}
+              users={activeMemberUsers}
             />
           </FormErrorBoundary>
         )}
@@ -1615,7 +1620,7 @@ export default function CalendarPage() {
               isEdit
               onClose={() => setEditingEvent(null)}
               onAdd={(eventData) => handleAdd(eventData, true)}
-              users={users}
+              users={activeMemberUsers}
             />
           </FormErrorBoundary>
         )}

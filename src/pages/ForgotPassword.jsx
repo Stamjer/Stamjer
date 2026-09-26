@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import { useNavigate }      from 'react-router-dom'
 import { withSupportContact } from '../config/appInfo'
 import { forgotPassword, resetPassword } from '../services/api'

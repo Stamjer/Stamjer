@@ -17,7 +17,7 @@
 
 // React core imports
 import React, { useState, useEffect, useCallback, useMemo, lazy, Suspense, useRef } from 'react'
-import { Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom'
+import { Routes, Route, NavLink, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { APP_VERSION } from './config/appInfo'
@@ -70,6 +70,18 @@ const NAV_ICON_MAP = {
   '/account': UserIcon,
   '/login': LoginIcon,
   '/': LoginIcon,
+}
+
+function isNonAdminAlumni(user) {
+  return Boolean(user && !user.isAdmin && user.status === 'legacy')
+}
+
+function AlumniRestrictedRoute({ user, children }) {
+  if (isNonAdminAlumni(user)) {
+    return <Navigate to="/declaraties" replace />
+  }
+
+  return children
 }
 
 
@@ -293,26 +305,33 @@ function App() {
   }, [location.pathname])
 
   const navMenuItems = useMemo(() => {
-    const baseItems = [
-      {
-        to: '/kalender',
-        label: ROUTE_LABELS['/kalender'],
-        icon: NAV_ICON_MAP['/kalender'],
-        variant: 'secondary',
-      },
-      {
-        to: '/opkomsten',
-        label: ROUTE_LABELS['/opkomsten'],
-        icon: NAV_ICON_MAP['/opkomsten'],
-        variant: 'secondary',
-      },
+    const baseItems = []
+
+    if (!isNonAdminAlumni(user)) {
+      baseItems.push(
+        {
+          to: '/kalender',
+          label: ROUTE_LABELS['/kalender'],
+          icon: NAV_ICON_MAP['/kalender'],
+          variant: 'secondary',
+        },
+        {
+          to: '/opkomsten',
+          label: ROUTE_LABELS['/opkomsten'],
+          icon: NAV_ICON_MAP['/opkomsten'],
+          variant: 'secondary',
+        }
+      )
+    }
+
+    baseItems.push(
       {
         to: '/declaraties',
         label: ROUTE_LABELS['/declaraties'],
         icon: NAV_ICON_MAP['/declaraties'],
         variant: 'secondary',
-      },
-    ]
+      }
+    )
 
     if (user?.isAdmin) {
       baseItems.push({
@@ -347,23 +366,30 @@ function App() {
       return []
     }
 
-    const items = [
-      {
-        to: '/kalender',
-        label: ROUTE_LABELS['/kalender'],
-        icon: NAV_ICON_MAP['/kalender'],
-      },
-      {
-        to: '/opkomsten',
-        label: ROUTE_LABELS['/opkomsten'],
-        icon: NAV_ICON_MAP['/opkomsten'],
-      },
+    const items = []
+
+    if (!isNonAdminAlumni(user)) {
+      items.push(
+        {
+          to: '/kalender',
+          label: ROUTE_LABELS['/kalender'],
+          icon: NAV_ICON_MAP['/kalender'],
+        },
+        {
+          to: '/opkomsten',
+          label: ROUTE_LABELS['/opkomsten'],
+          icon: NAV_ICON_MAP['/opkomsten'],
+        }
+      )
+    }
+
+    items.push(
       {
         to: '/declaraties',
         label: ROUTE_LABELS['/declaraties'],
         icon: NAV_ICON_MAP['/declaraties'],
-      },
-    ]
+      }
+    )
 
     if (user.isAdmin) {
       items.push({
@@ -544,16 +570,20 @@ function App() {
                 {/* Protected Routes - Require authentication */}
                 <Route path="/kalender" element={
                   <ProtectedRoute user={user}>
-                    <PageErrorBoundary pageName="Calendar">
-                      <CalendarPage />
-                    </PageErrorBoundary>
+                    <AlumniRestrictedRoute user={user}>
+                      <PageErrorBoundary pageName="Calendar">
+                        <CalendarPage />
+                      </PageErrorBoundary>
+                    </AlumniRestrictedRoute>
                   </ProtectedRoute>
                 } />
                 <Route path="/opkomsten" element={
                   <ProtectedRoute user={user}>
-                    <PageErrorBoundary pageName="Opkomsten">
-                      <OpkomstenPage />
-                    </PageErrorBoundary>
+                    <AlumniRestrictedRoute user={user}>
+                      <PageErrorBoundary pageName="Opkomsten">
+                        <OpkomstenPage />
+                      </PageErrorBoundary>
+                    </AlumniRestrictedRoute>
                   </ProtectedRoute>
                 } />
                 <Route path="/declaraties" element={
@@ -565,9 +595,11 @@ function App() {
                 } />
                 <Route path="/strepen" element={
                   <ProtectedRoute user={user}>
-                    <PageErrorBoundary pageName="Strepen">
-                      {user && user.isAdmin ? <StrepenPage /> : <div>Alleen toegankelijk voor admins. Dus niet voor plebs zoals jij...</div>}
-                    </PageErrorBoundary>
+                    <AlumniRestrictedRoute user={user}>
+                      <PageErrorBoundary pageName="Strepen">
+                        {user && user.isAdmin ? <StrepenPage /> : <div>Alleen toegankelijk voor admins.</div>}
+                      </PageErrorBoundary>
+                    </AlumniRestrictedRoute>
                   </ProtectedRoute>
                 } />
                 <Route path="/account" element={

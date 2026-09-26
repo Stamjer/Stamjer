@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, UserPlus, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { withSupportContact } from '../config/appInfo'
 import {
   changePassword,
+  createUser,
   updateUserProfile,
   updateUserStatus,
   getEvents,
@@ -19,7 +20,21 @@ import './Auth.css'
 const USER_STATUS_LABELS = {
   active: 'Actief',
   inactive: 'Inactief',
-  legacy: 'Historisch'
+  legacy: 'Alumni'
+}
+
+const ADMIN_STATUS_FILTERS = [
+  { value: 'all', label: 'Alle' },
+  { value: 'active', label: 'Actief' },
+  { value: 'inactive', label: 'Inactief' },
+  { value: 'legacy', label: 'Alumni' }
+]
+
+function getEffectiveUserStatus(user) {
+  const status = user?.status || 'active'
+  if (status === 'legacy') return 'legacy'
+  if (status === 'inactive' || user?.active === false) return 'inactive'
+  return 'active'
 }
 
 const DATE_FORMAT_DAY_MONTH = new Intl.DateTimeFormat('nl-NL', {
@@ -157,6 +172,17 @@ export default function MyAccount({ user: userProp, onLogout }) {
   const [isChangingStatus, setIsChangingStatus] = useState(false)
   const [adminStatusError, setAdminStatusError] = useState(null)
   const [adminStatusMessage, setAdminStatusMessage] = useState(null)
+  const [adminUserQuery, setAdminUserQuery] = useState('')
+  const [adminStatusFilter, setAdminStatusFilter] = useState('all')
+  const [showAddUser, setShowAddUser] = useState(false)
+  const [isCreatingUser, setIsCreatingUser] = useState(false)
+  const [addUserError, setAddUserError] = useState(null)
+  const [newUserData, setNewUserData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    isAdmin: false
+  })
   const [userWithStreepjes, setUserWithStreepjes] = useState(null)
   const [opkomstEvents, setOpkomstEvents] = useState([])
   const [isOpkomstenLoading, setIsOpkomstenLoading] = useState(true)
@@ -364,6 +390,45 @@ export default function MyAccount({ user: userProp, onLogout }) {
       : []
     : []
 
+  const adminUserSummary = useMemo(() => {
+    return allUsers.reduce(
+      (summary, adminUser) => {
+        const effectiveStatus = getEffectiveUserStatus(adminUser)
+        summary.all += 1
+        summary[effectiveStatus] += 1
+        return summary
+      },
+      { all: 0, active: 0, inactive: 0, legacy: 0 }
+    )
+  }, [allUsers])
+
+  const visibleAdminUsers = useMemo(() => {
+    const query = normalizeValue(adminUserQuery)
+
+    return [...allUsers]
+      .filter(adminUser => {
+        const effectiveStatus = getEffectiveUserStatus(adminUser)
+        if (adminStatusFilter !== 'all' && effectiveStatus !== adminStatusFilter) return false
+
+        if (!query) return true
+        const haystack = normalizeValue(
+          [
+            adminUser.firstName,
+            adminUser.lastName,
+            adminUser.email,
+            USER_STATUS_LABELS[effectiveStatus]
+          ].filter(Boolean).join(' ')
+        )
+        return haystack.includes(query)
+      })
+      .sort((a, b) => {
+        const statusOrder = { active: 0, inactive: 1, legacy: 2 }
+        const statusDiff = statusOrder[getEffectiveUserStatus(a)] - statusOrder[getEffectiveUserStatus(b)]
+        if (statusDiff !== 0) return statusDiff
+        return `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, 'nl-NL')
+      })
+  }, [allUsers, adminStatusFilter, adminUserQuery])
+
   console.log('MyAccount - User data:', {
     id,
     firstName,
@@ -511,7 +576,10 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
     if (!targetUser) return
 
     const newLabel = USER_STATUS_LABELS[newStatus] || newStatus
-    const currentLabel = USER_STATUS_LABELS[targetUser.status || 'active'] || (targetUser.status || 'active')
+    const currentStatus = getEffectiveUserStatus(targetUser)
+    if (currentStatus === newStatus) return
+
+    const currentLabel = USER_STATUS_LABELS[currentStatus] || currentStatus
     const confirmMsg = `Weet je zeker dat je de status van ${targetUser.firstName} ${targetUser.lastName} wilt wijzigen van "${currentLabel}" naar "${newLabel}"?`
     if (!window.confirm(confirmMsg)) return
 
@@ -520,8 +588,14 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
     setAdminStatusMessage(null)
 
     try {
-      await updateUserStatus(targetUserId, newStatus, id)
-      setAllUsers(prev => prev.map(u => u.id === targetUserId ? { ...u, status: newStatus } : u))
+      const response = await updateUserStatus(targetUserId, newStatus, id)
+      const nextActive = response?.user?.active ?? newStatus === 'active'
+      setAllUsers(prev => prev.map(u => u.id === targetUserId ? { ...u, status: newStatus, active: nextActive } : u))
+      if (targetUserId === id) {
+        setUserStatus(newStatus)
+        setActiveStatus(nextActive)
+        localStorage.setItem('user', JSON.stringify({ ...user, status: newStatus, active: nextActive }))
+      }
       setAdminStatusMessage(`Status van ${targetUser.firstName} ${targetUser.lastName} bijgewerkt naar ${newLabel}.`)
       invalidateUsers().catch(() => {
         // Cache invalidation failures should not block the visible status update.
@@ -537,7 +611,36 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
     } finally {
       setIsChangingStatus(false)
     }
-  }, [allUsers, id])
+  }, [allUsers, id, user])
+
+  const closeAddUser = useCallback(() => {
+    if (isCreatingUser) return
+    setShowAddUser(false)
+    setAddUserError(null)
+    setNewUserData({ firstName: '', lastName: '', email: '', isAdmin: false })
+  }, [isCreatingUser])
+
+  const handleCreateUser = async event => {
+    event.preventDefault()
+    setIsCreatingUser(true)
+    setAddUserError(null)
+    setAdminStatusMessage(null)
+
+    try {
+      const response = await createUser(newUserData)
+      if (response?.user) {
+        setAllUsers(previousUsers => [...previousUsers, response.user])
+      }
+      setAdminStatusMessage(`${newUserData.firstName} ${newUserData.lastName} is toegevoegd.`)
+      setShowAddUser(false)
+      setNewUserData({ firstName: '', lastName: '', email: '', isAdmin: false })
+      await Promise.all([invalidateUsers(), invalidateEvents()])
+    } catch (err) {
+      setAddUserError(withSupportContact(err.message || 'Gebruiker toevoegen mislukt'))
+    } finally {
+      setIsCreatingUser(false)
+    }
+  }
 
   if (!user) return null
 
@@ -610,7 +713,7 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
                     </p>
                   ) : opkomstEvents.length === 0 ? (
                     <p className="opkomst-list__status">
-                      Je bent momenteel geen opkomstmaker of schoonmaker van een aankomend evenement.
+                      Je staat momenteel niet ingeroosterd als opkomstmaker of schoonmaker.
                     </p>
                   ) : (
                     <ul className="opkomst-list__items">
@@ -689,7 +792,7 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
                             isToggled={activeStatus}
                             onToggle={event => handleActiveStatusChange(event.target.checked)}
                             disabled={isUpdatingActive}
-                            variant="notification"
+                            variant="activity"
                           />
                           <span className="toggle-label-text">
                             {activeStatus ? 'Actief' : 'Inactief'}
@@ -709,7 +812,9 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
                         <p>
                           {userStatus === 'inactive'
                             ? 'Je account is momenteel inactief. Je wordt niet automatisch aangemeld voor opkomsten. Neem contact op met een beheerder als dit niet klopt.'
-                            : 'Je account is historisch. Je kunt de kalender bekijken, maar wordt niet aangemeld voor opkomsten.'}
+                            : user.isAdmin
+                            ? 'Je account is Alumni. Je wordt niet meegenomen in deelnemerslijsten, maar behoudt als admin toegang tot beheer en alle sitefuncties.'
+                            : 'Je account is Alumni. Je hebt toegang tot declaraties en je account, maar niet tot kalender, opkomsten of strepen.'}
                         </p>
                       </div>
                     </div>
@@ -841,50 +946,6 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
 
           </div>
 
-          {user.isAdmin && (
-            <div className="account-card account-card-admin-users">
-              <div className="account-card-header">
-                <h4>Gebruikersbeheer</h4>
-              </div>
-              <div className="account-card-body">
-                <div className="admin-users-list">
-                  {allUsers.length === 0 ? (
-                    <p className="admin-users-loading">Gebruikers laden...</p>
-                  ) : (
-                    allUsers
-                      .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, 'nl-NL'))
-                      .map(u => (
-                        <div key={u.id} className="admin-user-row">
-                          <div className="admin-user-info">
-                            <span className="admin-user-name">{u.firstName} {u.lastName}</span>
-                            <div className="admin-user-pills">
-                              {u.isAdmin && <span className="account-pill account-pill-admin">Admin</span>}
-                              <span className={`account-pill account-pill-${u.status || 'active'}`}>
-                                {USER_STATUS_LABELS[u.status || 'active']}
-                              </span>
-                            </div>
-                          </div>
-                          <select
-                            className="admin-status-select"
-                            value={u.status || 'active'}
-                            onChange={e => handleAdminStatusChange(u.id, e.target.value)}
-                            disabled={isChangingStatus}
-                            aria-label={`Status van ${u.firstName} ${u.lastName}`}
-                          >
-                            <option value="active">Actief</option>
-                            <option value="inactive">Inactief</option>
-                            <option value="legacy">Historisch</option>
-                          </select>
-                        </div>
-                      ))
-                  )}
-                </div>
-                {adminStatusError && <div className="setting-error" style={{ marginTop: '1rem' }}>{adminStatusError}</div>}
-                {adminStatusMessage && <div className="setting-success" style={{ marginTop: '1rem' }}>{adminStatusMessage}</div>}
-              </div>
-            </div>
-          )}
-
           <div className="account-footer">
             <button
               className="btn btn-danger"
@@ -894,8 +955,171 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
               Uitloggen
             </button>
           </div>
+
+          {user.isAdmin && (
+            <div className="account-card account-card-admin-users">
+              <div className="account-card-header">
+                <h4>Gebruikersbeheer</h4>
+                <button
+                  type="button"
+                  className="btn btn-primary admin-add-user-button"
+                  onClick={() => setShowAddUser(true)}
+                >
+                  <UserPlus size={17} aria-hidden="true" />
+                  Gebruiker toevoegen
+                </button>
+              </div>
+              <div className="account-card-body">
+                <div className="admin-users-toolbar">
+                  <div className="admin-users-search">
+                    <label className="sr-only" htmlFor="admin-user-search">
+                      Zoek gebruiker
+                    </label>
+                    <input
+                      id="admin-user-search"
+                      type="search"
+                      value={adminUserQuery}
+                      onChange={event => setAdminUserQuery(event.target.value)}
+                      placeholder="Zoek gebruiker..."
+                      className="admin-users-search-input"
+                    />
+                  </div>
+                  <div className="admin-status-tabs" role="group" aria-label="Filter gebruikers op status">
+                    {ADMIN_STATUS_FILTERS.map(filter => (
+                      <button
+                        key={filter.value}
+                        type="button"
+                        className={`admin-status-tab${adminStatusFilter === filter.value ? ' is-active' : ''}`}
+                        onClick={() => setAdminStatusFilter(filter.value)}
+                      >
+                        <span>{filter.label}</span>
+                        <strong>{adminUserSummary[filter.value]}</strong>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="admin-users-list">
+                  {allUsers.length === 0 ? (
+                    <p className="admin-users-loading">Gebruikers laden...</p>
+                  ) : visibleAdminUsers.length === 0 ? (
+                    <p className="admin-users-loading">Geen gebruikers gevonden.</p>
+                  ) : (
+                    visibleAdminUsers
+                      .map(u => {
+                        const effectiveStatus = getEffectiveUserStatus(u)
+                        return (
+                        <div key={u.id} className="admin-user-row">
+                          <div className="admin-user-info">
+                            <div className="admin-user-name-line">
+                              <span className="admin-user-name">{u.firstName} {u.lastName}</span>
+                            </div>
+                          </div>
+                          <select
+                            className="admin-status-select"
+                            value={effectiveStatus}
+                            onChange={e => handleAdminStatusChange(u.id, e.target.value)}
+                            disabled={isChangingStatus}
+                            aria-label={`Status van ${u.firstName} ${u.lastName}`}
+                          >
+                            <option value="active">Actief</option>
+                            <option value="inactive">Inactief</option>
+                            <option value="legacy">Alumni</option>
+                          </select>
+                        </div>
+                        )
+                      })
+                  )}
+                </div>
+                {adminStatusError && <div className="setting-error" style={{ marginTop: '1rem' }}>{adminStatusError}</div>}
+                {adminStatusMessage && <div className="setting-success" style={{ marginTop: '1rem' }}>{adminStatusMessage}</div>}
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
+      {showAddUser && (
+        <div className="modal-overlay" role="presentation" onClick={closeAddUser}>
+          <div
+            className="modal-content add-user-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="add-user-title"
+            onClick={event => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="close-btn"
+              onClick={closeAddUser}
+              disabled={isCreatingUser}
+              aria-label="Venster sluiten"
+            >
+              <X size={20} aria-hidden="true" />
+            </button>
+            <div className="modal-header">
+              <h2 id="add-user-title" className="modal-title">Gebruiker toevoegen</h2>
+            </div>
+            <form className="add-user-form" onSubmit={handleCreateUser}>
+              <div className="form-group">
+                <label htmlFor="new-user-first-name">Voornaam</label>
+                <input
+                  id="new-user-first-name"
+                  type="text"
+                  value={newUserData.firstName}
+                  onChange={event => setNewUserData(current => ({ ...current, firstName: event.target.value }))}
+                  autoComplete="off"
+                  maxLength={80}
+                  required
+                  autoFocus
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="new-user-last-name">Achternaam</label>
+                <input
+                  id="new-user-last-name"
+                  type="text"
+                  value={newUserData.lastName}
+                  onChange={event => setNewUserData(current => ({ ...current, lastName: event.target.value }))}
+                  autoComplete="off"
+                  maxLength={120}
+                  required
+                />
+              </div>
+              <div className="form-group add-user-form__full-width">
+                <label htmlFor="new-user-email">E-mailadres</label>
+                <input
+                  id="new-user-email"
+                  type="email"
+                  value={newUserData.email}
+                  onChange={event => setNewUserData(current => ({ ...current, email: event.target.value }))}
+                  autoComplete="off"
+                  maxLength={254}
+                  required
+                />
+              </div>
+              <label className="add-user-admin-option add-user-form__full-width">
+                <input
+                  type="checkbox"
+                  checked={newUserData.isAdmin}
+                  onChange={event => setNewUserData(current => ({ ...current, isAdmin: event.target.checked }))}
+                />
+                <span>Administrator</span>
+              </label>
+              {addUserError && <div className="setting-error add-user-form__full-width">{addUserError}</div>}
+              <div className="add-user-actions add-user-form__full-width">
+                <button type="button" className="btn btn-secondary" onClick={closeAddUser} disabled={isCreatingUser}>
+                  Annuleren
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={isCreatingUser}>
+                  <UserPlus size={17} aria-hidden="true" />
+                  {isCreatingUser ? 'Toevoegen...' : 'Toevoegen'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       {selectedOpkomst && (
         <div className="modal-overlay" role="presentation" onClick={closeOpkomstDetails}>
           <div

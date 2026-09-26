@@ -1,18 +1,18 @@
 import React from 'react';
 import './ToggleSwitch.css';
 
-const ToggleSwitch = ({ isToggled, onToggle, disabled = false, variant = 'notification' }) => {
-  if (variant === 'notification') {
+const ToggleSwitch = ({ isToggled, onToggle, disabled = false, variant = 'activity' }) => {
+  if (variant === 'activity') {
     return (
-      <label className="notification-switch">
+      <label className="activity-switch">
         <input
           type="checkbox"
           checked={isToggled}
           onChange={onToggle}
           disabled={disabled}
         />
-        <span className="notification-switch__track">
-          <span className="notification-switch__thumb" />
+        <span className="activity-switch__track">
+          <span className="activity-switch__thumb" />
         </span>
       </label>
     )
