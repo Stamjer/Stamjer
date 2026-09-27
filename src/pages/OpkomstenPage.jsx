@@ -14,7 +14,7 @@
  */
 
 // React core imports
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { withSupportContact } from '../config/appInfo'
 import { useToast } from '../hooks/useToast'
 import { buildEventPayload } from '../lib/eventPayload'
@@ -22,7 +22,7 @@ import {
   useOpkomstEvents,
   useUpdateAttendance,
   useUpdateEvent,
-  useUsersWithStreepjes
+  useUsers
 } from '../hooks/useQueries'
 
 // Location input with autocomplete
@@ -73,6 +73,13 @@ function filterFutureOpkomstEvents(events) {
     // Show events that are today or in the future
     return eventDay >= today
   })
+}
+
+function hasSameAttendance(current, next) {
+  const currentIds = Object.keys(current)
+  const nextIds = Object.keys(next)
+  return currentIds.length === nextIds.length &&
+    nextIds.every((eventId) => current[eventId] === next[eventId])
 }
 
 /**
@@ -606,10 +613,13 @@ export default function OpkomstenPage() {
     data: users = [],
     isLoading: usersLoading,
     error: usersError
-  } = useUsersWithStreepjes()
+  } = useUsers()
   const updateEventMutation = useUpdateEvent()
   const updateAttendanceMutation = useUpdateAttendance()
-  const opkomstEvents = sortOpkomstByDate(filterFutureOpkomstEvents(queriedEvents))
+  const opkomstEvents = useMemo(
+    () => sortOpkomstByDate(filterFutureOpkomstEvents(queriedEvents)),
+    [queriedEvents]
+  )
   const isLoading = eventsLoading || usersLoading
   const error = eventsError || usersError
 
@@ -681,23 +691,20 @@ export default function OpkomstenPage() {
   }, [])
   // Sync attendance state with event participants whenever events or currentUser changes
   useEffect(() => {
-    if (currentUser && opkomstEvents.length > 0) {
-      console.log('Syncing attendance state with event participants...')
-      const newAttendance = {}
-      
-      opkomstEvents.forEach(event => {
-        if (event.participants && event.participants.includes(currentUser.id)) {
-          newAttendance[event.id] = true
-          console.log(`User ${currentUser.id} is attending event ${event.id}`)
-        } else {
-          newAttendance[event.id] = false
-          console.log(`User ${currentUser.id} is not attending event ${event.id}`)
-        }
-      })
-      
-      console.log('Setting synchronized attendance:', newAttendance)
-      setAttendance(newAttendance)
-    }
+    if (!currentUser) return
+
+    const nextAttendance = Object.fromEntries(
+      opkomstEvents.map((event) => [
+        event.id,
+        Boolean(event.participants?.includes(currentUser.id))
+      ])
+    )
+
+    setAttendance((currentAttendance) =>
+      hasSameAttendance(currentAttendance, nextAttendance)
+        ? currentAttendance
+        : nextAttendance
+    )
   }, [currentUser, opkomstEvents])
 
   // Handle attendance checkbox change
