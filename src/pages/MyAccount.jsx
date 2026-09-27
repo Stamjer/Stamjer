@@ -5,12 +5,11 @@ import { withSupportContact } from '../config/appInfo'
 import {
   changePassword,
   createUser,
-  updateUserProfile,
-  updateUserStatus,
-  getEvents,
-  getUserProfile
+  updateUserStatus
 } from '../services/api'
-import { invalidateEvents, invalidateUsers } from '../lib/queryClient'
+import { useQueryClient } from '@tanstack/react-query'
+import { queryKeys } from '../lib/queryClient'
+import { useRawEvents, useUpdateUserProfile, useUsersWithStreepjes } from '../hooks/useQueries'
 import CalendarSubscription from '../components/CalendarSubscription'
 import LocationLink from '../components/LocationLink'
 import ToggleSwitch from '../components/ToggleSwitch'
@@ -31,10 +30,7 @@ const ADMIN_STATUS_FILTERS = [
 ]
 
 function getEffectiveUserStatus(user) {
-  const status = user?.status || 'active'
-  if (status === 'legacy') return 'legacy'
-  if (status === 'inactive' || user?.active === false) return 'inactive'
-  return 'active'
+  return user?.status || 'active'
 }
 
 const DATE_FORMAT_DAY_MONTH = new Intl.DateTimeFormat('nl-NL', {
@@ -151,6 +147,7 @@ function renderOpkomstTimeRange(opkomst) {
 
 export default function MyAccount({ user: userProp, onLogout }) {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [showPasswordForm, setShowPasswordForm] = useState(false)
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -183,10 +180,6 @@ export default function MyAccount({ user: userProp, onLogout }) {
     email: '',
     isAdmin: false
   })
-  const [userWithStreepjes, setUserWithStreepjes] = useState(null)
-  const [opkomstEvents, setOpkomstEvents] = useState([])
-  const [isOpkomstenLoading, setIsOpkomstenLoading] = useState(true)
-  const [opkomstenError, setOpkomstenError] = useState(null)
   const [selectedOpkomst, setSelectedOpkomst] = useState(null)
   const user = useMemo(() => {
     if (userProp) {
@@ -201,146 +194,41 @@ export default function MyAccount({ user: userProp, onLogout }) {
       return null
     }
   }, [userProp])
+  const { data: queriedUsers = [], isLoading: usersLoading } = useUsersWithStreepjes({ enabled: Boolean(user) })
+  const {
+    data: queriedEvents = [],
+    isLoading: isOpkomstenLoading,
+    error: opkomstenQueryError
+  } = useRawEvents({ enabled: Boolean(user) })
+  const updateProfileMutation = useUpdateUserProfile()
+  const userWithStreepjes = queriedUsers.find(candidate => candidate.id === user?.id) || null
+  const opkomstenError = opkomstenQueryError
+    ? withSupportContact(opkomstenQueryError.message || 'Opkomsten konden niet geladen worden.')
+    : null
 
   useEffect(() => {
-    const loadUserData = async () => {
-      if (!user) {
-        return
-      }
+    if (!userWithStreepjes) return
+    setUserStatus(userWithStreepjes.status)
+    setActiveStatus(userWithStreepjes.status === 'active')
+    if (user?.isAdmin) setAllUsers(queriedUsers)
+    localStorage.setItem('user', JSON.stringify({ ...user, ...userWithStreepjes }))
+  }, [queriedUsers, user, userWithStreepjes])
 
-      try {
-        const response = await fetch('/api/users/full')
-        if (!response.ok) {
-          return
-        }
-        const data = await response.json()
-        const currentUser = data.users.find(u => u.id === user.id)
-        if (currentUser) {
-          setUserWithStreepjes(currentUser)
-          if (currentUser.status) {
-            setUserStatus(currentUser.status)
-          }
-        }
-        if (user.isAdmin && data.users) {
-          setAllUsers(data.users)
-        }
-      } catch (loadError) {
-        console.error('Error loading user data:', loadError)
-      }
-    }
-
-    loadUserData()
-  }, [user])
-
-  useEffect(() => {
-    if (user) {
-      console.log('MyAccount - Setting active status to:', user.active)
-      setActiveStatus(user.active || false)
-    }
-  }, [user])
-
-  // Always refresh profile preferences from the server (keeps devices in sync)
-  useEffect(() => {
-    const fetchProfile = async () => {
-      if (!user?.id) return
-      try {
-        const response = await getUserProfile(user.id)
-        const freshUser = response?.user
-        if (!freshUser) return
-        const mergedUser = { ...user, ...freshUser, password: undefined }
-        localStorage.setItem('user', JSON.stringify(mergedUser))
-        if (freshUser.status) {
-          setUserStatus(freshUser.status)
-        }
-      } catch (err) {
-        console.warn('MyAccount - Profiel verversen mislukt:', err?.message || err)
-      }
-    }
-    fetchProfile()
-  }, [user])
-
-  useEffect(() => {
-    if (!user) {
-      setOpkomstEvents([])
-      setIsOpkomstenLoading(false)
-      return
-    }
-
-    let isCancelled = false
-
-    const loadOpkomstEvents = async () => {
-      setIsOpkomstenLoading(true)
-      setOpkomstenError(null)
-
-      try {
-        const response = await getEvents()
-        const events = Array.isArray(response) ? response : response?.events || []
-
-        const normalizedFirstName = normalizeValue(user.firstName || '')
-        const normalizedLastName = normalizeValue(user.lastName || '')
-        const normalizedFullName = normalizeValue([user.firstName, user.lastName].filter(Boolean).join(' '))
-
-        const isUpcomingEvent = start => {
-          const eventDate = safeParseDate(start)
-          if (!eventDate) return false
-
-          const today = new Date()
-          const normalizedToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-          const normalizedEventDate = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate())
-          return normalizedEventDate >= normalizedToday
-        }
-
-        const candidates = [normalizedFirstName, normalizedLastName, normalizedFullName].filter(Boolean)
-
-        const matchesCurrentUser = opkomstmakers => {
-          const makerNames = splitOpkomstmakerNames(opkomstmakers)
-          if (makerNames.length === 0) return false
-          const normalizedMakers = makerNames.map(name => normalizeValue(name))
-          return normalizedMakers.some(name => candidates.includes(name))
-        }
-
-        const matchesCurrentUserAsSchoonmaker = schoonmakers => {
-          const makerNames = splitSchoonmakerNames(schoonmakers)
-          if (makerNames.length === 0) return false
-          const normalizedMakers = makerNames.map(name => normalizeValue(name))
-          return normalizedMakers.some(name => candidates.includes(name))
-        }
-
-        const upcomingOwnedOpkomsten = events
-          .filter(event => event?.isOpkomst)
-          .filter(event => matchesCurrentUser(event.opkomstmakers))
-          .filter(event => isUpcomingEvent(event.start))
-
-        const upcomingOwnedSchoonmaak = events
-          .filter(event => event?.isSchoonmaak)
-          .filter(event => matchesCurrentUserAsSchoonmaker(event.schoonmakers))
-          .filter(event => isUpcomingEvent(event.start))
-
-        const upcomingOwnedEvents = [...upcomingOwnedOpkomsten, ...upcomingOwnedSchoonmaak].sort(
-          (a, b) => new Date(a.start) - new Date(b.start)
-        )
-
-        if (!isCancelled) {
-          setOpkomstEvents(upcomingOwnedEvents)
-        }
-      } catch (err) {
-        if (!isCancelled) {
-          console.error('Error loading opkomst events:', err)
-          setOpkomstenError(withSupportContact(err.message || 'Opkomsten konden niet geladen worden.'))
-        }
-      } finally {
-        if (!isCancelled) {
-          setIsOpkomstenLoading(false)
-        }
-      }
-    }
-
-    loadOpkomstEvents()
-
-    return () => {
-      isCancelled = true
-    }
-  }, [user])
+  const opkomstEvents = useMemo(() => {
+    if (!user?.id) return []
+    const today = new Date()
+    const normalizedToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    return queriedEvents
+      .filter(event => {
+        const eventDate = safeParseDate(event.start)
+        if (!eventDate) return false
+        const normalizedEventDate = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate())
+        if (normalizedEventDate < normalizedToday) return false
+        return (event.isOpkomst && event.opkomstmakerIds?.includes(user.id)) ||
+          (event.isSchoonmaak && event.schoonmakerIds?.includes(user.id))
+      })
+      .sort((a, b) => new Date(a.start) - new Date(b.start))
+  }, [queriedEvents, user?.id])
 
   useEffect(() => {
     if (!selectedOpkomst) {
@@ -376,7 +264,7 @@ export default function MyAccount({ user: userProp, onLogout }) {
 
   const { firstName, lastName, email, id } = user || {}
   const streepjes = userWithStreepjes?.streepjes ?? 0
-  const isStreepjesLoading = userWithStreepjes === null
+  const isStreepjesLoading = usersLoading
 
   const closeOpkomstDetails = () => setSelectedOpkomst(null)
 
@@ -415,7 +303,6 @@ export default function MyAccount({ user: userProp, onLogout }) {
           [
             adminUser.firstName,
             adminUser.lastName,
-            adminUser.email,
             USER_STATUS_LABELS[effectiveStatus]
           ].filter(Boolean).join(' ')
         )
@@ -428,14 +315,6 @@ export default function MyAccount({ user: userProp, onLogout }) {
         return `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, 'nl-NL')
       })
   }, [allUsers, adminStatusFilter, adminUserQuery])
-
-  console.log('MyAccount - User data:', {
-    id,
-    firstName,
-    lastName,
-    email,
-    activeStatus
-  })
 
   const handlePasswordChange = async e => {
     e.preventDefault()
@@ -517,12 +396,7 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
       return
     }
 
-    console.log('MyAccount - handleActiveStatusChange called with:', newActiveStatus)
-    console.log('MyAccount - User ID:', id)
-    console.log('MyAccount - User ID type:', typeof id)
-
     if (!id) {
-      console.error('MyAccount - No user ID found!')
       setError(withSupportContact('Gebruikers-ID niet gevonden. Log opnieuw in.'))
       return
     }
@@ -532,27 +406,13 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
     setMessage(null)
 
     try {
-      const profileData = {
-        userId: id,
-        active: newActiveStatus
-      }
-      console.log('MyAccount - Calling updateUserProfile with:', profileData)
-
-      const response = await updateUserProfile(profileData)
-
-      console.log('MyAccount - API response:', response)
-
-      if (previousStatus !== newActiveStatus) {
-        try {
-          await Promise.all([invalidateEvents(), invalidateUsers()])
-        } catch (cacheError) {
-          console.warn('MyAccount - Kon cache niet ongeldig maken:', cacheError)
-        }
-      }
+      const nextStatus = newActiveStatus ? 'active' : 'inactive'
+      const response = await updateProfileMutation.mutateAsync({ status: nextStatus })
 
       setActiveStatus(newActiveStatus)
+      setUserStatus(nextStatus)
 
-      const updatedUser = { ...user, active: newActiveStatus }
+      const updatedUser = { ...user, status: nextStatus }
       localStorage.setItem('user', JSON.stringify(updatedUser))
 
       const attendanceUpdates = Number.isFinite(response?.attendanceUpdates) ? response.attendanceUpdates : 0
@@ -588,30 +448,25 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
     setAdminStatusMessage(null)
 
     try {
-      const response = await updateUserStatus(targetUserId, newStatus, id)
-      const nextActive = response?.user?.active ?? newStatus === 'active'
-      setAllUsers(prev => prev.map(u => u.id === targetUserId ? { ...u, status: newStatus, active: nextActive } : u))
+      await updateUserStatus(targetUserId, newStatus)
+      setAllUsers(prev => prev.map(u => u.id === targetUserId ? { ...u, status: newStatus } : u))
       if (targetUserId === id) {
         setUserStatus(newStatus)
-        setActiveStatus(nextActive)
-        localStorage.setItem('user', JSON.stringify({ ...user, status: newStatus, active: nextActive }))
+        setActiveStatus(newStatus === 'active')
+        localStorage.setItem('user', JSON.stringify({ ...user, status: newStatus }))
       }
       setAdminStatusMessage(`Status van ${targetUser.firstName} ${targetUser.lastName} bijgewerkt naar ${newLabel}.`)
-      invalidateUsers().catch(() => {
-        // Cache invalidation failures should not block the visible status update.
-      })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.users.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.events.all })
+      ])
     } catch (err) {
       setAdminStatusError(withSupportContact(err.message || 'Status bijwerken mislukt'))
-      // refresh list to revert UI
-      const response = await fetch('/api/users/full').catch(() => null)
-      if (response?.ok) {
-        const data = await response.json().catch(() => null)
-        if (data?.users) setAllUsers(data.users)
-      }
+      await queryClient.invalidateQueries({ queryKey: queryKeys.users.all })
     } finally {
       setIsChangingStatus(false)
     }
-  }, [allUsers, id, user])
+  }, [allUsers, id, queryClient, user])
 
   const closeAddUser = useCallback(() => {
     if (isCreatingUser) return
@@ -634,7 +489,10 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
       setAdminStatusMessage(`${newUserData.firstName} ${newUserData.lastName} is toegevoegd.`)
       setShowAddUser(false)
       setNewUserData({ firstName: '', lastName: '', email: '', isAdmin: false })
-      await Promise.all([invalidateUsers(), invalidateEvents()])
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.users.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.events.all })
+      ])
     } catch (err) {
       setAddUserError(withSupportContact(err.message || 'Gebruiker toevoegen mislukt'))
     } finally {
@@ -776,7 +634,7 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
               </div>
               <div className="account-card-body">
                 <div className="setting-section setting-section-activity">
-                  {userStatus === 'active' ? (
+                  {userStatus !== 'legacy' ? (
                     <>
                       <div className="setting-item">
                         <div className="setting-label">

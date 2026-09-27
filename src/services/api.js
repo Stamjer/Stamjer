@@ -38,16 +38,6 @@ const JSON_HEADERS = {
   'Content-Type': 'application/json',
 }
 
-function getStoredUser() {
-  try {
-    const rawLocal = typeof localStorage !== 'undefined' ? localStorage.getItem('user') : null
-    if (!rawLocal) return null
-    return JSON.parse(rawLocal)
-  } catch {
-    return null
-  }
-}
-
 // ================================================================
 // UTILITY FUNCTIONS
 // ================================================================
@@ -168,14 +158,8 @@ async function request(url, options = {}, timeout = DEFAULT_TIMEOUT) {
   }
 
   const controller = new AbortController()
-  const {
-    sessionToken: overrideSessionToken,
-    authToken: explicitAuthToken,
-    ...restOptions
-  } = options || {}
-
   const requestOptions = {
-    ...restOptions,
+    ...options,
     signal: controller.signal,
     credentials: 'include',
   }
@@ -192,16 +176,6 @@ async function request(url, options = {}, timeout = DEFAULT_TIMEOUT) {
       ...requestOptions.headers,
     }
     requestOptions.body = JSON.stringify(requestOptions.body)
-  }
-
-  // Attach bearer token when available
-  const storedUser = getStoredUser()
-  const token = overrideSessionToken || explicitAuthToken || storedUser?.sessionToken
-  if (token) {
-    requestOptions.headers = {
-      ...requestOptions.headers,
-      Authorization: `Bearer ${token}`,
-    }
   }
 
   let timeoutId
@@ -348,21 +322,16 @@ export async function getEvents() {
 /**
  * Create new event
  * @param {Object} eventData - Event data
- * @param {number} userId - User ID for admin validation
  * @returns {Promise<Object>} Created event
  */
-export async function createEvent(eventData, userId) {
+export async function createEvent(eventData) {
   if (!eventData.title || !eventData.start) {
     throw new Error('Titel en startdatum zijn verplicht')
   }
   
-  if (!userId) {
-    throw new Error('Gebruiker ID is verplicht voor het aanmaken van evenementen')
-  }
-  
   return request('/events', {
     method: 'POST',
-    body: { ...eventData, userId }
+    body: eventData
   })
 }
 
@@ -370,42 +339,31 @@ export async function createEvent(eventData, userId) {
  * Update existing event
  * @param {string} eventId - Event ID
  * @param {Object} eventData - Updated event data
- * @param {number} userId - User ID for admin validation
  * @returns {Promise<Object>} Updated event
  */
-export async function updateEvent(eventId, eventData, userId) {
+export async function updateEvent(eventId, eventData) {
   if (!eventId) {
     throw new Error('Event ID is verplicht')
   }
   
-  if (!userId) {
-    throw new Error('Gebruiker ID is verplicht voor het bewerken van evenementen')
-  }
-  
   return request(`/events/${eventId}`, {
     method: 'PUT',
-    body: { ...eventData, userId }
+    body: eventData
   })
 }
 
 /**
  * Delete event
  * @param {string} eventId - Event ID
- * @param {number} userId - User ID for admin validation
  * @returns {Promise<Object>} Deletion result
  */
-export async function deleteEvent(eventId, userId) {
+export async function deleteEvent(eventId) {
   if (!eventId) {
     throw new Error('Event ID is verplicht')
   }
   
-  if (!userId) {
-    throw new Error('Gebruiker ID is verplicht voor het verwijderen van evenementen')
-  }
-  
   return request(`/events/${eventId}`, {
-    method: 'DELETE',
-    body: { userId }
+    method: 'DELETE'
   })
 }
 
@@ -454,11 +412,8 @@ export async function createUser(userData) {
  * Get user profile
  * @returns {Promise<Object>} User profile data
  */
-export async function getUserProfile(userId) {
-  if (!userId) {
-    throw new Error('Gebruikers-ID is verplicht om profiel op te halen')
-  }
-  return request(`/user/profile?userId=${encodeURIComponent(userId)}`)
+export async function getUserProfile() {
+  return request('/user/profile')
 }
 
 /**
@@ -473,10 +428,10 @@ export async function updateUserProfile(profileData) {
   })
 }
 
-export async function updateUserStatus(targetUserId, status, adminUserId) {
+export async function updateUserStatus(targetUserId, status) {
   return request(`/users/${encodeURIComponent(targetUserId)}/status`, {
     method: 'PATCH',
-    body: { userId: adminUserId, status }
+    body: { status }
   })
 }
 
@@ -500,69 +455,4 @@ export async function submitPaymentRequest(requestData) {
     body: JSON.stringify(requestData)
   }, 60000)
 }
-
-// ================================================================
-// UTILITY EXPORTS
-// ================================================================
-
-/**
- * Check if the user is online
- * @returns {boolean} Online status
- */
-export function isOnline() {
-  return navigator.onLine
-}
-
-/**
- * Add network status event listeners
- * @param {Function} onOnline - Callback for online event
- * @param {Function} onOffline - Callback for offline event
- * @returns {Function} Cleanup function
- */
-export function addNetworkListeners(onOnline, onOffline) {
-  window.addEventListener('online', onOnline)
-  window.addEventListener('offline', onOffline)
-  
-  return () => {
-    window.removeEventListener('online', onOnline)
-    window.removeEventListener('offline', onOffline)
-  }
-}
-
-// ================================================================
-// DEFAULT EXPORT
-// ================================================================
-
-export default {
-  // Authentication
-  login,
-  getCurrentSession,
-  logout,
-  forgotPassword,
-  resetPassword,
-  changePassword,
-  
-  // Events
-  getEvents,
-  createEvent,
-  updateEvent,
-  deleteEvent,
-  updateAttendance,
-  
-  // Users
-  getUsers,
-  getUsersFull,
-  createUser,
-  getUserProfile,
-  updateUserProfile,
-  updateUserStatus,
-
-  // Payment requests
-  submitPaymentRequest,
-  
-  // Utilities
-  isOnline,
-  addNetworkListeners
-}
-
 

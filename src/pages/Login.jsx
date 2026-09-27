@@ -19,6 +19,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { useNavigate } from 'react-router-dom'
 import { withSupportContact } from '../config/appInfo'
 import { login } from '../services/api'
+import { getAuthenticatedLandingPath } from '../lib/authRouting'
 import './Auth.css'
 
 export default function Login({ setUser }) {
@@ -32,7 +33,6 @@ export default function Login({ setUser }) {
   const [showPassword, setShowPassword] = useState(false)
   const [isFormValid, setIsFormValid] = useState(false)
   const [fieldErrors, setFieldErrors] = useState({})
-  const [rememberMe, setRememberMe] = useState(true)
   
   const navigate = useNavigate()
 
@@ -87,15 +87,14 @@ export default function Login({ setUser }) {
     try {
       const data = await login(email, password)
       
-      // Store user data locally so login persists
+      // Cache display data locally; the persistent server session controls authentication.
       localStorage.setItem('user', JSON.stringify(data.user))
-      localStorage.setItem('rememberMe', 'true')
       
       setUser(data.user)
       
       // Add success animation delay
       setTimeout(() => {
-        navigate('/kalender')
+        navigate(getAuthenticatedLandingPath(data.user))
       }, 300)
       
     } catch (err) {
@@ -129,28 +128,6 @@ export default function Login({ setUser }) {
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword)
   }
-
-  // ================================================================
-  // LOAD REMEMBERED EMAIL
-  // ================================================================
-  
-  useEffect(() => {
-    const remembered = localStorage.getItem('rememberMe')
-    if (remembered) {
-      const savedUser = localStorage.getItem('user')
-      if (savedUser) {
-        try {
-          const userData = JSON.parse(savedUser)
-          if (userData.email) {
-            setEmail(userData.email)
-            setRememberMe(true)
-          }
-        } catch (error) {
-          console.error('Error loading remembered user:', error)
-        }
-      }
-    }
-  }, [])
 
   // ================================================================
   // RENDER
@@ -236,21 +213,6 @@ export default function Login({ setUser }) {
               </div>
             </div>
 
-            {/* Remember Me Checkbox */}
-            <div className="form-group">
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={e => setRememberMe(e.target.checked)}
-                  disabled={isLoading}
-                  className="checkbox-input"
-                />
-                <span className="checkbox-custom"></span>
-                Onthoud mij
-              </label>
-            </div>
-            
             {/* Submit Button */}
             <button 
               type="submit" 

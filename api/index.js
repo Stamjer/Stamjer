@@ -6,12 +6,10 @@
  *
  * Hoofdbestand voor de Stamjer-agenda.
  * Biedt REST-API endpoints voor:
- * - Gebruikersauthenticatie (inloggen, registratie, wachtwoordherstel)
+ * - Gebruikersauthenticatie, admin-gebruikersbeheer en wachtwoordherstel
  * - Evenementbeheer (CRUD-bewerkingen)
- * - E-mailverificatie
  *
  * Gemaakt met Express.js en MongoDB Atlas, inclusief:
- * - E-mailverificatie bij registratie
  * - Wachtwoordherstel met beveiligde codes
  * - Opslag van gebruikers en evenementen in MongoDB
  * - E-mails verstuurd via Nodemailer
@@ -31,10 +29,18 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import expressStaticGzip from 'express-static-gzip'
 import { fileURLToPath } from 'url'
 import { dirname } from 'path'
-import { randomUUID, randomBytes, createHmac, timingSafeEqual } from 'crypto'
+import { randomUUID, randomBytes, createHmac } from 'crypto'
 import { MongoClient } from 'mongodb'
-import { createRequestLogger, configureDailyReport, logError as logSystemError, logEvent } from './logger.js'
+import { createRequestLogger, logError as logSystemError, logEvent } from './logger.js'
 import { createICalendarHandler } from './icalendar.js'
+import {
+  getAssignmentDisplayNames,
+  normalizeUserStatus,
+  sanitizeIdArray,
+  USER_STATUSES
+} from './dataModel.js'
+import { getAttendanceAuthorizationError } from './authorization.js'
+import { createSessionCookieOptions, createSessionPolicy } from './sessionPolicy.js'
 
 // MongoDB setup
 const uri = process.env.MONGODB_URI
@@ -42,10 +48,7 @@ if (!uri) throw new Error('Ontbrekende MONGODB_URI in omgeving')
 
 let clientPromise
 if (!global._mongoClientPromise) {
-  const client = new MongoClient(uri, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-  })
+  const client = new MongoClient(uri)
   global._mongoClientPromise = client.connect()
 }
 clientPromise = global._mongoClientPromise
@@ -58,19 +61,23 @@ const debugLog = (...args) => {
 }
 const infoLog = (...args) => console.info(...args)
 const warnLog = (...args) => console.warn(...args)
-const DAILY_LOG_EMAIL = process.env.DAILY_LOG_EMAIL || 'stamjer.mpd@gmail.com'
-const DAILY_CHANGE_EMAIL = process.env.DAILY_CHANGE_EMAIL || DAILY_LOG_EMAIL
+const DAILY_CHANGE_EMAIL = process.env.DAILY_CHANGE_EMAIL || 'stamjer.mpd@gmail.com'
 const PAYMENT_REQUEST_EMAIL = process.env.PAYMENT_REQUEST_EMAIL || 'stamjer.mpd@gmail.com'
 const PAYMENT_REQUEST_ATTACHMENT_LIMIT = Math.max(parseInt(process.env.PAYMENT_REQUEST_ATTACHMENT_LIMIT, 10) || 3, 0)
 const PAYMENT_REQUEST_ATTACHMENT_SIZE_LIMIT = Math.max(parseInt(process.env.PAYMENT_REQUEST_ATTACHMENT_SIZE_LIMIT, 10) || 5, 1) * 1024 * 1024
 const PAYMENT_REQUEST_TOTAL_SIZE_LIMIT = Math.max(parseInt(process.env.PAYMENT_REQUEST_TOTAL_SIZE_LIMIT, 10) || 15, 1) * 1024 * 1024
 
-const TOKEN_SECRET = process.env.TOKEN_SECRET || 'dev-token-secret-change-me'
-const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || 'stamjer_session'
-const SESSION_MAX_AGE_DAYS = Math.max(parseInt(process.env.SESSION_MAX_AGE_DAYS, 10) || 365, 1)
-const SESSION_MAX_AGE_MS = SESSION_MAX_AGE_DAYS * 24 * 60 * 60 * 1000
-const SESSION_TOUCH_INTERVAL_MS = Math.max(parseInt(process.env.SESSION_TOUCH_INTERVAL_HOURS, 10) || 24, 1) * 60 * 60 * 1000
-const SESSION_COOKIE_DOMAIN = process.env.SESSION_COOKIE_DOMAIN || ''
+const DEFAULT_TOKEN_SECRET = 'dev-token-secret-change-me'
+const TOKEN_SECRET = process.env.TOKEN_SECRET || DEFAULT_TOKEN_SECRET
+if (isProduction && TOKEN_SECRET === DEFAULT_TOKEN_SECRET) {
+  throw new Error('TOKEN_SECRET moet in productie expliciet en stabiel worden ingesteld')
+}
+const sessionPolicy = createSessionPolicy(process.env)
+const SESSION_COOKIE_NAME = sessionPolicy.cookieName
+const SESSION_MAX_AGE_DAYS = sessionPolicy.maxAgeDays
+const SESSION_MAX_AGE_MS = sessionPolicy.maxAgeMs
+const SESSION_TOUCH_INTERVAL_MS = sessionPolicy.touchIntervalMs
+const SESSION_COOKIE_DOMAIN = sessionPolicy.cookieDomain
 function maskEmail(email = '') {
   if (typeof email !== 'string') return ''
   const trimmed = email.trim()
@@ -120,7 +127,7 @@ async function ensureIndexes(db) {
   const usersCreated = await ensureCollectionIndexes(db.collection('users'), [
     { keys: { email: 1 }, options: { unique: true, background: true, name: 'users_email_unique_idx' }, description: 'users.email unique' },
     { keys: { id: 1 }, options: { unique: true, background: true, name: 'users_id_unique_idx' }, description: 'users.id unique' },
-    { keys: { active: 1 }, options: { background: true, name: 'users_active_idx' }, description: 'users.active flag' }
+    { keys: { status: 1 }, options: { background: true, name: 'users_status_idx' }, description: 'users.status' }
   ])
 
   const resetCodesCreated = await ensureCollectionIndexes(db.collection('resetCodes'), [
@@ -215,32 +222,6 @@ function base64UrlEncode(buffer) {
   return Buffer.from(buffer).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
 }
 
-function base64UrlDecode(str) {
-  const padded = str.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(str.length / 4) * 4, '=')
-  return Buffer.from(padded, 'base64')
-}
-
-function verifySessionToken(token) {
-  if (!token || typeof token !== 'string' || !token.includes('.')) return null
-  const [header, body, signature] = token.split('.')
-  const data = `${header}.${body}`
-  const expectedSig = base64UrlEncode(createHmac('sha256', TOKEN_SECRET).update(data).digest())
-
-  const sigBuf = Buffer.from(signature || '', 'utf8')
-  const expectedBuf = Buffer.from(expectedSig, 'utf8')
-  if (sigBuf.length !== expectedBuf.length || !timingSafeEqual(sigBuf, expectedBuf)) {
-    return null
-  }
-
-  try {
-    const payload = JSON.parse(base64UrlDecode(body).toString('utf8'))
-    if (!payload || typeof payload !== 'object') return null
-    return payload
-  } catch {
-    return null
-  }
-}
-
 function sanitizeClientString(input = '', maxLength = 120) {
   return input
     .toString()
@@ -278,19 +259,12 @@ function getCookieSessionToken(req) {
 }
 
 function getSessionCookieOptions({ maxAge = SESSION_MAX_AGE_MS } = {}) {
-  const options = {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: 'lax',
-    path: '/',
+  return createSessionCookieOptions({
+    isProduction,
+    maxAgeMs: SESSION_MAX_AGE_MS,
+    cookieDomain: SESSION_COOKIE_DOMAIN,
     maxAge
-  }
-
-  if (SESSION_COOKIE_DOMAIN) {
-    options.domain = SESSION_COOKIE_DOMAIN
-  }
-
-  return options
+  })
 }
 
 function setSessionCookie(res, token) {
@@ -301,16 +275,6 @@ function clearSessionCookie(res) {
   const options = getSessionCookieOptions({ maxAge: 0 })
   delete options.maxAge
   res.clearCookie(SESSION_COOKIE_NAME, options)
-}
-
-function extractLegacyAuthToken(req) {
-  const bearer = typeof req.headers?.authorization === 'string' ? req.headers.authorization.trim() : ''
-  if (bearer && bearer.toLowerCase().startsWith('bearer ')) {
-    return bearer.slice(7).trim()
-  }
-  return (
-    (req.headers?.['x-session-token'] ?? req.body?.sessionToken ?? req.query?.sessionToken ?? '').toString().trim()
-  )
 }
 
 function hashSessionToken(token) {
@@ -349,25 +313,16 @@ async function findSessionByToken(token) {
   const parsed = parseOpaqueSessionToken(token)
   if (!parsed) return null
 
-  let session = sessions.find((candidate) =>
-    candidate.sessionId === parsed.sessionId &&
-    candidate.tokenHash === parsed.tokenHash
-  )
-
-  if (!session) {
-    const db = await getDb()
-    session = await db.collection('sessions').findOne(
-      { sessionId: parsed.sessionId, tokenHash: parsed.tokenHash },
-      { projection: { _id: 0 } }
-    )
-    session = normalizeSessionRecord(session)
-    if (session) {
-      sessions = [
-        session,
-        ...sessions.filter((candidate) => candidate.sessionId !== session.sessionId)
-      ]
-    }
-  }
+  const db = await getDb()
+  const session = normalizeSessionRecord(await db.collection('sessions').findOne(
+    {
+      sessionId: parsed.sessionId,
+      tokenHash: parsed.tokenHash,
+      revokedAt: null,
+      expiresAt: { $gt: new Date() }
+    },
+    { projection: { _id: 0 } }
+  ))
 
   return isSessionUsable(session) ? session : null
 }
@@ -376,8 +331,6 @@ function mapUserForClient(user, session = null) {
   if (!user) return null
   const safeUser = { ...user }
   delete safeUser.password
-  delete safeUser.sessionToken
-  delete safeUser.notificationPreferences
   safeUser.session = session
     ? {
         deviceId: session.deviceId,
@@ -409,7 +362,6 @@ async function createUserSession(user, req) {
   await db.collection('sessions').insertOne(session)
   const safeSession = { ...session }
   delete safeSession._id
-  sessions = [safeSession, ...sessions.filter((candidate) => candidate.sessionId !== safeSession.sessionId)]
   return { token, session: safeSession }
 }
 
@@ -425,7 +377,7 @@ async function touchSession(session) {
 
   const db = await getDb()
   await db.collection('sessions').updateOne(
-    { sessionId: session.sessionId },
+    { sessionId: session.sessionId, revokedAt: null },
     { $set: { lastSeenAt: now, expiresAt } }
   )
 }
@@ -433,9 +385,6 @@ async function touchSession(session) {
 async function revokeSession(sessionId) {
   if (!sessionId) return
   const revokedAt = new Date()
-  sessions = sessions.map((session) =>
-    session.sessionId === sessionId ? { ...session, revokedAt } : session
-  )
   const db = await getDb()
   await db.collection('sessions').updateOne(
     { sessionId },
@@ -448,11 +397,6 @@ async function revokeUserSessions(userId, { exceptSessionId = null } = {}) {
   if (uid === null) return
 
   const revokedAt = new Date()
-  sessions = sessions.map((session) => {
-    if (session.userId !== uid || session.sessionId === exceptSessionId) return session
-    return { ...session, revokedAt }
-  })
-
   const filter = {
     userId: uid,
     revokedAt: null
@@ -466,6 +410,7 @@ async function revokeUserSessions(userId, { exceptSessionId = null } = {}) {
 }
 
 async function getAuthenticatedUser(req, { requireAdmin = false } = {}) {
+  await ensureUsersFresh()
   const cookieToken = getCookieSessionToken(req)
   let session = null
   let user = null
@@ -480,19 +425,6 @@ async function getAuthenticatedUser(req, { requireAdmin = false } = {}) {
     }
   }
 
-  const sessionToken = extractLegacyAuthToken(req)
-  let payload = null
-
-  if (!user && sessionToken) {
-    payload = verifySessionToken(sessionToken)
-    if (payload && Number.isFinite(payload.userId)) {
-      user = users.find((u) =>
-        u.id === payload.userId &&
-        (!Number.isFinite(payload.v) || payload.v === (u.sessionVersion || 0))
-      )
-    }
-  }
-
   if (!user) {
     return { error: 'AUTH_INVALID' }
   }
@@ -501,7 +433,7 @@ async function getAuthenticatedUser(req, { requireAdmin = false } = {}) {
     return { error: 'AUTH_FORBIDDEN' }
   }
 
-  return { user, userId: user.id, token: cookieToken || sessionToken, session }
+  return { user, userId: user.id, token: cookieToken, session }
 }
 
 async function requireAuthenticatedUser(req, res, { requireAdmin = false } = {}) {
@@ -525,15 +457,10 @@ async function requireAuthenticatedUser(req, res, { requireAdmin = false } = {})
 // Tussenopslag gebruikers en evenementen
 let users = []
 let events = []
-let sessions = []
 let lastEventsLoadedAt = 0
+let lastUsersLoadedAt = 0
 // Remove in-memory pendingReset as we'll use MongoDB
 // const pendingReset = {}
-
-function normalizeUserStatus(status) {
-  if (status === 'legacy' || status === 'inactive' || status === 'active') return status
-  return 'active'
-}
 
 // Gegevens inladen
 async function loadUsers() {
@@ -547,28 +474,19 @@ async function loadUsers() {
         const normalizedUser = {
           ...user,
           sessionVersion: Number.isFinite(user.sessionVersion) ? user.sessionVersion : 0,
-          status: normalizeUserStatus(user.status)
+          status: normalizeUserStatus(user)
         }
-        delete normalizedUser.notificationPreferences
         return normalizedUser
       })
     )
   infoLog(`Loaded ${users.length} users from MongoDB`)
+  lastUsersLoadedAt = Date.now()
 }
 
-async function loadSessions() {
-  const db = await getDb()
-  const now = new Date()
-  sessions = (await db.collection('sessions')
-    .find({
-      revokedAt: null,
-      expiresAt: { $gt: now }
-    })
-    .project({ _id: 0 })
-    .toArray())
-    .map(normalizeSessionRecord)
-    .filter(Boolean)
-  infoLog(`Loaded ${sessions.length} active sessions from MongoDB`)
+async function ensureUsersFresh(maxAgeMs = 2000) {
+  if (Date.now() - lastUsersLoadedAt > maxAgeMs || users.length === 0) {
+    await loadUsers()
+  }
 }
 
 async function loadEvents() {
@@ -581,10 +499,66 @@ async function loadEvents() {
       ...event,
       opkomstmakerIds: sanitizeIdArray(event.opkomstmakerIds),
       schoonmakerIds: sanitizeIdArray(event.schoonmakerIds),
+      legacyOpkomstmakerNames: Array.isArray(event.legacyOpkomstmakerNames) ? event.legacyOpkomstmakerNames : [],
+      legacySchoonmakerNames: Array.isArray(event.legacySchoonmakerNames) ? event.legacySchoonmakerNames : [],
       participants: sanitizeIdArray(event.participants)
     }))
   infoLog(`Loaded ${events.length} events from MongoDB`)
   lastEventsLoadedAt = Date.now()
+}
+
+function mapEventForClient(event) {
+  const opkomstmakerNames = getAssignmentDisplayNames(
+    event.opkomstmakerIds,
+    event.legacyOpkomstmakerNames,
+    users
+  )
+  const schoonmakerNames = getAssignmentDisplayNames(
+    event.schoonmakerIds,
+    event.legacySchoonmakerNames,
+    users
+  )
+  return {
+    ...event,
+    opkomstmakers: opkomstmakerNames.join(', '),
+    schoonmakers: schoonmakerNames.join(', ')
+  }
+}
+
+function applyEventInput(event, input = {}) {
+  const updated = { ...event }
+  const stringFields = ['title', 'start', 'end', 'location', 'description']
+  const booleanFields = ['allDay', 'isOpkomst', 'isSchoonmaak']
+
+  for (const field of stringFields) {
+    if (Object.hasOwn(input, field)) updated[field] = typeof input[field] === 'string' ? input[field].trim() : ''
+  }
+  for (const field of booleanFields) {
+    if (Object.hasOwn(input, field)) updated[field] = input[field] === true
+  }
+  if (Object.hasOwn(input, 'opkomstmakerIds')) {
+    updated.opkomstmakerIds = sanitizeIdArray(input.opkomstmakerIds)
+      .filter((id) => users.some((user) => user.id === id && user.status === 'active'))
+  }
+  if (Object.hasOwn(input, 'schoonmakerIds')) {
+    updated.schoonmakerIds = sanitizeIdArray(input.schoonmakerIds)
+      .filter((id) => users.some((user) => user.id === id && user.status === 'active'))
+  }
+  if (Object.hasOwn(input, 'participants')) {
+    updated.participants = sanitizeIdArray(input.participants)
+      .filter((id) => users.some((user) => user.id === id && user.status !== 'legacy'))
+  }
+  if (Object.hasOwn(input, 'schoonmaakOptions')) {
+    updated.schoonmaakOptions = Array.isArray(input.schoonmaakOptions) ? input.schoonmaakOptions : []
+  }
+  if (Object.hasOwn(input, 'attendance') && input.attendance && typeof input.attendance === 'object') {
+    updated.attendance = Object.fromEntries(Object.entries(input.attendance)
+      .filter(([userId]) => sanitizeUserId(userId) !== null)
+      .map(([userId, value]) => [String(sanitizeUserId(userId)), Boolean(value?.present ?? value)]))
+  }
+
+  if (!updated.end) updated.end = updated.start
+  return updated
 }
 
 async function ensureEventsFresh(maxAgeMs = 2000) {
@@ -597,21 +571,6 @@ async function ensureEventsFresh(maxAgeMs = 2000) {
 function sanitizeUserId(userId) {
   const parsed = Number.parseInt(userId, 10)
   return Number.isFinite(parsed) ? parsed : null
-}
-
-function sanitizeIdArray(value) {
-  if (!Array.isArray(value)) {
-    return []
-  }
-
-  const unique = new Set()
-  value.forEach((item) => {
-    const parsed = sanitizeUserId(item)
-    if (parsed !== null) {
-      unique.add(parsed)
-    }
-  })
-  return Array.from(unique)
 }
 
 async function syncUserAttendanceForFutureOpkomsten(userId, shouldBePresent) {
@@ -663,10 +622,9 @@ async function syncUserAttendanceForFutureOpkomsten(userId, shouldBePresent) {
 
   if (saveOperations.length > 0) {
     await Promise.all(saveOperations)
-    logEvent('attendance-auto-sync', {
-      userId: uid,
-      active: shouldBePresent,
-      updatedEvents
+    logEvent({
+      action: 'attendance-auto-sync',
+      metadata: { userId: uid, shouldBePresent, updatedEvents }
     })
   }
 
@@ -692,7 +650,7 @@ async function saveResetCode(email, code, expiresAt) {
       $set: {
         email,
         code,
-        expiresAt,
+        expiresAt: new Date(expiresAt),
         createdAt: new Date()
       }
     },
@@ -717,7 +675,7 @@ async function cleanupExpiredResetCodes() {
     
     // Manual cleanup of expired codes (TTL index should handle this automatically)
     const result = await db.collection('resetCodes').deleteMany({
-      expiresAt: { $lt: Date.now() }
+      expiresAt: { $lt: new Date() }
     })
 
     if (result.deletedCount > 0) {
@@ -749,8 +707,11 @@ async function cleanupExpiredSessions() {
 
 async function saveEvent(event) {
   const db = await getDb()
+  const storedEvent = { ...event }
+  delete storedEvent.opkomstmakers
+  delete storedEvent.schoonmakers
   const normalizedEvent = {
-    ...event,
+    ...storedEvent,
     opkomstmakerIds: sanitizeIdArray(event.opkomstmakerIds),
     schoonmakerIds: sanitizeIdArray(event.schoonmakerIds),
     participants: sanitizeIdArray(event.participants)
@@ -1381,47 +1342,10 @@ async function buildPaymentRequestPdf(request, attachments = []) {
 
 // Cold start
 await loadUsers()
-await loadSessions()
 await loadEvents()
 await ensureMailerTransport()
-configureDailyReport({
-  sendEmail: async ({ subject, text, html }) => {
-    const mailer = await ensureMailerTransport()
-    if (!mailer) {
-      warnLog('Daily report overgeslagen: transporter niet beschikbaar')
-      return
-    }
-    try {
-      await mailer.sendMail({
-        from: process.env.SMTP_FROM || 'stamjer.mpd@gmail.com',
-        to: DAILY_LOG_EMAIL,
-        subject,
-        text,
-        html
-      })
-    } catch (error) {
-      console.error('Dagrapport versturen mislukt:', error)
-      logSystemError(error, { action: 'daily-report-email', status: 500 })
-    }
-  }
-})
 await cleanupExpiredResetCodes() // Clean up old reset codes on startup
 await cleanupExpiredSessions() // Clean up old sessions on startup
-
-// One-time cleanup: Remove old changeLog collection if it exists
-try {
-  const db = await getDb()
-  const collections = await db.listCollections({ name: 'changeLog' }).toArray()
-  if (collections.length > 0) {
-    await db.collection('changeLog').drop()
-    infoLog('Removed old changeLog collection as it is no longer needed')
-  }
-} catch (error) {
-  // Ignore errors if collection doesn't exist
-  if (error.codeName !== 'NamespaceNotFound') {
-    warnLog('Failed to remove old changeLog collection:', error.message)
-  }
-}
 
 logEvent({ action: 'server-start', metadata: { environment: process.env.NODE_ENV || 'development' } })
 
@@ -1496,8 +1420,8 @@ const corsOptions = {
     return callback(new Error('Not allowed by CORS'))
   },
   credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Session-Token'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+  allowedHeaders: ['Content-Type'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
 }
 
 app.use((req, res, next) => {
@@ -1513,12 +1437,6 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '25mb' }))
 app.use(createRequestLogger())
 
-// Request logging (no sensitive payloads)
-app.use((req, res, next) => {
-  infoLog(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`)
-  return next()
-})
-
 // API-router
 const apiRouter = express.Router()
 
@@ -1530,16 +1448,17 @@ apiRouter.get('/test', (req, res) => {
 // Gebruikers ophalen
 apiRouter.get('/users', async (req, res) => {
   try {
+    const auth = await requireAuthenticatedUser(req, res)
+    if (!auth) return
+
     await loadUsers()
     if (users.length === 0) await loadUsers()
     const safeUsers = users.map(u => ({
       id: u.id,
       firstName: u.firstName,
       lastName: u.lastName,
-      email: u.email,
       role: u.role,
-      active: Boolean(u.active),
-      status: u.status || 'active'
+      status: u.status
     }))
     res.json(safeUsers)
   } catch (err) {
@@ -1551,20 +1470,24 @@ apiRouter.get('/users', async (req, res) => {
 
 apiRouter.get('/users/full', async (req, res) => {
   try {
+    const auth = await requireAuthenticatedUser(req, res)
+    if (!auth) return
+
     await loadUsers()
     if (users.length === 0) await loadUsers()
 
     const streepjes = calculateStreepjes()
+    const visibleUsers = auth.user.isAdmin
+      ? users
+      : users.filter((user) => user.id === auth.userId)
     res.json({
-      users: users.map(u => ({
+      users: visibleUsers.map(u => ({
         id: u.id,
         firstName: u.firstName,
         lastName: u.lastName,
-        email: u.email,
-        active: u.active,
         isAdmin: u.isAdmin || false,
         streepjes: streepjes[u.id] || 0,
-        status: u.status || 'active'
+        status: u.status
       }))
     })
   } catch (err) {
@@ -1605,7 +1528,6 @@ apiRouter.post('/users', async (req, res) => {
       email,
       password: await bcrypt.hash(randomBytes(32).toString('base64url'), 10),
       isAdmin,
-      active: true,
       status: 'active',
       sessionVersion: 0,
       createdAt: new Date()
@@ -1640,9 +1562,9 @@ apiRouter.post('/users', async (req, res) => {
 })
 
 // Helper function to send active status change notification email
-async function sendActiveStatusChangeEmail(user, newActiveStatus) {
+async function sendStatusChangeEmail(user, newStatus) {
   try {
-    const statusText = newActiveStatus ? 'actief' : 'inactief'
+    const statusText = newStatus === 'active' ? 'actief' : newStatus === 'inactive' ? 'inactief' : 'alumni'
 
     const mailer = await ensureMailerTransport()
     if (!mailer) {
@@ -1680,11 +1602,27 @@ async function sendActiveStatusChangeEmail(user, newActiveStatus) {
         <p><em>Deze e-mail is automatisch gegenereerd door het Stamjer systeem.</em></p>
       `
     })
-    debugLog('Status change notification email sent', { userId: user.id, active: newActiveStatus })
+    debugLog('Status change email sent', { userId: user.id, status: newStatus })
   } catch (error) {
     console.error('Error sending status change email:', error)
-    logSystemError(error, { action: 'notify-active-status', status: 500, metadata: { userId: user?.id, active: newActiveStatus } })
+    logSystemError(error, { action: 'notify-user-status', status: 500, metadata: { userId: user?.id, newStatus } })
   }
+}
+
+async function applyUserStatusChange(user, status, changedBy) {
+  const previousStatus = user.status
+  if (previousStatus === status) return { updatedEvents: 0, changed: false }
+
+  user.status = status
+  const attendanceSync = await syncUserAttendanceForFutureOpkomsten(user.id, status === 'active')
+  await saveUser(user)
+  await sendStatusChangeEmail(user, status)
+  logEvent({
+    action: 'user-status-changed',
+    actor: changedBy,
+    metadata: { targetUserId: user.id, previousStatus, newStatus: status }
+  })
+  return { ...attendanceSync, changed: true }
 }
 
 // Profiel bijwerken
@@ -1693,30 +1631,20 @@ apiRouter.put('/user/profile', async (req, res) => {
     const auth = await requireAuthenticatedUser(req, res)
     if (!auth) return
 
-    const { userId, active } = req.body
-    if (!userId) return res.status(400).json({ error: 'Gebruikers-ID is vereist' })
-    const uid = parseInt(userId, 10)
-    if (uid !== auth.userId) return res.status(403).json({ error: 'Je kunt alleen je eigen profiel bijwerken' })
+    const { status } = req.body
+    if (!['active', 'inactive'].includes(status)) {
+      return res.status(400).json({ error: 'Kies de status active of inactive' })
+    }
+    const uid = auth.userId
     const idx = users.findIndex(u => u.id === uid)
     if (idx < 0) return res.status(404).json({ error: 'Gebruiker niet gevonden' })
-    
-    const previousActiveStatus = users[idx].active
-    
-    let attendanceSync = { updatedEvents: 0 }
-
-    if (typeof active === 'boolean') {
-      users[idx].active = active
-      
-      // Send email notification if active status changed
-      if (previousActiveStatus !== active) {
-        attendanceSync = await syncUserAttendanceForFutureOpkomsten(uid, active)
-        await sendActiveStatusChangeEmail(users[idx], active)
-      }
+    if (users[idx].status === 'legacy') {
+      return res.status(403).json({ error: 'Een alumni-status kan alleen door een beheerder worden gewijzigd' })
     }
 
-    await saveUser(users[idx])
+    const attendanceSync = await applyUserStatusChange(users[idx], status, auth.userId)
     res.json({ 
-      user: users[idx], 
+      user: mapUserForClient(users[idx]),
       msg: 'Profiel succesvol bijgewerkt',
       attendanceUpdates: attendanceSync.updatedEvents
     })
@@ -1733,11 +1661,9 @@ apiRouter.patch('/users/:id/status', async (req, res) => {
     const auth = await requireAuthenticatedUser(req, res, { requireAdmin: true })
     if (!auth) return
 
-    const { userId, status } = req.body
-    if (!userId || sanitizeUserId(userId) !== auth.userId) return res.status(403).json({ error: 'Alleen beheerders' })
+    const { status } = req.body
 
-    const validStatuses = ['active', 'inactive', 'legacy']
-    if (!validStatuses.includes(status)) {
+    if (!USER_STATUSES.includes(status)) {
       return res.status(400).json({ error: 'Ongeldige status. Kies uit: active, inactive, legacy' })
     }
 
@@ -1747,39 +1673,14 @@ apiRouter.patch('/users/:id/status', async (req, res) => {
     const idx = users.findIndex(u => u.id === targetId)
     if (idx < 0) return res.status(404).json({ error: 'Gebruiker niet gevonden' })
 
-    const previousStatus = users[idx].status || 'active'
-    const previousEffectiveStatus =
-      previousStatus === 'legacy'
-        ? 'legacy'
-        : previousStatus === 'inactive' || users[idx].active === false
-        ? 'inactive'
-        : 'active'
-    const nextActive = status === 'active'
-
-    if (previousStatus === status && Boolean(users[idx].active) === nextActive) {
-      return res.json({ user: { id: targetId, status, active: nextActive }, msg: 'Status ongewijzigd' })
+    if (users[idx].status === status) {
+      return res.json({ user: { id: targetId, status }, msg: 'Status ongewijzigd' })
     }
 
-    users[idx].status = status
-    users[idx].active = nextActive
-
-    // Sync opkomst attendance based on status change
-    if (previousEffectiveStatus === 'active' && status !== 'active') {
-      await syncUserAttendanceForFutureOpkomsten(targetId, false)
-    } else if (previousEffectiveStatus !== 'active' && status === 'active') {
-      await syncUserAttendanceForFutureOpkomsten(targetId, true)
-    }
-
-    await saveUser(users[idx])
-    logEvent('user-status-changed', {
-      targetUserId: targetId,
-      changedBy: sanitizeUserId(userId),
-      previousStatus,
-      newStatus: status
-    })
+    await applyUserStatusChange(users[idx], status, auth.userId)
 
     res.json({
-      user: { id: targetId, status, active: users[idx].active },
+      user: { id: targetId, status },
       msg: `Status bijgewerkt naar ${status}`
     })
   } catch (err) {
@@ -1793,94 +1694,61 @@ apiRouter.get('/user/profile', async (req, res) => {
   const auth = await requireAuthenticatedUser(req, res)
   if (!auth) return
 
-  const { userId } = req.query
-  const uid = sanitizeUserId(userId)
-  if (uid === null) {
-    return res.status(400).json({ error: 'Ongeldig gebruikers-ID' })
-  }
-  if (uid !== auth.userId) {
-    return res.status(403).json({ error: 'Je kunt alleen je eigen profiel bekijken' })
-  }
+  const uid = auth.userId
 
   const user = users.find((u) => u.id === uid)
   if (!user) {
     return res.status(404).json({ error: 'Gebruiker niet gevonden' })
   }
 
-  const safeUser = { ...user }
-  delete safeUser.password
-  delete safeUser.notificationPreferences
-  res.json({ user: safeUser })
+  res.json({ user: mapUserForClient(user, auth.session) })
 })
 
 // Evenementen ophalen
 apiRouter.get('/events', async (req, res) => {
+  const auth = await requireAuthenticatedUser(req, res)
+  if (!auth) return
+
   await ensureEventsFresh()
-  res.json({ events })
+  res.json({ events: events.map(mapEventForClient) })
 })
 
 apiRouter.get('/events/opkomsten', async (req, res) => {
+  const auth = await requireAuthenticatedUser(req, res)
+  if (!auth) return
+
   await ensureEventsFresh()
-  res.json({ events: events.filter(e => e.isOpkomst) })
+  res.json({ events: events.filter(e => e.isOpkomst).map(mapEventForClient) })
 })
 
 // Evenement aanmaken
 apiRouter.post('/events', async (req, res) => {
   try {
-    const {
-      title, start, end, allDay,
-      location, description,
-      isOpkomst, opkomstmakers, opkomstmakerIds,
-      isSchoonmaak, schoonmakers, schoonmakerIds,
-      schoonmaakOptions,
-      userId,
-      participants: requestedParticipants = []
-    } = req.body
-    if (!userId) return res.status(401).json({ msg: 'Authenticatie vereist' })
-    if (!isUserAdmin(userId)) return res.status(403).json({ msg: 'Alleen beheerders' })
-    if (!title || !start) return res.status(400).json({ msg: 'Titel en startdatum zijn vereist' })
-
-    const sanitizedParticipants = Array.isArray(requestedParticipants)
-      ? requestedParticipants
-          .map(pid => parseInt(pid, 10))
-          .filter(Number.isFinite)
-      : []
+    const auth = await requireAuthenticatedUser(req, res, { requireAdmin: true })
+    if (!auth) return
+    await ensureEventsFresh()
 
     const id = Math.random().toString(36).substr(2, 6)
-    const isOpkomstFlag = !!isOpkomst
-    const isSchoonmaakFlag = !!isSchoonmaak
-    const opkomstMakerIdList = sanitizeIdArray(opkomstmakerIds)
-    const schoonmakerIdList = sanitizeIdArray(schoonmakerIds)
-
-    const newEv = {
+    const newEv = applyEventInput({
       id,
-      title,
-      start,
-      end: end || start,
-      allDay: !!allDay,
-      location: location || '',
-      description: description || '',
-      isOpkomst: isOpkomstFlag,
-      opkomstmakers: opkomstmakers || '',
-      opkomstmakerIds: opkomstMakerIdList,
-      isSchoonmaak: isSchoonmaakFlag,
-      schoonmakers: schoonmakers || '',
-      schoonmakerIds: schoonmakerIdList,
-      schoonmaakOptions: schoonmaakOptions || [],
-      participants: sanitizedParticipants
-    }
+      title: '', start: '', end: '', allDay: false, location: '', description: '',
+      isOpkomst: false, opkomstmakerIds: [], legacyOpkomstmakerNames: [],
+      isSchoonmaak: false, schoonmakerIds: [], legacySchoonmakerNames: [],
+      schoonmaakOptions: [], participants: []
+    }, req.body)
+    if (!newEv.title || !newEv.start) return res.status(400).json({ msg: 'Titel en startdatum zijn vereist' })
 
-    if (isOpkomstFlag) {
+    if (newEv.isOpkomst) {
       if (!users || users.length === 0) {
         await loadUsers()
       }
       const activeUserIds = users
-        .filter(u => u.active && (u.status || 'active') === 'active')
+        .filter(u => u.status === 'active')
         .map(u => u.id)
         .filter(Number.isFinite)
 
       const combinedParticipants = Array.from(
-        new Set([...sanitizedParticipants, ...activeUserIds])
+        new Set([...newEv.participants, ...activeUserIds])
       ).sort((a, b) => a - b)
 
       newEv.participants = combinedParticipants
@@ -1889,7 +1757,8 @@ apiRouter.post('/events', async (req, res) => {
     events.push(newEv)
     await saveEvent(newEv)
     await ensureEventsFresh(0)
-    res.json(newEv)
+    logEvent({ action: 'event-created', actor: auth.userId, metadata: { eventId: id } })
+    res.status(201).json(mapEventForClient(newEv))
   } catch (err) {
     console.error(err)
     logSystemError(err, { action: 'POST /api/events', status: 500, metadata: req.body })
@@ -1900,33 +1769,20 @@ apiRouter.post('/events', async (req, res) => {
 // Evenement bijwerken
 apiRouter.put('/events/:id', async (req, res) => {
   try {
+    const auth = await requireAuthenticatedUser(req, res, { requireAdmin: true })
+    if (!auth) return
+    await ensureEventsFresh()
     const { id } = req.params
     const idx = events.findIndex(e => e.id === id)
     if (idx < 0) return res.status(404).json({ msg: 'Niet gevonden' })
-    const updated = { ...events[idx], ...req.body }
-
-    if (req.body?.opkomstmakerIds !== undefined) {
-      updated.opkomstmakerIds = sanitizeIdArray(req.body.opkomstmakerIds)
-    } else if (!Array.isArray(updated.opkomstmakerIds)) {
-      updated.opkomstmakerIds = sanitizeIdArray(updated.opkomstmakerIds)
-    }
-
-    if (req.body?.schoonmakerIds !== undefined) {
-      updated.schoonmakerIds = sanitizeIdArray(req.body.schoonmakerIds)
-    } else if (!Array.isArray(updated.schoonmakerIds)) {
-      updated.schoonmakerIds = sanitizeIdArray(updated.schoonmakerIds)
-    }
-
-    if (req.body?.participants !== undefined) {
-      updated.participants = sanitizeIdArray(req.body.participants)
-    } else if (!Array.isArray(updated.participants)) {
-      updated.participants = sanitizeIdArray(updated.participants)
-    }
+    const updated = applyEventInput(events[idx], req.body)
+    if (!updated.title || !updated.start) return res.status(400).json({ msg: 'Titel en startdatum zijn vereist' })
 
     events[idx] = updated
     await saveEvent(updated)
     await ensureEventsFresh(0)
-    res.json(updated)
+    logEvent({ action: 'event-updated', actor: auth.userId, metadata: { eventId: id } })
+    res.json(mapEventForClient(updated))
   } catch (err) {
     console.error(err)
     logSystemError(err, { action: 'PUT /api/events/:id', status: 500, metadata: req.body })
@@ -1937,13 +1793,17 @@ apiRouter.put('/events/:id', async (req, res) => {
 // Evenement verwijderen
 apiRouter.delete('/events/:id', async (req, res) => {
   try {
+    const auth = await requireAuthenticatedUser(req, res, { requireAdmin: true })
+    if (!auth) return
+    await ensureEventsFresh()
     const { id } = req.params
     const idx = events.findIndex(e => e.id === id)
     if (idx < 0) return res.status(404).json({ msg: 'Niet gevonden' })
     const [removed] = events.splice(idx, 1)
     await deleteEventById(id)
     await ensureEventsFresh(0)
-    res.json({ msg: 'Evenement verwijderd', event: removed })
+    logEvent({ action: 'event-deleted', actor: auth.userId, metadata: { eventId: id } })
+    res.json({ msg: 'Evenement verwijderd', event: mapEventForClient(removed) })
   } catch (err) {
     console.error(err)
     logSystemError(err, { action: 'DELETE /api/events/:id', status: 500, metadata: req.params })
@@ -1954,7 +1814,23 @@ apiRouter.delete('/events/:id', async (req, res) => {
 // Aanwezigheid bijwerken
 apiRouter.put('/events/:id/attendance', async (req, res) => {
   try {
-    const { id, userId, attending } = { ...req.params, ...req.body }
+    const auth = await requireAuthenticatedUser(req, res)
+    if (!auth) return
+    await ensureEventsFresh()
+    const { id } = req.params
+    const { attending } = req.body
+    if (typeof attending !== 'boolean') return res.status(400).json({ msg: 'Aanwezigheid moet true of false zijn' })
+    const requestedUserId = req.body.userId === undefined ? auth.userId : sanitizeUserId(req.body.userId)
+    if (requestedUserId === null) return res.status(400).json({ msg: 'Ongeldig gebruikers-ID' })
+    const targetUser = users.find((user) => user.id === requestedUserId)
+    if (!targetUser) return res.status(404).json({ msg: 'Gebruiker niet gevonden' })
+    const attendanceAuthorizationError = getAttendanceAuthorizationError(auth.user, targetUser, attending)
+    if (attendanceAuthorizationError === 'FORBIDDEN') {
+      return res.status(403).json({ msg: 'Je kunt alleen je eigen aanwezigheid wijzigen' })
+    }
+    if (attendanceAuthorizationError === 'ALUMNI_ATTENDANCE') {
+      return res.status(400).json({ msg: 'Alumni kunnen niet aan een opkomst worden toegevoegd' })
+    }
     const ev = events.find(e => e.id === id)
     if (!ev) return res.status(404).json({ msg: 'Niet gevonden' })
     
@@ -1964,11 +1840,11 @@ apiRouter.put('/events/:id/attendance', async (req, res) => {
     }
     
     if (!ev.participants) ev.participants = []
-    const uid = parseInt(userId, 10)
+    const uid = requestedUserId
     const idx = ev.participants.indexOf(uid)
     
     // Track the change for logging
-    let changeDetails = {
+    const changeDetails = {
       title: ev.title,
       start: ev.start,
       participantId: uid,
@@ -1994,7 +1870,8 @@ apiRouter.put('/events/:id/attendance', async (req, res) => {
     
     await saveEvent(ev)
     
-    res.json({ msg: 'Aanwezigheid bijgewerkt', event: ev })
+    logEvent({ action: 'attendance-updated', actor: auth.userId, metadata: changeDetails })
+    res.json({ msg: 'Aanwezigheid bijgewerkt', event: mapEventForClient(ev) })
   } catch (err) {
     console.error(err)
     logSystemError(err, { action: 'PUT /api/events/:id/attendance', status: 500, metadata: req.body })
@@ -2016,6 +1893,9 @@ apiRouter.get('/session', async (req, res) => {
       const issued = await createUserSession(auth.user, req)
       setSessionCookie(res, issued.token)
       session = issued.session
+    } else if (auth.token) {
+      // Refresh the persistent cookie whenever the app validates this device session.
+      setSessionCookie(res, auth.token)
     }
 
     res.json({ user: mapUserForClient(auth.user, session) })
@@ -2036,18 +1916,12 @@ apiRouter.post('/login', async (req, res) => {
     const u = users.find(u => u.email.toLowerCase() === normalizedEmail)
     if (!u) return res.status(400).json({ msg: 'Gebruiker niet gevonden' })
 
-    const match = u.password.startsWith('$2b$')
-      ? await bcrypt.compare(password, u.password)
-      : (u.password === password && await (async () => {
-          u.password = await bcrypt.hash(password, 10)
-          await saveUser(u)
-        })())
+    const match = await bcrypt.compare(password, u.password)
 
     if (!match) return res.status(400).json({ msg: 'Onjuist wachtwoord' })
 
     const { token, session } = await createUserSession(u, req)
     setSessionCookie(res, token)
-    await saveUser(u)
 
     res.json({ user: mapUserForClient(u, session) })
   } catch (err) {
@@ -2121,7 +1995,7 @@ apiRouter.post('/forgot-password', async (req, res) => {
             <p>Hallo,</p>
             <p>Je hebt aangegeven je Stamjer-wachtwoord te willen herstellen. Gebruik onderstaande code om verder te gaan:</p>
             <p style="font-size: 20px; font-weight: bold; text-align: center; color: #2563eb; background: #eef2ff; padding: 10px; border-radius: 6px;">${code}</p>
-            <p>De code is geldig gedurende <strong>10 minuten</strong>. Vul deze in op de herstelpagina om een nieuw wachtwoord in te stellen.</p>
+            <p>De code is geldig gedurende <strong>15 minuten</strong>. Vul deze in op de herstelpagina om een nieuw wachtwoord in te stellen.</p>
             <p>Heb je dit verzoek niet zelf gedaan? Dan kun je deze e-mail negeren.</p>
             <hr style="margin: 20px 0;">
             <p style="font-size: 12px; color: #666; text-align: center;">
@@ -2236,8 +2110,10 @@ apiRouter.post('/change-password', async (req, res) => {
 // Declaratie indienen
 apiRouter.post('/payment-requests', async (req, res) => {
   try {
+    const auth = await requireAuthenticatedUser(req, res)
+    if (!auth) return
+
     const {
-      userId,
       requesterName = '',
       requesterEmail = '',
       expenseTitle = '',
@@ -2379,10 +2255,7 @@ apiRouter.post('/payment-requests', async (req, res) => {
       return res.status(400).json({ msg: errors[0], errors })
     }
 
-    const matchedUserId = sanitizeUserId(userId)
-    const matchedUser = matchedUserId !== null
-      ? users.find((u) => u.id === matchedUserId)
-      : null
+    const matchedUser = users.find((user) => user.id === auth.userId) || null
 
     const mailer = await ensureMailerTransport()
     if (!mailer) {
@@ -2501,6 +2374,7 @@ apiRouter.post('/payment-requests', async (req, res) => {
 
     logEvent({
       action: 'payment-request-submitted',
+      actor: auth.userId,
       metadata: {
         userId: matchedUser?.id || null,
         requesterEmail: trimmedEmail,
@@ -2529,7 +2403,7 @@ apiRouter.post('/payment-requests', async (req, res) => {
 
 // iCalendar feed endpoint
 apiRouter.get('/calendar.ics', createICalendarHandler(async () => {
-  // Return events from in-memory cache (kept in sync with database)
+  await ensureEventsFresh()
   return events
 }))
 

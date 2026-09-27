@@ -1,11 +1,14 @@
 {
   "name": "stamjer",
-  "version": "1.9.4",
+  "version": "1.10.0",
   "description": "Een React + Vite kalender applicatie met gebruikersauthenticatie en evenementbeheer",
   "private": true,
   "type": "module",
   "author": "R.S. Kort",
   "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
   "keywords": [
     "kalender",
     "react",
@@ -27,6 +30,8 @@
     "preview": "vite preview",
     "preview:dist": "vite preview --port 4173",
     "lint": "eslint .",
+    "test": "node --test",
+    "test:watch": "node --test --watch",
     "test:lighthouse": "echo Run lighthouse on production build at http://localhost:4173"
   },
   "main": "api/index.js",
@@ -46,11 +51,11 @@
     "express-static-gzip": "^3.0.0",
     "lucide-react": "^1.16.0",
     "mongodb": "^6.17.0",
-    "nodemailer": "^7.0.4",
+    "nodemailer": "^10.0.10",
     "pdf-lib": "^1.17.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "react-router-dom": "^7.6.2",
+    "react-router-dom": "^7.18.4",
     "validator": "^13.15.15"
   },
   "devDependencies": {
@@ -66,7 +71,7 @@
     "globals": "^16.0.0",
     "rollup-plugin-visualizer": "^5.12.0",
     "terser": "^5.44.1",
-    "vite": "^6.3.5",
-    "vite-plugin-pwa": "^1.1.0"
+    "vite": "^6.4.3",
+    "vite-plugin-pwa": "^1.3.0"
   }
 }

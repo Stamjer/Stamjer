@@ -33,10 +33,10 @@ import PullToRefresh from './components/PullToRefresh'
 // Query client configuration
 import { queryClient } from './lib/queryClient'
 import { performHardReset } from './lib/hardReset'
+import { getAuthenticatedLandingPath, isNonAdminAlumni } from './lib/authRouting'
 import { getCurrentSession, logout as logoutSession } from './services/api'
 
 // Import styles
-import './styles/shared.css'
 import './App.css'
 import './components/ErrorBoundary.css'
 import clickSoundUrl from './assets/stamjer.mp3'
@@ -72,16 +72,18 @@ const NAV_ICON_MAP = {
   '/': LoginIcon,
 }
 
-function isNonAdminAlumni(user) {
-  return Boolean(user && !user.isAdmin && user.status === 'legacy')
-}
-
 function AlumniRestrictedRoute({ user, children }) {
   if (isNonAdminAlumni(user)) {
     return <Navigate to="/declaraties" replace />
   }
 
   return children
+}
+
+function AuthEntryRoute({ user, setUser }) {
+  const landingPath = getAuthenticatedLandingPath(user)
+  if (landingPath) return <Navigate to={landingPath} replace />
+  return <Login setUser={setUser} />
 }
 
 
@@ -153,26 +155,40 @@ function App() {
    * localStorage is only a display cache; the server decides whether the session is valid.
    */
   useEffect(() => {
-    const initializeUser = async () => {
+    let cancelled = false
+    const refreshUser = async ({ initial = false } = {}) => {
       try {
         const data = await getCurrentSession()
+        if (cancelled) return
         if (data?.user && (data.user.email || data.user.id)) {
           localStorage.setItem('user', JSON.stringify(data.user))
           setUser(data.user)
         } else {
           localStorage.removeItem('user')
+          setUser(null)
         }
       } catch (error) {
+        if (cancelled) return
         if (error?.status !== 401) {
           console.error('Error loading authenticated session:', error)
+        } else {
+          localStorage.removeItem('user')
+          setUser(null)
         }
-        localStorage.removeItem('user')
       } finally {
-        setIsInitializing(false)
+        if (initial && !cancelled) setIsInitializing(false)
       }
     }
 
-    initializeUser()
+    refreshUser({ initial: true })
+    const intervalId = window.setInterval(() => refreshUser(), 15_000)
+    const handleFocus = () => refreshUser()
+    window.addEventListener('focus', handleFocus)
+    return () => {
+      cancelled = true
+      window.clearInterval(intervalId)
+      window.removeEventListener('focus', handleFocus)
+    }
   }, [])
 
   /**
@@ -222,7 +238,6 @@ function App() {
     try {
       await logoutSession()
       localStorage.removeItem('user')
-      localStorage.removeItem('rememberMe')
       setUser(null)
       navigate('/login')
       setIsMobileMenuOpen(false) // Close mobile menu on logout
@@ -230,7 +245,6 @@ function App() {
       console.error('Error during logout:', error)
       // Force logout even if there's an error
       localStorage.removeItem('user')
-      localStorage.removeItem('rememberMe')
       setUser(null)
       navigate('/login')
       setIsMobileMenuOpen(false)
@@ -553,12 +567,12 @@ function App() {
                 {/* Public Routes - Available to all users */}
                 <Route path="/" element={
                   <PageErrorBoundary pageName="Login">
-                    <Login setUser={handleLogin} />
+                    <AuthEntryRoute user={user} setUser={handleLogin} />
                   </PageErrorBoundary>
                 } />
                 <Route path="/login" element={
                   <PageErrorBoundary pageName="Login">
-                    <Login setUser={handleLogin} />
+                    <AuthEntryRoute user={user} setUser={handleLogin} />
                   </PageErrorBoundary>
                 } />
                 <Route path="/forgot-password" element={

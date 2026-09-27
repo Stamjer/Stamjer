@@ -1,7 +1,7 @@
 /**
  * Service Worker for Stamjer Application
  * Powered by Workbox via vite-plugin-pwa.
- * Handles precaching, offline navigation, API caching and optional background sync.
+ * Handles precaching, offline navigation and API caching.
  */
 
 import { clientsClaim } from 'workbox-core'
@@ -111,50 +111,11 @@ registerRoute(
   })
 )
 
-// Background sync placeholder for queued form submissions.
-self.addEventListener('sync', (event) => {
-  if (event.tag === 'background-sync-form') {
-    event.waitUntil(processQueuedFormSubmissions())
-  }
-})
-
 self.addEventListener('message', (event) => {
   if (event?.data?.type === 'CLEAR_CACHES') {
     event.waitUntil(clearAllCaches())
   }
 })
 
-async function processQueuedFormSubmissions() {
-  try {
-    const pendingItems = await readPendingFormItems()
-    if (pendingItems.length === 0) {
-      return
-    }
-
-    for (const item of pendingItems) {
-      try {
-        await fetch(item.url, {
-          method: item.method,
-          headers: item.headers,
-          body: item.body
-        })
-        await removePendingFormItem(item.id)
-      } catch (error) {
-        console.error('[SW] Failed to submit queued form item', error)
-      }
-    }
-  } catch (error) {
-    console.error('[SW] Background sync error', error)
-  }
-}
-
 // Placeholder implementations – integrate with IndexedDB as needed.
-async function readPendingFormItems() {
-  return []
-}
-
-async function removePendingFormItem() {
-  return Promise.resolve()
-}
-
 console.info('[SW] Service worker loaded')

@@ -80,11 +80,8 @@ export const queryKeys = {
   // Events
   events: {
     all: ['events'],
+    raw: () => [...queryKeys.events.all, 'raw'],
     lists: () => [...queryKeys.events.all, 'list'],
-    list: (filters) => 
-      [...queryKeys.events.lists(), { filters }],
-    details: () => [...queryKeys.events.all, 'detail'],
-    detail: (id) => [...queryKeys.events.details(), id],
     opkomsten: () => [...queryKeys.events.all, 'opkomsten']
   },
   
@@ -92,99 +89,7 @@ export const queryKeys = {
   users: {
     all: ['users'],
     lists: () => [...queryKeys.users.all, 'list'],
-    full: () => [...queryKeys.users.all, 'full'],
-    details: () => [...queryKeys.users.all, 'detail'],
-    detail: (id) => [...queryKeys.users.details(), id],
-    profile: () => [...queryKeys.users.all, 'profile']
+    full: () => [...queryKeys.users.all, 'full']
   }
 }
-
-// ================================================================
-// CACHE UTILITY FUNCTIONS
-// ================================================================
-
-/**
- * Invalidate all events queries
- */
-export function invalidateEvents() {
-  return queryClient.invalidateQueries({ 
-    queryKey: queryKeys.events.all 
-  })
-}
-
-/**
- * Invalidate all users queries
- */
-export function invalidateUsers() {
-  return queryClient.invalidateQueries({ 
-    queryKey: queryKeys.users.all 
-  })
-}
-
-/**
- * Prefetch events for better performance
- */
-export function prefetchEvents() {
-  return queryClient.prefetchQuery({
-    queryKey: queryKeys.events.lists(),
-    staleTime: 30 * 1000 // 30 seconds
-  })
-}
-
-/**
- * Get cached events data without triggering a fetch
- */
-export function getCachedEvents() {
-  return queryClient.getQueryData(queryKeys.events.lists())
-}
-
-/**
- * Set events data in cache (useful for optimistic updates)
- */
-export function setCachedEvents(data) {
-  queryClient.setQueryData(queryKeys.events.lists(), data)
-}
-
-/**
- * Remove specific event from cache
- */
-export function removeEventFromCache(eventId) {
-  queryClient.removeQueries({
-    queryKey: queryKeys.events.detail(eventId)
-  })
-}
-
-/**
- * Update specific event in cache
- */
-export function updateEventInCache(eventId, updater) {
-  queryClient.setQueryData(
-    queryKeys.events.detail(eventId),
-    updater
-  )
-}
-
-/**
- * Clear all cache (nuclear option)
- */
-export function clearCache() {
-  queryClient.clear()
-}
-
-/**
- * Reset query client (for logout scenarios)
- */
-export function resetQueryClient() {
-  queryClient.resetQueries()
-}
-
-/**
- * Get query client instance
- */
-export function getQueryClient() {
-  return queryClient
-}
-
-export default queryClient
-
 

@@ -15,9 +15,15 @@
 
 // React core imports
 import React, { useState, useEffect, useCallback } from 'react'
-import { updateAttendance, updateEvent } from '../services/api'
 import { withSupportContact } from '../config/appInfo'
 import { useToast } from '../hooks/useToast'
+import { buildEventPayload } from '../lib/eventPayload'
+import {
+  useOpkomstEvents,
+  useUpdateAttendance,
+  useUpdateEvent,
+  useUsersWithStreepjes
+} from '../hooks/useQueries'
 
 // Location input with autocomplete
 import LocationInput from '../components/LocationInput'
@@ -176,18 +182,9 @@ function TimeInput24({ value, onChange, disabled, error }) {
 // ================================================================
 
 function OpkomstEditForm({ event, onClose, onSave, users = [], currentUser = null }) {
-  // Helper function to increment date by one day
-  const nextDay = (dateStr) => {
-    const [y, m, d] = dateStr.split('-').map(Number)
-    const dt = new Date(y, m - 1, d + 1)
-    const yy = dt.getFullYear()
-    const mm = String(dt.getMonth() + 1).padStart(2, '0')
-    const dd = String(dt.getDate()).padStart(2, '0')
-    return `${yy}-${mm}-${dd}`
-  }
-
   // Initialize opkomstmakers as an array of selected user IDs
   const initializeOpkomstmakers = () => {
+    if (Array.isArray(event?.opkomstmakerIds)) return event.opkomstmakerIds
     if (event?.opkomstmakers) {
       if (Array.isArray(event.opkomstmakers)) {
         return event.opkomstmakers
@@ -334,56 +331,11 @@ function OpkomstEditForm({ event, onClose, onSave, users = [], currentUser = nul
     setIsSubmitting(true)
 
     try {
-      const { title, startDate, startTime, endDate, endTime, isAllDay, location, description } = formData
+      const payload = buildEventPayload(formData, { forceOpkomst: true })
 
-      // For timed events, use the same date for start and end
-      const actualEndDate = isAllDay ? endDate : startDate
-      const start = isAllDay ? startDate : `${startDate}T${startTime}`
-      const end = isAllDay ? nextDay(actualEndDate) : `${actualEndDate}T${endTime}`
+      if (!currentUser?.isAdmin) throw new Error('Alleen beheerders kunnen opkomsten opslaan')
+      await onSave(event.id, payload)
 
-      // Convert opkomstmakers user IDs to first names
-      const opkomstmakersString = formData.opkomstmakers
-        .map(userId => {
-          const user = users.find(u => u.id === userId)
-          return user ? user.firstName : null
-        })
-        .filter(name => name !== null)
-        .join(', ')
-
-      const payload = {
-        title: title.trim(),
-        start,
-        end,
-        allDay: isAllDay,
-        location: location.trim(),
-        description: description.trim(),
-        isOpkomst: true,
-        opkomstmakers: opkomstmakersString,
-        userId: currentUser?.id
-      }
-
-      if (!payload.userId) {
-        throw new Error('Gebruiker ID is verplicht voor het opslaan van evenementen')
-      }
-
-      // Use the API helper
-      const saved = await updateEvent(event.id, payload, currentUser.id)
-
-      // Convert back to OpkomstenPage format
-      const updatedEvent = {
-        id: saved.id,
-        title: saved.title,
-        start: saved.start,
-        end: saved.end,
-        allDay: saved.allDay,
-        location: saved.location,
-        description: saved.description,
-        isOpkomst: saved.isOpkomst,
-        opkomstmakers: saved.opkomstmakers,
-        participants: saved.participants || []
-      }
-
-      onSave(updatedEvent)
       onClose()
     } catch (err) {
       console.error('Error saving opkomst:', err)
@@ -641,16 +593,25 @@ function OpkomstEditForm({ event, onClose, onSave, users = [], currentUser = nul
 // ================================================================
 
 export default function OpkomstenPage() {
-  const [opkomstEvents, setOpkomstEvents] = useState([])
-  const [users, setUsers] = useState([])
   const [currentUser, setCurrentUser] = useState(null)
   const [attendance, setAttendance] = useState({}) // Track attendance for each event
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState(null)
   const { addToast } = useToast();
   const [editingEvent, setEditingEvent] = useState(null) // For editing events
-
-  console.log('OpkomstenPage component initialized')
+  const {
+    data: queriedEvents = [],
+    isLoading: eventsLoading,
+    error: eventsError
+  } = useOpkomstEvents()
+  const {
+    data: users = [],
+    isLoading: usersLoading,
+    error: usersError
+  } = useUsersWithStreepjes()
+  const updateEventMutation = useUpdateEvent()
+  const updateAttendanceMutation = useUpdateAttendance()
+  const opkomstEvents = sortOpkomstByDate(filterFutureOpkomstEvents(queriedEvents))
+  const isLoading = eventsLoading || usersLoading
+  const error = eventsError || usersError
 
     // ================================================================
     // EVENT HANDLERS
@@ -669,17 +630,7 @@ export default function OpkomstenPage() {
         return
       }
 
-      // Convert opkomstmakers string to array of user IDs for editing
-      const opkomstmakersArray = []
-      if (event.opkomstmakers) {
-        const storedNames = event.opkomstmakers.split(',').map(name => name.trim()).filter(name => name)
-        storedNames.forEach(name => {
-          const user = users.find(u => u.firstName === name)
-          if (user) {
-            opkomstmakersArray.push(user.id)
-          }
-        })
-      }
+      const opkomstmakersArray = event.opkomstmakerIds || []
 
       // Get dates from event start/end
       const startDate = event.start ? new Date(event.start).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)
@@ -707,155 +658,27 @@ export default function OpkomstenPage() {
         description: event.description || '',
         isOpkomst: event.isOpkomst || false,
         opkomstmakers: opkomstmakersArray,
+        opkomstmakerIds: opkomstmakersArray,
       })
-    }, [users, currentUser, showToast])
+    }, [currentUser, showToast])
 
     // Handle event addition/update
-    const handleAdd = useCallback((evt) => {
-      setOpkomstEvents(prev => {
-        const exists = prev.find(e => e.id === evt.id)
-        if (exists) {
-          showToast('Opkomst succesvol bijgewerkt', 'success')
-          return prev.map(e => (e.id === evt.id ? evt : e))
-        } else {
-          showToast('Opkomst succesvol toegevoegd', 'success')
-          return [...prev, evt]
-        }
-      })
+    const handleAdd = useCallback(async (eventId, eventData) => {
+      const saved = await updateEventMutation.mutateAsync({ eventId, eventData })
+      showToast('Opkomst succesvol bijgewerkt', 'success')
       setEditingEvent(null)
-    }, [showToast])
+      return saved
+    }, [showToast, updateEventMutation])
 
-  // Load data on mount
+  // Load the current session snapshot; server data comes from TanStack Query.
   useEffect(() => {
-    const loadDataSafely = async () => {
-      try {
-        console.log('Starting data load...')
-        setIsLoading(true)
-        
-        // Load current user from localStorage
-        try {
-          const userData = localStorage.getItem('user')
-          console.log('User data from localStorage:', userData)
-          if (userData) {
-            const user = JSON.parse(userData)
-            setCurrentUser(user)
-            console.log('Set current user:', user)
-          }
-        } catch (userError) {
-          console.error('Error loading user from localStorage:', userError)
-        }
-        
-        // Always use mock data to ensure the page works
-        console.log('Setting up mock data...')
-        const mockOpkomstEvents = [
-          {
-            id: "test1",
-            title: "Stam opkomst",
-            start: "2025-07-04T20:30",
-            end: "2025-07-04T22:30",
-            allDay: false,
-            location: "Clubhuis Scouting MPD",
-            description: "Test opkomst",
-            isOpkomst: true,
-            opkomstmakers: "Test Maker",
-            participants: [1, 2, 3]
-          },
-          {
-            id: "test2", 
-            title: "Stam opkomst",
-            start: "2025-07-11T20:30",
-            end: "2025-07-11T22:30",
-            allDay: false,
-            location: "Clubhuis Scouting MPD",
-            description: "Another test opkomst",
-            isOpkomst: true,
-            opkomstmakers: "Another Maker",
-            participants: [1, 3]
-          }
-        ]
-        
-        const mockUsers = [
-          { id: 1, firstName: "Rick", lastName: "Kort", active: true },
-          { id: 2, firstName: "Test", lastName: "User", active: true },
-          { id: 3, firstName: "Another", lastName: "User", active: true }
-        ]
-        
-        // Try to load real data, but fall back to mock data if server is not available
-        try {
-          console.log('Attempting to load real data...')
-          
-          // Try direct fetch first
-          const eventsResponse = await fetch('/api/events')
-          if (eventsResponse.ok) {
-            const eventsData = await eventsResponse.json()
-            const allEvents = Array.isArray(eventsData) ? eventsData : eventsData.events || []
-            const opkomstOnly = allEvents.filter(event => event.isOpkomst)
-            
-            if (opkomstOnly.length > 0) {
-              const futureEvents = filterFutureOpkomstEvents(opkomstOnly)
-              setOpkomstEvents(sortOpkomstByDate(futureEvents))
-              console.log('Loaded real events:', futureEvents)
-            } else {
-              console.log('No real opkomst events found, using mock data')
-              const futureMockEvents = filterFutureOpkomstEvents(mockOpkomstEvents)
-              setOpkomstEvents(futureMockEvents)
-            }
-          } else {
-            throw new Error('Events API not available')
-          }
-        } catch (apiError) {
-          console.warn('Could not load real events, using mock data:', apiError)
-          const futureMockEvents = filterFutureOpkomstEvents(mockOpkomstEvents)
-          setOpkomstEvents(futureMockEvents)
-        }
-        
-        // Try to load users
-        try {
-          const usersResponse = await fetch('/api/users/full')
-          if (usersResponse.ok) {
-            const usersData = await usersResponse.json()
-            const realUsers = usersData.users || []
-            
-            if (realUsers.length > 0) {
-              setUsers(realUsers)
-              console.log('Loaded real users:', realUsers)
-            } else {
-              console.log('No real users found, using mock data')
-              setUsers(mockUsers)
-            }
-          } else {
-            throw new Error('Users API not available')
-          }
-        } catch (apiError) {
-          console.warn('Could not load real users, using mock data:', apiError)
-          setUsers(mockUsers)
-        }
-        
-        // Note: Attendance state will be initialized in a separate useEffect
-        // after both events and user data are loaded
-        
-        setError(null)
-        console.log('Data loading completed successfully')
-      } catch (err) {
-        console.error('Critical error in data loading:', err)
-        setError(withSupportContact(`Er is een fout opgetreden: ${err.message}`))
-      } finally {
-        console.log('Setting loading to false')
-        setIsLoading(false)
-      }
+    try {
+      const userData = localStorage.getItem('user')
+      if (userData) setCurrentUser(JSON.parse(userData))
+    } catch (userError) {
+      console.error('Error loading user from localStorage:', userError)
     }
-
-    // Add a timeout to ensure the effect doesn't hang
-    const timeoutId = setTimeout(() => {
-      console.error('Data loading timed out')
-      setError(withSupportContact('Het laden van data duurde te lang'))
-      setIsLoading(false)
-    }, 10000) // 10 second timeout
-
-    loadDataSafely().finally(() => {
-      clearTimeout(timeoutId)
-    })
-  }, []) // Removed showToast dependency to simplify
+  }, [])
   // Sync attendance state with event participants whenever events or currentUser changes
   useEffect(() => {
     if (currentUser && opkomstEvents.length > 0) {
@@ -887,27 +710,7 @@ export default function OpkomstenPage() {
     // Find the event to check if attendance can be changed
     const event = opkomstEvents.find(e => e.id === eventId)
     if (!event) {
-      // Instead of error, update mock data locally
-      setOpkomstEvents(prev =>
-        prev.map(event => {
-          if (event.id === eventId) {
-            const participants = event.participants || []
-            if (isAttending && !participants.includes(currentUser.id)) {
-              participants.push(currentUser.id)
-            } else if (!isAttending && participants.includes(currentUser.id)) {
-              const index = participants.indexOf(currentUser.id)
-              participants.splice(index, 1)
-            }
-            return { ...event, participants }
-          }
-          return event
-        })
-      )
-      setAttendance(prev => ({ ...prev, [eventId]: isAttending }))
-      showToast(
-        isAttending ? 'Je hebt je aangemeld!' : 'Je hebt je afgemeld!',
-        'success'
-      )
+      showToast('Evenement niet gevonden', 'error')
       return
     }
 
@@ -917,56 +720,7 @@ export default function OpkomstenPage() {
     }
 
     try {
-      console.log(`Updating attendance for event ${eventId}, user ${currentUser.id}, attending: ${isAttending}`)
-      // Use API helper
-      try {
-        const response = await updateAttendance(eventId, currentUser.id, isAttending)
-        if (response && response.event) {
-          setOpkomstEvents(prev =>
-            prev.map(event =>
-              event.id === eventId ? { ...event, participants: response.event.participants } : event
-            )
-          )
-        } else {
-          // If no event returned, update locally
-          setOpkomstEvents(prev =>
-            prev.map(event => {
-              if (event.id === eventId) {
-                const participants = event.participants || []
-                if (isAttending && !participants.includes(currentUser.id)) {
-                  participants.push(currentUser.id)
-                } else if (!isAttending && participants.includes(currentUser.id)) {
-                  const index = participants.indexOf(currentUser.id)
-                  participants.splice(index, 1)
-                }
-                return { ...event, participants }
-              }
-              return event
-            })
-          )
-        }
-      } catch (apiError) {
-        // If API returns 'Event niet gevonden', update locally
-        if (apiError.message && apiError.message.includes('Event niet gevonden')) {
-          setOpkomstEvents(prev =>
-            prev.map(event => {
-              if (event.id === eventId) {
-                const participants = event.participants || []
-                if (isAttending && !participants.includes(currentUser.id)) {
-                  participants.push(currentUser.id)
-                } else if (!isAttending && participants.includes(currentUser.id)) {
-                  const index = participants.indexOf(currentUser.id)
-                  participants.splice(index, 1)
-                }
-                return { ...event, participants }
-              }
-              return event
-            })
-          )
-        } else {
-          throw apiError
-        }
-      }
+      await updateAttendanceMutation.mutateAsync({ eventId, attending: isAttending })
 
       // Always update local attendance state
       setAttendance(prev => ({
@@ -982,7 +736,7 @@ export default function OpkomstenPage() {
       console.error('Error updating attendance:', err)
       showToast('Kon aanwezigheid niet bijwerken', 'error')
     }
-  }, [currentUser, showToast, opkomstEvents])
+  }, [currentUser, showToast, opkomstEvents, updateAttendanceMutation])
 
   // Get names of participants for an event
   const getParticipantNames = useCallback((participants) => {
@@ -1016,56 +770,7 @@ export default function OpkomstenPage() {
     const newAttendanceState = !isCurrentlyAttending
 
     try {
-      console.log(`Admin updating attendance for event ${eventId}, user ${userId}, attending: ${newAttendanceState}`)
-      
-      try {
-        const response = await updateAttendance(eventId, userId, newAttendanceState)
-        if (response && response.event) {
-          setOpkomstEvents(prev =>
-            prev.map(event =>
-              event.id === eventId ? { ...event, participants: response.event.participants } : event
-            )
-          )
-        } else {
-          // If no event returned, update locally
-          setOpkomstEvents(prev =>
-            prev.map(event => {
-              if (event.id === eventId) {
-                const participants = event.participants || []
-                if (newAttendanceState && !participants.includes(userId)) {
-                  participants.push(userId)
-                } else if (!newAttendanceState && participants.includes(userId)) {
-                  const index = participants.indexOf(userId)
-                  participants.splice(index, 1)
-                }
-                return { ...event, participants }
-              }
-              return event
-            })
-          )
-        }
-      } catch (apiError) {
-        // If API returns 'Event niet gevonden', update locally
-        if (apiError.message && apiError.message.includes('Event niet gevonden')) {
-          setOpkomstEvents(prev =>
-            prev.map(event => {
-              if (event.id === eventId) {
-                const participants = event.participants || []
-                if (newAttendanceState && !participants.includes(userId)) {
-                  participants.push(userId)
-                } else if (!newAttendanceState && participants.includes(userId)) {
-                  const index = participants.indexOf(userId)
-                  participants.splice(index, 1)
-                }
-                return { ...event, participants }
-              }
-              return event
-            })
-          )
-        } else {
-          throw apiError
-        }
-      }
+      await updateAttendanceMutation.mutateAsync({ eventId, userId, attending: newAttendanceState })
 
       const userName = users.find(u => u.id === userId)?.firstName || 'Gebruiker'
       showToast(
@@ -1076,7 +781,7 @@ export default function OpkomstenPage() {
       console.error('Error updating attendance:', err)
       showToast('Kon aanwezigheid niet bijwerken', 'error')
     }
-  }, [currentUser, showToast, opkomstEvents, users])
+  }, [currentUser, showToast, opkomstEvents, users, updateAttendanceMutation])
 
   // ================================================================
   // RENDER
@@ -1105,7 +810,7 @@ export default function OpkomstenPage() {
           <div className="error-state">
             <div className="error-content">
               <h2>Er is iets misgegaan</h2>
-              <p>{error}</p>
+              <p>{withSupportContact(error?.message || 'De gegevens konden niet worden geladen.')}</p>
               <button 
                 onClick={() => window.location.reload()} 
                 className="btn btn-primary"
@@ -1226,11 +931,11 @@ export default function OpkomstenPage() {
                       <div className="admin-participants-grid">
                         {users.length > 0 ? (
                           users
-                            .filter(u => (u.status || 'active') !== 'legacy')
+                            .filter(u => u.status !== 'legacy')
                             .sort((a, b) => a.firstName.localeCompare(b.firstName, 'nl-NL'))
                             .map(user => {
                               const isParticipating = event.participants && event.participants.includes(user.id)
-                              const isInactive = (user.status || 'active') === 'inactive'
+                              const isInactive = user.status === 'inactive'
                               return (
                                 <button
                                   key={user.id}
@@ -1275,7 +980,7 @@ export default function OpkomstenPage() {
           event={editingEvent}
           onClose={() => setEditingEvent(null)}
           onSave={handleAdd}
-          users={users.filter(u => (u.status || 'active') === 'active')}
+          users={users.filter(u => u.status === 'active')}
           currentUser={currentUser}
         />
       )}

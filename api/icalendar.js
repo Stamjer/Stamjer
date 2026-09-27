@@ -13,12 +13,12 @@
  * - Extensible for future enhancements
  * - Proper line folding per RFC 5545
  * 
- * Included fields:
+ * Public fields:
  * - UID: Unique event identifier
  * - DTSTART: Event start date/time
  * - DTEND: Event end date/time
  * - SUMMARY: Event title
- * - DESCRIPTION: Event description
+ * - LOCATION: Event location
  * - SEQUENCE: Event version number
  * 
  * @author R.S. Kort
@@ -38,6 +38,23 @@ function escapeText(text) {
     .replace(/;/g, '\\;')     // Semicolon
     .replace(/,/g, '\\,')     // Comma
     .replace(/\n/g, '\\n')    // Newline
+}
+
+/**
+ * Explicitly whitelist fields that are safe for the unauthenticated feed.
+ * Internal descriptions, participants and member assignments must never leak
+ * into calendar applications through this endpoint.
+ */
+function mapPublicEvent(event) {
+  return {
+    id: event?.id,
+    title: event?.title,
+    start: event?.start,
+    end: event?.end,
+    allDay: Boolean(event?.allDay),
+    location: event?.location,
+    sequence: event?.sequence
+  }
 }
 
 /**
@@ -231,36 +248,6 @@ function generateVEvent(event) {
     lines.push(foldLine(`LOCATION:${location}`))
   }
   
-  // DESCRIPTION (build from description and participant labels)
-  let description = ''
-  
-  if (event.description) {
-    description = event.description
-  }
-  
-  // Add opkomstmakers to description if it's an opkomst
-  if (event.isOpkomst && event.opkomstmakers) {
-    if (description) {
-      description += '\n\nOpkomstmakers: ' + event.opkomstmakers
-    } else {
-      description = 'Opkomstmakers: ' + event.opkomstmakers
-    }
-  }
-
-  // Add schoonmakers to description if it's a schoonmaak event
-  if (event.isSchoonmaak && event.schoonmakers) {
-    if (description) {
-      description += '\n\nSchoonmakers: ' + event.schoonmakers
-    } else {
-      description = 'Schoonmakers: ' + event.schoonmakers
-    }
-  }
-  
-  if (description) {
-    const escapedDescription = escapeText(description)
-    lines.push(foldLine(`DESCRIPTION:${escapedDescription}`))
-  }
-  
   // SEQUENCE (version number for updates)
   // Start at 0, can be incremented for event updates
   const sequence = event.sequence || 0
@@ -316,7 +303,7 @@ export function generateICalendar(events) {
   if (events && Array.isArray(events)) {
     for (const event of events) {
       try {
-        const vevent = generateVEvent(event)
+        const vevent = generateVEvent(mapPublicEvent(event))
         lines.push(vevent)
       } catch (error) {
         // Log error but continue with other events
@@ -349,6 +336,8 @@ export function createICalendarHandler(getEventsFromDb) {
       // Set appropriate headers for .ics file
       res.setHeader('Content-Type', 'text/calendar; charset=utf-8')
       res.setHeader('Content-Disposition', 'inline; filename="stamjer.ics"')
+      res.setHeader('X-Content-Type-Options', 'nosniff')
+      res.setHeader('Referrer-Policy', 'no-referrer')
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
       res.setHeader('Pragma', 'no-cache')
       res.setHeader('Expires', '0')

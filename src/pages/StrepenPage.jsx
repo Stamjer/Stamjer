@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { withSupportContact } from '../config/appInfo'
 import { useIsMobile } from '../hooks/useDeviceDetection'
+import { useOpkomstEvents, useUpdateEvent, useUsersWithStreepjes } from '../hooks/useQueries'
 import LocationLink from '../components/LocationLink'
 import './StrepenPage.css'
 
@@ -51,12 +52,8 @@ function Toast({ message, type = 'info', onClose }) {
 export default function StrepenPage() {
   const navigate = useNavigate()
   const [user, setUser] = useState(null)
-  const [events, setEvents] = useState([])
-  const [users, setUsers] = useState([])
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [attendance, setAttendance] = useState({})
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState(null)
   const [isSaving, setIsSaving] = useState(false)
   const [toast, setToast] = useState(null)
   const isMobile = useIsMobile()
@@ -64,6 +61,15 @@ export default function StrepenPage() {
   const [showOnlyParticipants, setShowOnlyParticipants] = useState(false)
   const [showOnlyChanged, setShowOnlyChanged] = useState(false)
   const [liveMsg, setLiveMsg] = useState('')
+  const { data: queriedEvents = [], isLoading: eventsLoading, error: eventsError } = useOpkomstEvents({ enabled: Boolean(user) })
+  const { data: users = [], isLoading: usersLoading, error: usersError } = useUsersWithStreepjes({ enabled: Boolean(user) })
+  const updateEventMutation = useUpdateEvent()
+  const events = useMemo(
+    () => [...queriedEvents].sort((a, b) => new Date(a.start) - new Date(b.start)),
+    [queriedEvents]
+  )
+  const isLoading = eventsLoading || usersLoading
+  const error = eventsError || usersError
 
   // Toast functions
   const showToast = useCallback((message, type = 'info') => {
@@ -92,48 +98,24 @@ export default function StrepenPage() {
     }
   }, [navigate])
 
-  // Track mobile viewport
-  // Load events and users
+  // Select today's, the next, or the latest opkomst after query data arrives.
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const eventsRes = await fetch('/api/events')
-        if (!eventsRes.ok) throw new Error('Kon opkomsten niet laden')
-        const { events: all } = await eventsRes.json()
-
-        const opkomsten = all
-          .filter(ev => ev.isOpkomst)
-          .sort((a, b) => new Date(a.start) - new Date(b.start))
-        setEvents(opkomsten)
-
-        const usersRes = await fetch('/api/users/full')
-        if (!usersRes.ok) throw new Error('Kon gebruikers niet laden')
-        const { users: fullUsers } = await usersRes.json()
-        setUsers(fullUsers)
-
-        if (opkomsten.length > 0) {
-          const today = new Date()
-          today.setHours(0, 0, 0, 0)
-
-          let def = opkomsten.find(ev => {
-            const d = new Date(ev.start)
-            d.setHours(0, 0, 0, 0)
-            return d.getTime() === today.getTime()
-          })
-          if (!def) def = opkomsten.find(ev => new Date(ev.start) >= today)
-          if (!def) def = opkomsten[opkomsten.length - 1]
-          setSelectedEvent(def)
-        }
-      } catch (err) {
-        console.error(err)
-        setError(withSupportContact('Kon gegevens niet laden'))
-      } finally {
-        setIsLoading(false)
-      }
+    if (!events.length) return
+    if (selectedEvent) {
+      const freshSelection = events.find(event => event.id === selectedEvent.id)
+      if (freshSelection && freshSelection !== selectedEvent) setSelectedEvent(freshSelection)
+      return
     }
-
-    if (user) loadData()
-  }, [user])
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    let defaultEvent = events.find(event => {
+      const date = new Date(event.start)
+      date.setHours(0, 0, 0, 0)
+      return date.getTime() === today.getTime()
+    })
+    if (!defaultEvent) defaultEvent = events.find(event => new Date(event.start) >= today)
+    setSelectedEvent(defaultEvent || events[events.length - 1])
+  }, [events, selectedEvent])
 
   // Initialize attendance state when event changes
   useEffect(() => {
@@ -176,24 +158,11 @@ export default function StrepenPage() {
     setLiveMsg(`${u.firstName} gemarkeerd als ${status}`)
     
     try {
-      const res = await fetch(`/api/events/${selectedEvent.id}`, {
-        method:  'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ attendance: newAttendance })
+      const saved = await updateEventMutation.mutateAsync({
+        eventId: selectedEvent.id,
+        eventData: { attendance: newAttendance }
       })
-      if (!res.ok) {
-        const errText = await res.text()
-        throw new Error(errText || 'Save failed')
-      }
-      await res.json()
-      setSelectedEvent(ev => ({ ...ev, attendance: newAttendance }))
-      
-      // reload streepjes
-      const usersRes = await fetch('/api/users/full')
-      if (usersRes.ok) {
-        const { users: fresh } = await usersRes.json()
-        setUsers(fresh)
-      }
+      setSelectedEvent(saved)
       showToast(`${u.firstName} ${status} - opgeslagen!`, 'success')
     } catch (err) {
       console.error(err)
@@ -221,7 +190,7 @@ export default function StrepenPage() {
     )
   }
   if (error) {
-    return <div className="strepen-page-wrapper"><div className="strepen-page"><div className="error">Fout: {error}</div></div></div>
+    return <div className="strepen-page-wrapper"><div className="strepen-page"><div className="error">{withSupportContact(error.message || 'Kon gegevens niet laden')}</div></div></div>
   }
   if (!selectedEvent) {
     return <div className="strepen-page-wrapper"><div className="strepen-page"><div className="no-events">Geen opkomsten gevonden</div></div></div>

@@ -18,7 +18,7 @@ Full‑stack calendar for Stamjer members with authentication, attendance, and a
 
 ## Prerequisites
 
-- Node.js 18+ (LTS recommended)
+- Node.js 20+ (LTS recommended)
 - MongoDB connection string (Atlas or local)
 - SMTP credentials (optional in dev; Ethereal is auto‑provisioned if not set)
 
@@ -56,6 +56,9 @@ Alternatively:
 - npm run preview — serve the production build locally
 - npm run lint — run ESLint across the project
 
+- `npm test` - run the automated test suite
+- `npm run test:watch` - run tests in watch mode
+
 ## Environment Variables (.env)
 
 Required unless noted otherwise:
@@ -64,11 +67,14 @@ Required unless noted otherwise:
 - CLIENT_ORIGIN — Comma‑separated list of allowed origins (e.g. http://localhost:5173)
 - PORT — API port (default 3002)
 - NODE_ENV — development or production
+- TOKEN_SECRET — stable secret used to protect device sessions; changing it logs out every device
+- SESSION_MAX_AGE_DAYS — optional rolling session lifetime (default 365 days)
+- SESSION_TOUCH_INTERVAL_HOURS — optional interval for renewing active sessions (default 24 hours)
 - SMTP_SERVICE — optional (e.g. gmail, outlook); if omitted in dev, an Ethereal test inbox is used
 - SMTP_USER — optional; SMTP username
 - SMTP_PASS — optional; SMTP password/app password
 - SMTP_FROM — optional; From address for outgoing emails
-- DAILY_LOG_EMAIL — optional; recipient for daily log summaries
+- DAILY_CHANGE_EMAIL - optional recipient for membership-status change emails
 
 ## Project Structure
 
@@ -89,7 +95,7 @@ Base path: /api
 
 - GET /api/test — health check
 - GET /api/users — list basic user data
-- GET /api/users/full — list users incl. flags and computed “streepjes”
+- GET /api/users/full — list users incl. canonical status and computed “streepjes”
 - POST /api/users — create a user (admin)
 - GET /api/events — list all events
 - GET /api/events/opkomsten — list only opkomsten
@@ -101,9 +107,11 @@ Base path: /api
 - POST /api/forgot-password — request reset code via email
 - POST /api/reset-password — reset password using code
 - POST /api/change-password — change password when logged in
+- GET /api/calendar.ics — public calendar feed with title, time, and location only
 
 Notes:
 
+- User and JSON event endpoints require an authenticated session; the limited `.ics` feed is intentionally public
 - CORS is restricted via CLIENT_ORIGIN (with dev fallbacks for localhost and Vercel envs)
 - MongoDB collections: users, events, resetCodes, sessions (with indexes ensured on startup)
 - Passwords are hashed with bcrypt before storing

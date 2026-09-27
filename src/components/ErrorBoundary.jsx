@@ -23,7 +23,6 @@ import { withSupportContact } from '../config/appInfo'
 // ================================================================
 // BASE ERROR BOUNDARY CLASS
 // ================================================================
-
 /**
  * Base error boundary with comprehensive error handling
  */
@@ -325,46 +324,6 @@ export function FormErrorBoundary({ children, formName, onError }) {
 }
 
 // ================================================================
-// ASYNC ERROR BOUNDARY HOOK
-// ================================================================
-
-/**
- * Hook for catching async errors in React components
- * Since error boundaries only catch errors in render methods,
- * we need this for async operations
- */
-export function useAsyncError() {
-  const [, setError] = React.useState()
-  
-  return React.useCallback((error) => {
-    console.error('Async error caught:', error)
-    
-    // Force React to re-render and trigger error boundary
-    setError(() => {
-      throw error
-    })
-  }, [])
-}
-
-/**
- * Higher-order component to wrap components with error boundary
- */
-export function withErrorBoundary(Component, errorBoundaryProps = {}) {
-  const WrappedComponent = (props) => (
-    <ComponentErrorBoundary 
-      componentName={Component.displayName || Component.name}
-      {...errorBoundaryProps}
-    >
-      <Component {...props} />
-    </ComponentErrorBoundary>
-  )
-  
-  WrappedComponent.displayName = `withErrorBoundary(${Component.displayName || Component.name})`
-  
-  return WrappedComponent
-}
-
-// ================================================================
 // ERROR REPORTING UTILITIES
 // ================================================================
 
@@ -412,9 +371,3 @@ export function setupGlobalErrorHandling() {
     }
   })
 }
-
-// ================================================================
-// DEFAULT EXPORT
-// ================================================================
-
-export default BaseErrorBoundary

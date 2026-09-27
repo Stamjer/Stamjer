@@ -49,6 +49,7 @@ import { CalendarErrorBoundary, FormErrorBoundary, ComponentErrorBoundary } from
 // Toast hook
 import { useToast } from '../hooks/useToast'
 import { withSupportContact } from '../config/appInfo'
+import { buildEventPayload } from '../lib/eventPayload'
 
 // Component styling
 import './CalendarPage.css'
@@ -60,15 +61,6 @@ import './CalendarPage.css'
 /**
  * Helper function to increment a date by one day
  */
-function nextDay(dateStr) {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  const dt = new Date(y, m - 1, d + 1)
-  const yy = dt.getFullYear()
-  const mm = String(dt.getMonth() + 1).padStart(2, '0')
-  const dd = String(dt.getDate()).padStart(2, '0')
-  return `${yy}-${mm}-${dd}`
-}
-
 /**
  * Format date for display
  */
@@ -111,7 +103,7 @@ function canChangeAttendance(eventStart) {
 }
 
 function isActiveMember(user) {
-  return Boolean(user?.active) && (user.status || 'active') === 'active'
+  return user?.status === 'active'
 }
 
 // ================================================================
@@ -709,44 +701,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
     setIsSubmitting(true)
 
     try {
-      const { title, startDate, startTime, endDate, endTime, isAllDay, location, description } = formData
-
-      // For timed events, use the same date for start and end
-      const actualEndDate = isAllDay ? endDate : startDate
-      const start = isAllDay ? startDate : `${startDate}T${startTime}`
-      const end = isAllDay ? nextDay(actualEndDate) : `${actualEndDate}T${endTime}`
-
-      // Convert opkomstmakers user IDs to first names
-      const opkomstmakersString = formData.opkomstmakers
-        .map(userId => {
-          const user = users.find(u => u.id === userId)
-          return user ? user.firstName : null
-        })
-        .filter(name => name !== null)
-        .join(', ')
-
-      // Convert schoonmakers user IDs to first names
-      const schoonmakersString = formData.schoonmakers
-        .map(userId => {
-          const user = users.find(u => u.id === userId)
-          return user ? user.firstName : null
-        })
-        .filter(name => name !== null)
-        .join(', ')
-
-      const eventData = {
-        title: title.trim(),
-        start,
-        end,
-        allDay: isAllDay,
-        location: location.trim(),
-        description: description.trim(),
-        isOpkomst: formData.isOpkomst,
-        opkomstmakers: opkomstmakersString,
-        isSchoonmaak: formData.isSchoonmaak,
-        schoonmakers: schoonmakersString,
-        schoonmaakOptions: formData.schoonmaakOptions,
-      }
+      const eventData = buildEventPayload(formData)
 
       if (!isEdit && formData.isOpkomst) {
         const activeParticipantIds = users
@@ -1302,8 +1257,7 @@ export default function CalendarPage() {
     }
 
     deleteEventMutation.mutate({
-      eventId: ev.id,
-      userId: currentUser.id
+      eventId: ev.id
     })
     
     setSelectedEvent(null)
@@ -1319,13 +1273,11 @@ export default function CalendarPage() {
     if (isEdit) {
       updateEventMutation.mutate({
         eventId: eventData.id,
-        eventData: eventData,
-        userId: currentUser.id
+        eventData: eventData
       })
     } else {
       createEventMutation.mutate({
-        eventData: eventData,
-        userId: currentUser.id
+        eventData: eventData
       })
     }
   }, [createEventMutation, updateEventMutation, currentUser, showError])
@@ -1336,7 +1288,7 @@ export default function CalendarPage() {
       showError('Je moet ingelogd zijn om aanwezigheid te registreren')
       return
     }
-    updateAttendanceMutation.mutate({ eventId, userId: currentUser.id, attending })
+    updateAttendanceMutation.mutate({ eventId, attending })
   }, [currentUser, updateAttendanceMutation, showError])
 
   // Handle edit button click
@@ -1346,29 +1298,8 @@ export default function CalendarPage() {
       return
     }
 
-    // Convert opkomstmakers string to array of user IDs for editing
-    const opkomstmakersArray = []
-    if (ev.extendedProps.opkomstmakers) {
-      const storedNames = ev.extendedProps.opkomstmakers.split(',').map(name => name.trim()).filter(name => name)
-      storedNames.forEach(name => {
-        const user = users.find(u => u.firstName === name)
-        if (user) {
-          opkomstmakersArray.push(user.id)
-        }
-      })
-    }
-
-    // Convert schoonmakers string to array of user IDs for editing
-    const schoonmakersArray = []
-    if (ev.extendedProps.schoonmakers) {
-      const storedNames = ev.extendedProps.schoonmakers.split(',').map(name => name.trim()).filter(name => name)
-      storedNames.forEach(name => {
-        const user = users.find(u => u.firstName === name)
-        if (user) {
-          schoonmakersArray.push(user.id)
-        }
-      })
-    }
+    const opkomstmakersArray = ev.extendedProps.opkomstmakerIds || []
+    const schoonmakersArray = ev.extendedProps.schoonmakerIds || []
 
     // Get dates from Date objects
     const startObj = ev.start instanceof Date ? ev.start : new Date(ev.start)
@@ -1404,7 +1335,7 @@ export default function CalendarPage() {
       schoonmaakOptions: ev.extendedProps.schoonmaakOptions || [],
     })
     setSelectedEvent(null)
-  }, [users, currentUser, showError])
+  }, [currentUser, showError])
 
   // ================================================================
   // CALENDAR CONFIGURATION (OPTIMIZED)
