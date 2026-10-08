@@ -1,4 +1,4 @@
-// Minimal MongoDB substitute for isolation/migration tests. No network or files.
+// Minimal MongoDB substitute for isolated application tests. No network or files.
 function matches(document, filter) {
   return Object.entries(filter).every(([key, value]) => {
     if (key === '$or') return value.some((part) => matches(document, part))

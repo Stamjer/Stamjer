@@ -1,6 +1,6 @@
 {
   "name": "stamjer",
-  "version": "1.11.2",
+  "version": "1.11.3",
   "description": "Een React + Vite kalender applicatie met gebruikersauthenticatie en evenementbeheer",
   "private": true,
   "type": "module",
@@ -32,10 +32,7 @@
     "test": "node --test",
     "test:watch": "node --test --watch",
     "test:groups:browser": "node test-support/browserSmoke.js",
-    "test:groups:mongo": "node --test test/groupMongoIntegration.test.js",
-    "migrate:groups": "node scripts/migrate-groups.js",
-    "bootstrap:developer": "node scripts/bootstrap-developer.js",
-    "test:lighthouse": "echo Run lighthouse on production build at http://localhost:4173"
+    "test:groups:mongo": "node --test test/groupMongoIntegration.test.js test/membershipMongoIntegration.test.js"
   },
   "main": "api/index.js",
   "dependencies": {

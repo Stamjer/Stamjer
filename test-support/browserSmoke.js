@@ -108,11 +108,56 @@ try {
     }
     throw new Error(`Browser condition failed: ${expression}`)
   }
-  const click = async text => evaluate(`(() => { const button = [...document.querySelectorAll('button')].find(item => item.checkVisibility() && !item.disabled && item.textContent.trim() === ${JSON.stringify(text)}); if (!button) throw Error('Visible enabled button missing'); button.click(); return true })()`)
+  const click = async text => {
+    await waitFor(`!![...document.querySelectorAll('button')].find(item => item.checkVisibility() && !item.disabled && item.textContent.trim() === ${JSON.stringify(text)})`)
+    return evaluate(`(() => { const button = [...document.querySelectorAll('button')].find(item => item.checkVisibility() && !item.disabled && item.textContent.trim() === ${JSON.stringify(text)}); if (!button) throw Error('Visible enabled button missing'); button.click(); return true })()`)
+  }
   const fill = async (selector, value) => evaluate(`(() => { const input = document.querySelector(${JSON.stringify(selector)}); const proto = input.tagName === 'SELECT' ? HTMLSelectElement.prototype : input.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype; Object.getOwnPropertyDescriptor(proto, 'value').set.call(input, ${JSON.stringify(value)}); input.dispatchEvent(new Event('input', { bubbles: true })); input.dispatchEvent(new Event('change', { bubbles: true })); return true })()`)
-  const screenshot = async name => {
-    const result = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true })
+  const screenshot = async (name, fullPage = true) => {
+    const result = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: fullPage })
     await writeFile(path.join(artifacts, name), Buffer.from(result.data, 'base64'))
+  }
+  const openDeveloperPage = async pathname => {
+    await evaluate(`(() => { const link = [...document.querySelectorAll('a')].find(item => item.getAttribute('href') === ${JSON.stringify(pathname)} && item.checkVisibility()); if (!link) throw Error('Developer navigation link missing'); link.click() })()`)
+    await waitFor(`location.pathname === ${JSON.stringify(pathname)}`)
+  }
+  const checkDeveloperLayout = async (name, dialog = false) => {
+    for (const width of [320, 390, 426, 768, 1280]) {
+      await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 768 })
+      await sleep(200)
+      const layout = await evaluate(`(() => {
+        const root = document.querySelector('${dialog ? '.management-dialog' : '.developer-page'}');
+        const bounds = root.getBoundingClientRect();
+        const controls = [...root.querySelectorAll('input:not([type="checkbox"]), select, textarea, button')].filter(item => item.checkVisibility());
+        const outside = controls.filter(item => { const rect = item.getBoundingClientRect(); return rect.left < Math.max(bounds.left, 0) - 1 || rect.right > Math.min(bounds.right, innerWidth) + 1 });
+        const close = document.querySelector('.management-dialog-heading button')?.getBoundingClientRect();
+        return { overflow: document.documentElement.scrollWidth > innerWidth, outside: outside.map(item => item.textContent || item.type), closeWidth: close?.width, headings: [...root.querySelectorAll('.membership-card h3')].map(item => parseFloat(getComputedStyle(item).fontSize)) };
+      })()`)
+      assert.equal(layout.overflow, false, JSON.stringify({ name, width, layout }))
+      assert.deepEqual(layout.outside, [], JSON.stringify({ name, width, layout }))
+      if (dialog) { assert.equal(layout.closeWidth, 44); assert.ok(layout.headings.every(size => size <= 20)) }
+      else {
+        assert.equal(await evaluate(`document.querySelectorAll('.nav-menu .nav-btn.active').length`), 1)
+        assert.equal(await evaluate(`document.querySelectorAll('.bottom-nav-link.is-active').length`), 1)
+      }
+      await screenshot(`${name}-${width}.png`, !dialog)
+    }
+  }
+  const goToCalendarMonth = async target => {
+    const titleExpression = `document.querySelector('.mobile-agenda-header .title, .fc-toolbar-title')?.textContent`
+    const months = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december']
+    await waitFor(titleExpression)
+    for (let step = 0; step < 120; step++) {
+      const title = await evaluate(titleExpression)
+      const [month, year] = title.toLowerCase().trim().split(/\s+/)
+      const current = Number(year) * 12 + months.indexOf(month)
+      assert.ok(Number.isFinite(current) && months.includes(month), title)
+      if (current === target) return
+      const previous = current > target
+      await evaluate(`document.querySelector('.mobile-agenda-header button[aria-label="${previous ? 'Vorige maand' : 'Volgende maand'}"], .fc-${previous ? 'prev' : 'next'}-button').click()`)
+      await waitFor(`${titleExpression} !== ${JSON.stringify(title)}`)
+    }
+    throw Error('Calendar month navigation did not reach target')
   }
   await call('Page.enable')
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
@@ -146,7 +191,7 @@ try {
   await click('Annuleren')
   checks.push('group creation and group settings editing')
   checks.push('declarations checkbox defaults on and persists disabled group settings')
-  await click('Gebruikers')
+  await click('Accounts')
   await waitFor(`document.querySelectorAll('.management-user').length === 3`)
   await fill('.developer-heading select', 'explorers')
   await waitFor(`document.querySelectorAll('.management-user').length === 1 && document.querySelector('.management-user').textContent.includes('Explorer Member')`)
@@ -184,7 +229,9 @@ try {
   await click('Opslaan')
   await waitFor(`!document.querySelector('dialog[open]') && document.querySelector('.developer-event-list').textContent.includes('Edited browser event')`)
   checks.push('scoped event creation/editing, member assignments and attendance/streepje controls')
-  await click('Database')
+  await openDeveloperPage('/developer/database')
+  assert.equal(await evaluate(`document.querySelector('.developer-heading select').value`), 'explorers')
+  assert.equal(await evaluate(`document.querySelectorAll('.developer-tabs button').length`), 2)
   await waitFor(`document.querySelectorAll('.developer-records > details').length === 2`)
   await evaluate(`document.querySelector('.developer-records > details').open = true`)
   await click('JSON bewerken')
@@ -207,9 +254,27 @@ try {
   assert.equal(await evaluate(`document.querySelector('.developer-records').textContent.includes('event-created')`), false)
   await screenshot('audit-desktop.png')
   checks.push('persistent scoped audit filtering')
-  await click('Gebruikers')
+  await checkDeveloperLayout('developer-database-audit')
+  await openDeveloperPage('/developer/account')
+  await waitFor(`document.querySelectorAll('.developer-account input[type="password"]').length === 3`)
+  assert.equal(await evaluate(`!!document.querySelector('.developer-heading, .developer-tabs, .user-management, .developer-database, .account-status-toggle')`), false)
+  await fill('.developer-account input[autocomplete="current-password"]', 'browser-test-only')
+  await fill('.developer-account input[autocomplete="new-password"]', 'new-browser-password')
+  await fill('.developer-account label:last-of-type input', 'different-browser-password')
+  await click('Wachtwoord wijzigen')
+  await waitFor(`document.querySelector('.developer-account [role="alert"]')?.textContent.includes('komen niet overeen')`)
+  await checkDeveloperLayout('developer-account')
+  checks.push('developer Account contains only password controls and logout, with password confirmation validation')
+  await openDeveloperPage('/developer')
+  assert.equal(await evaluate(`document.querySelector('.developer-heading select').value`), 'explorers')
+  assert.equal(await evaluate(`document.querySelectorAll('.developer-tabs button').length`), 3)
+  await click('Accounts')
   await waitFor(`document.querySelectorAll('.management-user').length === 2`)
+  await checkDeveloperLayout('developer-accounts')
+  checks.push('three developer pages preserve group scope, have distinct active links and responsive management controls')
   await call('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true })
+  assert.equal(await evaluate(`document.querySelectorAll('.bottom-nav-link.is-active').length`), 1)
+  assert.equal(await evaluate(`document.querySelectorAll('.bottom-nav-link').length`), 3)
   await screenshot('developer-mobile.png')
   assert.equal(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), true)
   checks.push('mobile layout has no horizontal overflow')
@@ -240,8 +305,10 @@ try {
   await waitFor(`!document.querySelector('dialog[open]') && document.querySelector('.management-success').textContent.includes('E-mail verstuurd')`)
   assert.ok(db.data.resetCodes.find(record => record.email === 'member@example.test'))
   checks.push('admin invitation confirmation with stubbed email delivery')
-  await call('Page.navigate', { url: `${origin}/developer` })
-  await waitFor(`location.pathname === '/kalender'`)
+  for (const route of ['/developer', '/developer/database', '/developer/account']) {
+    await call('Page.navigate', { url: `${origin}${route}` })
+    await waitFor(`location.pathname === '/kalender'`)
+  }
   checks.push('non-developer route rejection')
   await call('Page.navigate', { url: `${origin}/__test/login/member` })
   await waitFor(`location.pathname === '/account' && !!document.querySelector('.account-page-container')`)
@@ -343,6 +410,7 @@ try {
   db.data.events.push({ id: 'historical-calendar', groupId: 'stam-default', title: 'Historical full group calendar', start: '2025-05-14T20:00:00', publishedAt: '2025-04-01T00:00:00Z', participants: [], isOpkomst: false, attendanceMeta: {} })
   for (const event of db.data.events) { event.publishedAt ||= '2020-01-01T00:00:00Z'; event.attendanceMeta ||= {} }
   db.data.groups.find(g => g.id === 'explorers').settings.paymentRequestEmail = 'explorers-pay@example.test'
+  db.data.groups.find(g => g.id === 'stam-default').name = 'Stam met een bijzonder lange groepsnaam voor de accountinstellingen'
   const developerApi = async (route, method = 'GET', body) => {
     const response = await fetch(`${origin}/api${route}`, { method, headers: { Cookie: developerCookie, 'Content-Type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) })
     assert.ok(response.ok, `${method} ${route}: ${response.status} ${await response.clone().text()}`)
@@ -352,6 +420,16 @@ try {
   await waitFor(`!!document.querySelector('select[aria-label="Groep selecteren"]')`)
   assert.equal(await evaluate(`JSON.parse(localStorage.getItem('user')).role`), 'user')
   assert.equal(await evaluate(`document.querySelector('select[aria-label="Groep selecteren"] option[value="stam-default"]').textContent.includes('Actief') && document.querySelector('select[aria-label="Groep selecteren"] option[value="explorers"]').textContent.includes('Inactief')`), true)
+  assert.equal(await evaluate(`!!document.querySelector('.nav-brand select, .nav-container select')`), false)
+  for (const width of [320, 390, 426, 768, 1280]) {
+    await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 768 })
+    await evaluate(`document.querySelector('.account-group-select').scrollIntoView({ block: 'center' })`)
+    const bounds = await evaluate(`(() => { const select = document.querySelector('.account-group-select'); const rect = select.getBoundingClientRect(); select.focus(); return { left: rect.left, right: rect.right, height: rect.height, focused: document.activeElement === select, settings: !!select.closest('.account-card-settings') } })()`)
+    assert.ok(bounds.left >= 0 && bounds.right <= width + 1 && bounds.height >= 44 && bounds.focused && bounds.settings, JSON.stringify({ width, bounds }))
+    await screenshot(`account-group-selection-${width}.png`)
+  }
+  await call('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true })
+  checks.push('group selection appears only in Account settings, fits mobile/desktop widths with long names and can receive focus')
   const beforeSelection = structuredClone(db.data.groupMemberships)
   await call('Page.handleJavaScriptDialog', { accept: true }).catch(() => {})
   // Automatically accept only the explicit group-switch confirmation in tests.
@@ -365,6 +443,9 @@ try {
   assert.equal(await evaluate(`JSON.parse(localStorage.getItem('user')).status`), 'inactive')
   assert.equal(await evaluate(`!!document.querySelector('a[href="/opkomsten"]') && !!document.querySelector('a[href="/strepen"]')`), true)
   assert.equal(await evaluate(`document.body.textContent.includes('Stam opkomst')`), false)
+  assert.equal(await evaluate(`!!document.querySelector('select[aria-label="Groep selecteren"]')`), false)
+  await call('Page.navigate', { url: `${origin}/account` })
+  await waitFor(`!!document.querySelector('.account-group-select')`)
   await evaluate(`window.confirm = () => true`)
   await fill('select[aria-label="Groep selecteren"]', 'stam-default')
   await waitFor(`JSON.parse(localStorage.getItem('user')).groupId === 'stam-default' && !document.querySelector('a[href="/strepen"]')`)
@@ -381,13 +462,18 @@ try {
   await developerApi(`/memberships/${memberMembership.id}/end`, 'POST', { previewToken: endPreview.previewToken, revision: memberMembership._revision })
   await evaluate(`window.dispatchEvent(new Event('focus'))`)
   await waitFor(`!!document.querySelector('section[aria-label="Declaratiehistorie"]') && !document.querySelector('.payment-request-form') && document.body.textContent.includes('Browser historical receipt')`)
-  assert.equal(await evaluate(`document.querySelector('select[aria-label="Groep selecteren"] option[value="stam-default"]').textContent.includes('Alumni')`), true)
+  assert.equal(await evaluate(`!!document.querySelector('select[aria-label="Groep selecteren"]')`), false)
   assert.equal(await evaluate(`!!document.querySelector('a[href="/opkomsten"]') || !!document.querySelector('a[href="/strepen"]')`), false)
   assert.equal(await evaluate(`!!document.querySelector('.bottom-nav-link[href="/kalender"]')`), true)
   await screenshot('membership-alumni-declarations-mobile.png')
+  await call('Page.navigate', { url: `${origin}/account` })
+  await waitFor(`!!document.querySelector('.account-group-select')`)
+  assert.equal(await evaluate(`document.querySelector('.account-group-select option[value="stam-default"]').textContent.includes('Alumni')`), true)
+  await screenshot('membership-alumni-account-mobile.png')
   await call('Page.navigate', { url: `${origin}/kalender` })
-  await waitFor(`!!document.querySelector('input[aria-label="Kalendermaand"]') && !document.querySelector('.loading-state')`)
-  await fill('input[aria-label="Kalendermaand"]', '2025-05')
+  await waitFor(`!!document.querySelector('.mobile-agenda') && !document.querySelector('.loading-state')`)
+  assert.equal(await evaluate(`!!document.querySelector('input[type="month"], select[aria-label="Groep selecteren"]')`), false)
+  await goToCalendarMonth(2025 * 12 + 4)
   await waitFor(`document.body.textContent.includes('Historical full group calendar')`)
   assert.equal(await evaluate(`!!document.querySelector('.mobile-create-event-btn')`), false)
   assert.equal(await evaluate(`document.body.textContent.includes('Stam opkomst')`), false)
@@ -402,11 +488,11 @@ try {
   assert.ok(alumniFeed.includes('UID:historical-calendar@') && !alumniFeed.includes('UID:stam-event@'))
   checks.push('existing session becomes Alumni with read-only declaration history, period calendar and persistent historical subscription')
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
-  await fill('input[aria-label="Kalendermaand"]', '2025-05')
+  await goToCalendarMonth(2025 * 12 + 4)
   await waitFor(`document.body.textContent.includes('Historical full group calendar')`)
   assert.equal(await evaluate(`!!document.querySelector('.fc-nieuwBtn-button')`), false)
   assert.equal(await evaluate(`!!document.querySelector('.nav-menu a[href="/kalender"]') && !document.querySelector('.nav-menu a[href="/opkomsten"]')`), true)
-  checks.push('desktop Alumni calendar navigation and historical year/month selection')
+  checks.push('desktop Alumni calendar reaches historical months through existing navigation buttons')
   await developerApi(`/memberships/${memberMembership.id}/rejoin`, 'POST', { revision: memberMembership._revision })
   await evaluate(`window.dispatchEvent(new Event('focus'))`)
   await waitFor(`!!document.querySelector('.nav-menu a[href="/opkomsten"]') && JSON.parse(localStorage.getItem('user')).membershipState === 'current'`)
@@ -416,7 +502,7 @@ try {
   checks.push('rejoining restores current features, retains declaration history and reuses the calendar URL')
   await call('Page.navigate', { url: `${origin}/__test/login/developer` })
   await waitFor(`!!document.querySelector('.developer-groups')`)
-  await click('Gebruikers')
+  await click('Accounts')
   await waitFor(`!![...document.querySelectorAll('button')].find(b => b.textContent === 'Bestaand account toevoegen')`)
   await click('Bestaand account toevoegen')
   await waitFor(`!!document.querySelector('select[aria-label="Bestaand account"] option[value="1"]')`)
@@ -425,6 +511,14 @@ try {
   await click('Historie bekijken')
   await waitFor(`document.querySelector('dialog').textContent.includes('Lidmaatschapshistorie')`)
   assert.equal(await evaluate(`document.querySelector('dialog').textContent.includes('migration-import') || document.querySelector('dialog').textContent.includes('rejoin')`), true)
+  await checkDeveloperLayout('developer-memberships', true)
+  const membershipsBeforeJoin = db.data.groupMemberships.length
+  await fill('dialog select[aria-label="Groep toevoegen"]', 'browser-group')
+  await click('Aan groep toevoegen')
+  await waitFor(`document.querySelectorAll('dialog .membership-card').length === 3 && !document.querySelector('dialog select[aria-label="Groep toevoegen"]').disabled`)
+  assert.equal(db.data.groupMemberships.length, membershipsBeforeJoin + 1)
+  assert.equal(db.data.users.filter(user => user.id === 1).length, 1)
+  checks.push('developer membership dialog fits all viewport widths, displays compact history and adds an existing account to a group')
   checks.push('developer dashboard exposes existing identities, permanent membership periods and lifecycle history')
   await evaluate(`document.querySelector('dialog button[aria-label="Sluiten"]').click()`)
   await call('Page.navigate', { url: `${origin}/__test/login/admin` })
@@ -441,8 +535,11 @@ try {
   await click('Vertrek bekijken')
   await waitFor(`!![...document.querySelectorAll('dialog button')].find(button => button.textContent === 'Vertrek bevestigen')`)
   await click('Vertrek bevestigen')
-  await waitFor(`document.querySelector('dialog h3').textContent.includes('Alumni') && !![...document.querySelectorAll('dialog button')].find(button => button.textContent === 'Opnieuw aansluiten als gebruiker')`)
-  await click('Opnieuw aansluiten als gebruiker')
+  await waitFor(`!!document.querySelector('dialog .status-alumni') && !![...document.querySelectorAll('dialog button')].find(button => button.textContent === 'Opnieuw aansluiten')`)
+  await call('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true })
+  await screenshot('membership-alumni-dialog-mobile.png', false)
+  await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
+  await click('Opnieuw aansluiten')
   await waitFor(`!!document.querySelector('dialog section select') && document.querySelector('dialog section select').value === 'active' && !document.querySelector('dialog section select').disabled`)
   assert.equal(db.data.groupMemberships.find(m => m.id === memberMembership.id).role, 'user')
   assert.equal(db.data.groupMemberships.find(m => m.id === memberMembership.id).periods.length, 3)
@@ -459,6 +556,22 @@ try {
   assert.deepEqual(db.data.groupMemberships.filter(m => m.groupId === 'explorers'), otherMemberships)
   assert.equal(db.data.users.filter(u => u.id === 3).length, 1)
   checks.push('group administrator attaches an existing account by exact email without another group directory or membership changes')
+  await call('Page.navigate', { url: `${origin}/__test/login/developer` })
+  await waitFor(`!!document.querySelector('.developer-groups')`)
+  await openDeveloperPage('/developer/account')
+  await waitFor(`!!document.querySelector('.developer-logout')`)
+  await fill('.developer-account input[autocomplete="current-password"]', 'browser-test-only')
+  await fill('.developer-account input[autocomplete="new-password"]', 'developer-new-password-2026')
+  await fill('.developer-account label:last-of-type input', 'developer-new-password-2026')
+  await click('Wachtwoord wijzigen')
+  await waitFor(`document.querySelector('.developer-account [role="status"]')?.textContent.includes('Wachtwoord gewijzigd')`)
+  assert.equal(await bcrypt.compare('developer-new-password-2026', db.data.users.find(user => user.id === 4).password), true)
+  checks.push('developer password change succeeds through the Account page')
+  await click('Uitloggen')
+  await waitFor(`location.pathname === '/login' && !localStorage.getItem('user')`)
+  await call('Page.navigate', { url: `${origin}/developer/account` })
+  await waitFor(`location.pathname === '/login'`)
+  checks.push('developer logout clears the session and all three pages enforce authorization')
   await call('Browser.close')
   output(JSON.stringify({ checks, artifacts }, null, 2))
 } catch (error) {

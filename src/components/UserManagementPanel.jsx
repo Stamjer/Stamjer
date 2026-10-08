@@ -67,8 +67,9 @@ export default function UserManagementPanel({ actor, users = [], groupId, groups
   return (
     <section className="user-management" aria-label="Gebruikersbeheer">
       <div className="management-heading"><div><h2>Gebruikersbeheer</h2><p>{counts.active} actief · {counts.inactive} inactief · {counts.legacy} alumni · {counts.admins} beheerders</p></div>
-        <button className="btn btn-primary" onClick={() => open()} disabled={loading || archived || (developer && !groupId)}>Gebruiker toevoegen</button></div>
-      {membershipMode && !archived && <button type="button" className="btn btn-secondary" onClick={() => setMembershipsFor(null)}>Bestaand account toevoegen</button>}
+        <div className="management-heading-actions"><button className="btn btn-primary" onClick={() => open()} disabled={loading || archived || (developer && !groupId)}>Gebruiker toevoegen</button>
+          {membershipMode && !archived && <button type="button" className="btn btn-secondary" onClick={() => setMembershipsFor(null)}>Bestaand account toevoegen</button>}
+        </div></div>
       <div className="management-toolbar">
         <label>Zoeken<input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Naam of e-mailadres" /></label>
         <label>Status<select value={status} onChange={event => setStatus(event.target.value)}><option value="all">Alle statussen</option>{Object.entries(USER_STATUS_LABELS).filter(([value]) => value !== (membershipMode ? 'legacy' : 'alumni')).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>

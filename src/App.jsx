@@ -28,6 +28,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import { AppErrorBoundary, PageErrorBoundary, setupGlobalErrorHandling } from './components/ErrorBoundary'
 import { ToastProvider } from './hooks/useToast'
 import { CalendarIcon, ClipboardIcon, EuroIcon, TrophyIcon, UserIcon, LoginIcon } from './components/icons'
+import { Database as DatabaseIcon } from 'lucide-react'
 import PullToRefresh from './components/PullToRefresh'
 
 // Query client configuration
@@ -63,7 +64,9 @@ const ROUTE_LABELS = {
   '/declaraties': 'Declaraties',
   '/strepen': 'Strepen',
   '/account': 'Account',
-  '/developer': 'Developer',
+  '/developer': 'Beheer',
+  '/developer/database': 'Database',
+  '/developer/account': 'Account',
 }
 
 const NAV_ICON_MAP = {
@@ -76,6 +79,12 @@ const NAV_ICON_MAP = {
   '/login': LoginIcon,
   '/': LoginIcon,
 }
+
+const DEVELOPER_NAV_ITEMS = [
+  { to: '/developer', label: 'Beheer', icon: ClipboardIcon, variant: 'secondary' },
+  { to: '/developer/database', label: 'Database', icon: DatabaseIcon, variant: 'secondary' },
+  { to: '/developer/account', label: 'Account', icon: UserIcon, variant: 'secondary' },
+]
 
 function AlumniRestrictedRoute({ user, children }) {
   if (isDeveloper(user)) return <Navigate to="/developer" replace />
@@ -353,7 +362,7 @@ function App() {
   }, [location.pathname])
 
   const navMenuItems = useMemo(() => {
-    if (isDeveloper(user)) return [{ to: '/developer', label: 'Developer', icon: UserIcon, variant: 'secondary' }]
+    if (isDeveloper(user)) return DEVELOPER_NAV_ITEMS
     const baseItems = []
 
     if (user?.groupId && user?.memberships) baseItems.push({ to: '/kalender', label: ROUTE_LABELS['/kalender'], icon: NAV_ICON_MAP['/kalender'], variant: 'secondary' })
@@ -412,7 +421,7 @@ function App() {
   }, [user])
 
   const mobileNavItems = useMemo(() => {
-    if (isDeveloper(user)) return [{ to: '/developer', label: 'Developer', icon: UserIcon }]
+    if (isDeveloper(user)) return DEVELOPER_NAV_ITEMS
     if (!user) {
       return []
     }
@@ -524,10 +533,6 @@ function App() {
                     </span>
                   </div>
                   <h1 className="nav-title">{ROUTE_LABELS[normalizedPathname] || 'Stamjer'}</h1>
-                  {user?.memberships?.length > 1 && !isDeveloper(user) && <label>Groep<select aria-label="Groep selecteren" value={user.groupId || ''} onChange={switchGroup}>
-                    {user.memberships.map(m => <option key={m.id} value={m.groupId}>{m.group.name} · {m.state === 'ended' ? 'Alumni' : m.status === 'inactive' ? 'Inactief' : 'Actief'}</option>)}
-                  </select></label>}
-
                 </div>
               </div>
 
@@ -569,6 +574,7 @@ function App() {
                       <NavLink
                         key={item.to}
                         to={item.to}
+                        end
                         className={({ isActive }) =>
                           `btn ${variantClass} nav-btn${isActive ? ' active' : ''}`
                         }
@@ -660,11 +666,11 @@ function App() {
                 <Route path="/account" element={
                   <ProtectedRoute user={user}>
                     <PageErrorBoundary pageName="My Account">
-                      {isDeveloper(user) ? <Navigate to="/developer" replace /> : <MyAccount user={user} onLogout={handleLogout} />}
+                      {isDeveloper(user) ? <Navigate to="/developer/account" replace /> : <MyAccount user={user} onLogout={handleLogout} onGroupChange={switchGroup} />}
                     </PageErrorBoundary>
                   </ProtectedRoute>
                 } />
-                <Route path="/developer" element={
+                <Route path="/developer/*" element={
                   <ProtectedRoute user={user}>
                     <PageErrorBoundary pageName="Developer">
                       {isDeveloper(user) ? <DeveloperPage user={user} onLogout={handleLogout} /> : <Navigate to={getAuthenticatedLandingPath(user)} replace />}
@@ -689,6 +695,7 @@ function App() {
                   <NavLink
                     key={item.to}
                     to={item.to}
+                    end
                     className={({ isActive }) =>
                       `bottom-nav-link${isActive ? ' is-active' : ''}`
                     }

@@ -121,7 +121,7 @@ function renderOpkomstTimeRange(opkomst) {
   return `${startLabel} - ${TIME_FORMAT_HM.format(endDate)}`
 }
 
-export default function MyAccount({ user: userProp, onLogout }) {
+export default function MyAccount({ user: userProp, onLogout, onGroupChange }) {
   const navigate = useNavigate()
   const [showPasswordForm, setShowPasswordForm] = useState(false)
   const [passwordData, setPasswordData] = useState({
@@ -485,6 +485,16 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
                 <h4>Instellingen</h4>
               </div>
               <div className="account-card-body">
+                {user.memberships?.length > 1 && <div className="setting-section account-group-setting">
+                  <label className="account-group-selector">
+                    <span>Groep</span>
+                    <select className="form-select account-group-select" aria-label="Groep selecteren" value={user.groupId || ''} onChange={onGroupChange}>
+                      {user.memberships.map(membership => <option key={membership.id} value={membership.groupId}>
+                        {membership.group.name} · {membership.state === 'ended' ? 'Alumni' : membership.status === 'inactive' ? 'Inactief' : 'Actief'}
+                      </option>)}
+                    </select>
+                  </label>
+                </div>}
                 <div className="setting-section setting-section-activity">
                   {(user.memberships ? user.membershipState === 'current' : userStatus !== 'legacy') && (!user.memberships || user.groupId) ? (
                     <>

@@ -6,9 +6,7 @@ const STATUS = { stored: 'Opgeslagen; nog niet verzonden', sending: 'Verzending 
 export default function PaymentHistory({ user }) {
   const [error, setError] = useState('')
   const history = useQuery({ queryKey: ['payment-history', user.id, user.groupId], queryFn: getPaymentHistory, refetchInterval: 15000 })
-  const groupName = user.memberships?.find(m => m.groupId === user.groupId)?.group.name || user.groupId
-  return <section aria-label="Declaratiehistorie"><h2>Mijn declaraties · {groupName}</h2>
-    <p>Hier staan aanvragen die sinds de invoering van deze historie zijn opgeslagen. Eerdere aanvragen die alleen per e-mail zijn verstuurd, staan hier niet.</p>
+  return <section aria-label="Declaratiehistorie"><h2>Mijn declaraties</h2>
     {history.isLoading && <p>Historie laden…</p>}
     {(history.error || error) && <p role="alert">{history.error?.message || error}</p>}
     {history.data?.declarations?.length === 0 && <p>Nog geen opgeslagen declaraties voor deze groep.</p>}

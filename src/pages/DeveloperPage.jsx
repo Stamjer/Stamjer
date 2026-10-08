@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { Navigate, useLocation } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   changePassword, createEvent, createGroup, deleteEvent, getEvents, getGroups,
@@ -12,6 +13,7 @@ import DeveloperEventMembers from '../components/DeveloperEventMembers'
 import DeveloperDatabasePanel from '../components/DeveloperDatabasePanel'
 import './DeveloperPage.css'
 import { hasPendingGroupWrites } from '../lib/groupContext'
+import '../components/UserManagementPanel.css'
 
 const QUERY_OPTIONS = { staleTime: 0, refetchInterval: 15_000 }
 const GROUP_SETTINGS = {
@@ -121,7 +123,7 @@ function DeveloperAccount({ user, onLogout }) {
     onSuccess: () => { setForm({ currentPassword: '', newPassword: '', confirmPassword: '' }); setMessage('Wachtwoord gewijzigd.'); setError('') },
     onError: failure => setError(failure.message)
   })
-  return <section className="developer-account"><h2>Developer-account</h2><p>{user.firstName} {user.lastName} · {user.email}</p>
+  return <section className="developer-account"><div className="developer-account-card"><h2>Wachtwoord</h2>
     <form className="management-form" onSubmit={event => {
       event.preventDefault(); setMessage(''); setError('')
       if (form.newPassword !== form.confirmPassword) { setError('Nieuwe wachtwoorden komen niet overeen.'); return }
@@ -129,14 +131,19 @@ function DeveloperAccount({ user, onLogout }) {
     }}>
       {Object.entries({ currentPassword: 'Huidig wachtwoord', newPassword: 'Nieuw wachtwoord', confirmPassword: 'Herhaal nieuw wachtwoord' }).map(([key, label]) => <label key={key}>{label}<input type="password" required minLength={key === 'currentPassword' ? undefined : 12} autoComplete={key === 'currentPassword' ? 'current-password' : 'new-password'} value={form[key]} onChange={event => setForm(current => ({ ...current, [key]: event.target.value }))} /></label>)}
       {error && <p role="alert" className="management-error">{error}</p>}{message && <p role="status" className="management-success">{message}</p>}
-      <button className="btn btn-primary" disabled={mutation.isPending}>Wachtwoord wijzigen</button>
-    </form><button className="btn btn-secondary developer-logout" onClick={onLogout}>Uitloggen</button>
+      <button className="btn btn-primary" disabled={mutation.isPending}>{mutation.isPending ? 'Opslaan…' : 'Wachtwoord wijzigen'}</button>
+    </form></div><button className="btn btn-danger developer-logout" onClick={onLogout}>Uitloggen</button>
   </section>
 }
 
 export default function DeveloperPage({ user, onLogout }) {
   const queryClient = useQueryClient()
-  const [tab, setTab] = useState('groups')
+  const { pathname } = useLocation()
+  const [managementTab, setManagementTab] = useState('groups')
+  const [databaseTab, setDatabaseTab] = useState('database')
+  const page = pathname === '/developer/account' ? 'account' : pathname === '/developer/database' ? 'database' : 'manage'
+  const tab = page === 'account' ? 'account' : page === 'database' ? databaseTab : managementTab
+  const setTab = page === 'database' ? setDatabaseTab : setManagementTab
   const [scope, setScope] = useState('__all__')
   const [groupEditor, setGroupEditor] = useState(null)
   const [rotation, setRotation] = useState(null)
@@ -153,20 +160,21 @@ export default function DeveloperPage({ user, onLogout }) {
     onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: queryKeys.developer.all }); setDeleting(null) }
   })
   const visibleGroups = groups.filter(group => (scope === '__all__' || group.id === scope) && `${group.name} ${group.id}`.toLowerCase().includes(search.toLowerCase()))
+  if (!['/developer', '/developer/', '/developer/database', '/developer/account'].includes(pathname)) return <Navigate to="/developer" replace />
   return <div className="developer-page">
-    <header className="developer-heading"><div><p className="developer-eyebrow">Stamjer beheer</p><h1>Developer</h1><p>Beheer groepen, gebruikers en evenementen.</p></div>
-      {tab !== 'account' && <label>Groep<select value={scope} onChange={event => {
+    {page !== 'account' && <header className="developer-heading">
+      <label>Groep<select aria-label="Groep beheren" value={scope} onChange={event => {
         if (queryClient.isMutating() || hasPendingGroupWrites()) return
         if ((groupEditor || eventEditor || deleting || rotation) && !window.confirm('Van groep wisselen en het open formulier sluiten?')) return
         setGroupEditor(null); setEventEditor(null); setDeleting(null); setRotation(null); setScope(event.target.value); setSearch('')
-      }}><option value="__all__">Alle groepen</option>{groups.map(group => <option key={group.id} value={group.id}>{group.name || group.id}{group.status === 'archived' ? ' (gearchiveerd)' : ''}</option>)}</select></label>}
-    </header>
-    <nav className="developer-tabs" aria-label="Developer onderdelen">{Object.entries({ groups: 'Groepen', users: 'Gebruikers', events: 'Evenementen', database: 'Database', audit: 'Audit', account: 'Account' }).map(([key, label]) => <button key={key} className={tab === key ? 'is-active' : ''} aria-current={tab === key ? 'page' : undefined} onClick={() => { setTab(key); setSearch('') }}>{label}</button>)}</nav>
-    {groupsQuery.error && <p role="alert" className="management-error">{groupsQuery.error.message}</p>}
+      }}><option value="__all__">Alle groepen</option>{groups.map(group => <option key={group.id} value={group.id}>{group.name || group.id}{group.status === 'archived' ? ' (gearchiveerd)' : ''}</option>)}</select></label>
+      <nav className="developer-tabs" aria-label={page === 'database' ? 'Database onderdelen' : 'Beheer onderdelen'}>{Object.entries(page === 'database' ? { database: 'Database', audit: 'Audit' } : { groups: 'Groepen', users: 'Accounts', events: 'Evenementen' }).map(([key, label]) => <button type="button" key={key} className={tab === key ? 'is-active' : ''} aria-current={tab === key ? 'page' : undefined} onClick={() => { setTab(key); setSearch('') }}>{label}</button>)}</nav>
+    </header>}
+    {page !== 'account' && groupsQuery.error && <p role="alert" className="management-error">{groupsQuery.error.message}</p>}
     {tab === 'groups' && <section><div className="management-heading"><label className="developer-search">Groepen zoeken<input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Naam of groeps-ID" /></label><button className="btn btn-primary" onClick={() => setGroupEditor({})}>Groep toevoegen</button></div>
       {groupsQuery.isPending ? <p role="status">Groepen laden…</p> : visibleGroups.length === 0 ? <p>Geen groepen gevonden.</p> : <div className="developer-groups">{visibleGroups.map(group => <article key={group.id} className="developer-group-card"><div><h2>{group.name || group.id}</h2><p>{group.id} · {group.status === 'archived' ? 'Gearchiveerd' : 'Actief'}</p></div><dl><div><dt>Leden</dt><dd>{group.summary.users}</dd></div><div><dt>Beheerders</dt><dd>{group.summary.admins}</dd></div><div><dt>Actief</dt><dd>{group.summary.activeUsers}</dd></div><div><dt>Komende opkomsten</dt><dd>{group.summary.futureOpkomsten}</dd></div></dl>
         <p>Laatste activiteit: {group.summary.latestActivity ? new Date(group.summary.latestActivity).toLocaleString('nl-NL') : 'Nog geen auditactiviteit'}</p>
-        <div className="developer-card-actions"><button className="btn btn-secondary" onClick={() => setGroupEditor(group)}>Instellingen</button><button className="btn btn-secondary" onClick={() => { setScope(group.id); setTab('users') }}>Gebruikers</button>{group.hasCalendarSubscription && <button className="btn btn-secondary" onClick={() => setRotation(group)}>Agenda-link vervangen</button>}</div>
+        <div className="developer-card-actions"><button className="btn btn-secondary" onClick={() => setGroupEditor(group)}>Instellingen</button><button className="btn btn-secondary" onClick={() => { setScope(group.id); setTab('users') }}>Accounts</button>{group.hasCalendarSubscription && <button className="btn btn-secondary" onClick={() => setRotation(group)}>Agenda-link vervangen</button>}</div>
       </article>)}</div>}
     </section>}
     {tab === 'users' && <UserManagementPanel key={scope} actor={user} users={usersQuery.data?.users || []} groups={groups} groupId={selectedGroup?.id} loading={usersQuery.isPending} error={usersQuery.error} />}

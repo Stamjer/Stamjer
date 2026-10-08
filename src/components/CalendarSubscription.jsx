@@ -81,7 +81,7 @@ export default function CalendarSubscription({ user }) {
     <div className="setting-item-vertical">
       <div className="setting-label">
         <h6>Agenda abonnement</h6>
-        <p>{user.membershipId ? 'Synchroniseer evenementen uit je lidmaatschapsperioden. Deze link blijft werken na vertrek en opnieuw aansluiten. Externe apps kunnen oude evenementen bewaren tot hun volgende verversing.' : 'Synchroniseer alle Stamjer evenementen met je eigen agenda-app'}</p>
+        <p>{user.membershipId ? 'Synchroniseer evenementen met externe agenda-apps.' : 'Synchroniseer alle Stamjer evenementen met je eigen agenda-app'}</p>
       </div>
       
       <button

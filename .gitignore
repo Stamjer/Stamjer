@@ -93,8 +93,6 @@ vite.config.js.timestamp-*
 *.sw?
 *.docx
 /docs/*
-!/docs/groups-remodel.md
-!/docs/membership-rollout.md
 
 # Additional system files
 Thumbs.db
@@ -114,9 +112,6 @@ Desktop.ini
 *.temp
 .tmp/
 .temp/
-
-# Local planning documents
-GROUPS_REMODEL_PLAN.md
 
 # OS generated files
 .DS_Store

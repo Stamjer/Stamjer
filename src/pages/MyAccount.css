@@ -97,6 +97,23 @@
 }
 
 /* User Info Card */
+.account-group-selector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--secondary-700);
+  font-size: 0.9375rem;
+  font-weight: var(--font-weight-semibold);
+}
+
+.account-group-selector .account-group-select {
+  min-width: 0;
+  max-width: 100%;
+  min-height: 44px;
+  text-overflow: ellipsis;
+}
+
 .info-grid {
   display: grid;
   grid-template-columns: 1fr;

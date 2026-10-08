@@ -61,7 +61,6 @@ Alternatively:
 - `npm run test:watch` - run tests in watch mode
 - `npm run test:groups:browser` - production UI checks with local DB/mail substitutes (Node 22+ and Chromium)
 - `npm run test:groups:mongo` - optional isolated transaction/index checks with `MONGODB_GROUPS_TEST_URI`
-- `npm run migrate:groups` / `npm run bootstrap:developer` - read-only migration/bootstrap previews; `--apply` enables maintenance writes
 
 ## Environment Variables (.env)
 
@@ -114,19 +113,19 @@ Base path: /api
 - POST /api/forgot-password — request reset code via email
 - POST /api/reset-password — reset password using code
 - POST /api/change-password — change password when logged in
-- GET /api/calendar/subscription — authenticated secret group subscription URL
-- GET /api/calendar.ics — own-group browser feed, or external group feed with a valid secret token
+- GET /api/calendar/subscription — authenticated personal membership subscription URL
+- GET /api/calendar.ics — group browser feed, or external membership feed with a valid secret token
 - PATCH /api/users/:id — scoped management; roles are developer-only
 - POST /api/users/:id/password-email — confirmed invitation/reset email action
-- POST /api/users/:id/group/preview and PATCH /api/users/:id/group — developer-only transactional moves
+- /api/users/:id/memberships and /api/memberships/:id — membership creation, settings, lifecycle and history
 - /api/groups — developer group management and calendar-token rotation
 - /api/developer/database — curated inspection/audit and guarded JSON preview/confirmation
 
 Notes:
 
-- User and JSON event endpoints require an authenticated session and group authorization; developer reads require explicit `groupId` or `allGroups=true`. External `.ics` subscriptions require a secret group token.
+- User and JSON event endpoints require an authenticated session and group authorization; developer reads require explicit `groupId` or `allGroups=true`. External `.ics` subscriptions require a secret membership token.
 - CORS is restricted via CLIENT_ORIGIN (with dev fallbacks for localhost and Vercel envs)
-- MongoDB collections: users, events, groups, userGroupHistory, auditLogs, resetCodes, sessions (with indexes ensured on startup)
+- MongoDB collections include users, events, groups, groupMemberships, groupMembershipHistory, userGroupHistory, paymentRequests, paymentRequestFiles, counters, schemaMigrations, auditLogs, resetCodes and sessions.
 - Passwords are hashed with bcrypt before storing
 
 ## Development Workflow
@@ -142,8 +141,6 @@ Notes:
 - Preview: npm run preview (serves the built site locally)
 
 ## Deployment
-
-Follow [Groups remodel deployment and administration](docs/groups-remodel.md) for the production maintenance window, verified complete `Stamjer` backup, migration, bootstrap, SMTP, calendar subscription changes and production validation. Use the existing Atlas cluster; rollback restores both the database and matching previous code. Migration/bootstrap default to read-only; their apply commands require stopped writers and a verified backup. Keep compatibility fallbacks until persisted migration is verified.
 
 ### Vercel
 
