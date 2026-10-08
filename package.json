@@ -26,7 +26,6 @@
     "start": "concurrently \"npm:api\" \"npm:dev\"",
     "build": "vite build",
     "build:analyze": "set ANALYZE=true && vite build",
-    "vercel-build": "vite build",
     "preview": "vite preview",
     "preview:dist": "vite preview --port 4173",
     "lint": "eslint .",
