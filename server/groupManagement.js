@@ -7,11 +7,13 @@ import { mapManagedUser } from './userManagement.js'
 import { logEvent } from './logger.js'
 import { lockGroups, runGroupTransaction } from './groupTransactions.js'
 import { recordFingerprint, writeAudit } from './audit.js'
+import { membershipMode } from './memberships.js'
+import { durableGroupTotals } from './attendanceScoring.js'
 
 const GROUP_KEY = /^[a-z0-9][a-z0-9-]{0,79}$/
 // eslint-disable-next-line no-control-regex
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/
-const SETTINGS = ['defaultLocation', 'calendarName', 'paymentRequestEmail', 'dailyChangeEmail', 'allowUserSelfAttendance']
+const SETTINGS = ['defaultLocation', 'calendarName', 'paymentRequestEmail', 'dailyChangeEmail', 'allowUserSelfAttendance', 'enablePaymentRequests']
 
 function invalid(message) { throw new GroupAccessError(message, 400) }
 
@@ -40,8 +42,8 @@ export function validateGroupInput(input, { creating = false } = {}) {
     patch.settings = {}
     for (const [field, value] of Object.entries(input.settings)) {
       if (!SETTINGS.includes(field)) invalid(`Onbekende groepsinstelling: ${field}`)
-      if (field === 'allowUserSelfAttendance') {
-        if (typeof value !== 'boolean') invalid('Zelf aanwezigheid wijzigen moet true of false zijn')
+      if (field === 'allowUserSelfAttendance' || field === 'enablePaymentRequests') {
+        if (typeof value !== 'boolean') invalid(`${field === 'allowUserSelfAttendance' ? 'Zelf aanwezigheid wijzigen' : 'Declaraties inschakelen'} moet true of false zijn`)
         patch.settings[field] = value
       } else {
         if (typeof value !== 'string' || CONTROL_CHARACTERS.test(value) || value.length > (field.endsWith('Email') ? 254 : 300)) invalid(`Ongeldige instelling: ${field}`)
@@ -93,7 +95,10 @@ export async function persistGroupSettings(client, db, id, input, actor, { expec
     delete group._id
     if (!creating) group.mutationVersion = (current.mutationVersion || 0) + 1
     if (creating) group.createdAt = group.updatedAt
-    if (rotate) group.calendarFeedToken = randomBytes(32).toString('base64url')
+    if (rotate) {
+      group.calendarFeedToken = randomBytes(32).toString('base64url')
+      if (await membershipMode(db, session)) await db.collection('groupMemberships').updateMany({ groupId: id }, { $inc: { calendarTokenVersion: 1, _revision: 1 } }, { session })
+    }
     try {
       if (creating) await db.collection('groups').insertOne(group, { session })
       else await db.collection('groups').updateOne({ id }, { $set: group }, { session })
@@ -152,8 +157,8 @@ export function createGroupManagementRouter({ requireAuthenticatedUser, getDb, g
     res.json({ summary: summarizeGroup(req.managedGroup, users, events) })
   })
   router.get('/:id/users', async (req, res) => {
-    const { users, events } = await getData()
-    const streepjes = calculateGroupStreepjes(users, events, req.managedGroup.id)
+    const { users, events, archives = [] } = await getData()
+    const streepjes = users.some(u => u.memberships) ? durableGroupTotals(events, req.managedGroup.id, archives, users.flatMap(u => u.memberships || [])) : calculateGroupStreepjes(users, events, req.managedGroup.id)
     res.json({ users: getGroupMembers(users, req.managedGroup.id).map((user) => mapManagedUser(user, streepjes[user.id] || 0)) })
   })
   router.get('/:id/events', async (req, res) => {

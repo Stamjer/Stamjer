@@ -16,7 +16,7 @@
  */
 
 import React, { useEffect, useState } from 'react'
-import { getCalendarSubscription } from '../services/api'
+import { getCalendarSubscription, rotateMembershipSubscription } from '../services/api'
 import { isAdmin, isDeveloper } from '../../shared/roles'
 import './CalendarSubscription.css'
 
@@ -81,7 +81,7 @@ export default function CalendarSubscription({ user }) {
     <div className="setting-item-vertical">
       <div className="setting-label">
         <h6>Agenda abonnement</h6>
-        <p>Synchroniseer alle Stamjer evenementen met je eigen agenda-app</p>
+        <p>{user.membershipId ? 'Synchroniseer evenementen uit je lidmaatschapsperioden. Deze link blijft werken na vertrek en opnieuw aansluiten. Externe apps kunnen oude evenementen bewaren tot hun volgende verversing.' : 'Synchroniseer alle Stamjer evenementen met je eigen agenda-app'}</p>
       </div>
       
       <button
@@ -93,6 +93,11 @@ export default function CalendarSubscription({ user }) {
         {copied ? '✓ Gekopieerd' : 'Kopieer URL'}
       </button>
       {subscriptionError && <p role="alert">{subscriptionError}</p>}
+      {user.membershipId && <button type="button" className="btn btn-secondary" onClick={async () => {
+        if (!window.confirm('Agenda-link intrekken en vervangen? Je externe agenda moet daarna de nieuwe URL gebruiken.')) return
+        try { await rotateMembershipSubscription(user.membershipId); const { url } = await getCalendarSubscription(); setCalendarUrl(new URL(url, window.location.origin).href) }
+        catch (error) { setSubscriptionError(error.message) }
+      }}>Link intrekken en vervangen</button>}
       
       <button
         type="button"

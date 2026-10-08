@@ -5,7 +5,7 @@ import { queryKeys } from '../lib/queryClient'
 import { filterManagedUsers, USER_STATUS_LABELS } from '../lib/userManagement'
 import { isAdmin, isDeveloper } from '../../shared/roles'
 import ManagementDialog from './ManagementDialog'
-import UserGroupMoveDialog from './UserGroupMoveDialog'
+import MembershipManager from './MembershipManager'
 import UserPasswordEmailDialog from './UserPasswordEmailDialog'
 import './UserManagementPanel.css'
 
@@ -17,7 +17,8 @@ export default function UserManagementPanel({ actor, users = [], groupId, groups
   const [role, setRole] = useState('all')
   const [sort, setSort] = useState('name')
   const [editing, setEditing] = useState(null)
-  const [moving, setMoving] = useState(null)
+  const [membershipsFor, setMembershipsFor] = useState(undefined)
+  const membershipMode = Boolean(actor.memberships)
   const [passwordEmail, setPasswordEmail] = useState(null)
   const [form, setForm] = useState({})
   const [message, setMessage] = useState('')
@@ -26,7 +27,7 @@ export default function UserManagementPanel({ actor, users = [], groupId, groups
   const counts = useMemo(() => ({
     active: users.filter((user) => user.status === 'active').length,
     inactive: users.filter((user) => user.status === 'inactive').length,
-    legacy: users.filter((user) => user.status === 'legacy').length,
+    legacy: users.filter((user) => user.membershipState === 'ended' || (!user.membershipState && user.status === 'legacy')).length,
     admins: users.filter(isAdmin).length
   }), [users])
   const currentGroup = groups.find((group) => group.id === groupId)
@@ -35,11 +36,11 @@ export default function UserManagementPanel({ actor, users = [], groupId, groups
   const historyQuery = useQuery({ queryKey: queryKeys.users.history(historyScope), queryFn: () => getUserGroupHistory(historyScope), refetchInterval: 15_000 })
   const mutation = useMutation({
     mutationFn: async () => {
-      const data = { firstName: form.firstName, lastName: form.lastName, email: form.email }
+      const data = editing.id && membershipMode && !developer ? {} : { firstName: form.firstName, lastName: form.lastName, email: form.email }
       if (editing.id) {
-        if (form.status !== editing.status) data.status = form.status
-        if (developer && form.role !== editing.role) data.role = form.role
-        return updateManagedUser(editing.id, data)
+        if ((!membershipMode || editing.membershipState === 'current') && form.status !== editing.status) data.status = form.status
+        if (developer && (!membershipMode || editing.membershipState === 'current') && form.role !== editing.role) data.role = form.role
+        return updateManagedUser(editing.id, data, editing.groupId || groupId)
       }
       if (developer) { data.groupId = groupId; data.role = form.role }
       return createUser(data)
@@ -67,9 +68,10 @@ export default function UserManagementPanel({ actor, users = [], groupId, groups
     <section className="user-management" aria-label="Gebruikersbeheer">
       <div className="management-heading"><div><h2>Gebruikersbeheer</h2><p>{counts.active} actief · {counts.inactive} inactief · {counts.legacy} alumni · {counts.admins} beheerders</p></div>
         <button className="btn btn-primary" onClick={() => open()} disabled={loading || archived || (developer && !groupId)}>Gebruiker toevoegen</button></div>
+      {membershipMode && !archived && <button type="button" className="btn btn-secondary" onClick={() => setMembershipsFor(null)}>Bestaand account toevoegen</button>}
       <div className="management-toolbar">
         <label>Zoeken<input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Naam of e-mailadres" /></label>
-        <label>Status<select value={status} onChange={event => setStatus(event.target.value)}><option value="all">Alle statussen</option>{Object.entries(USER_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+        <label>Status<select value={status} onChange={event => setStatus(event.target.value)}><option value="all">Alle statussen</option>{Object.entries(USER_STATUS_LABELS).filter(([value]) => value !== (membershipMode ? 'legacy' : 'alumni')).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         <label>Rol<select value={role} onChange={event => setRole(event.target.value)}><option value="all">Alle rollen</option><option value="admin">Beheerders</option><option value="user">Gebruikers</option></select></label>
         <label>Sorteren<select value={sort} onChange={event => setSort(event.target.value)}><option value="name">Naam</option><option value="status">Status</option><option value="streepjes">Streepjes</option></select></label>
       </div>
@@ -77,11 +79,11 @@ export default function UserManagementPanel({ actor, users = [], groupId, groups
       {message && <p role="status" className="management-success">{message}</p>}
       {archived && <p>Deze groep is gearchiveerd. Gebruikers kunnen worden bekeken.</p>}
       {loading ? <p role="status">Gebruikers laden…</p> : visible.length === 0 ? <p>Geen gebruikers gevonden.</p> : <ul className="management-users">
-        {visible.map(user => <li key={user.id} className="management-user">
+        {visible.map(user => <li key={user.membershipId || user.id} className="management-user">
           <div className="management-user-identity"><strong>{user.firstName} {user.lastName}</strong><span>{user.email}</span>{developer && <span>{groupName(user.groupId)}</span>}</div>
           <div className="management-user-meta"><span className="management-badge">{isAdmin(user) ? 'Beheerder' : 'Gebruiker'}</span><span className={`management-badge status-${user.status}`}>{USER_STATUS_LABELS[user.status]}</span><span>{user.streepjes || 0} streepjes</span></div>
-          <details className="management-actions"><summary aria-label={`Acties voor ${user.firstName} ${user.lastName}`}>Acties</summary><div><button type="button" disabled={archived || groups.some(group => group.id === user.groupId && group.status === 'archived')} onClick={event => { const menu = event.currentTarget.closest('details'); menu.open = false; menu.querySelector('summary').focus(); open(user) }}>Bewerken</button>
-            {developer && <button type="button" disabled={archived || groups.some(group => group.id === user.groupId && group.status === 'archived') || !groups.some(group => group.status === 'active' && group.id !== user.groupId)} onClick={event => { const menu = event.currentTarget.closest('details'); menu.open = false; menu.querySelector('summary').focus(); setMessage(''); setMoving(user) }}>Verplaatsen</button>}
+          <details className="management-actions"><summary aria-label={`Acties voor ${user.firstName} ${user.lastName}`}>Acties</summary><div><button type="button" disabled={archived || (membershipMode && !developer && user.membershipState !== 'current') || groups.some(group => group.id === user.groupId && group.status === 'archived')} onClick={event => { const menu = event.currentTarget.closest('details'); menu.open = false; menu.querySelector('summary').focus(); open(user) }}>Bewerken</button>
+            {membershipMode && user.membershipState !== 'historical' && <button type="button" disabled={archived} onClick={() => setMembershipsFor(user)}>Lidmaatschappen</button>}
             <button type="button" disabled={archived || groups.some(group => group.id === user.groupId && group.status === 'archived')} onClick={event => { const menu = event.currentTarget.closest('details'); menu.open = false; menu.querySelector('summary').focus(); setMessage(''); setPasswordEmail(user) }}>Wachtwoord-e-mail</button>
           </div></details>
         </li>)}
@@ -92,15 +94,15 @@ export default function UserManagementPanel({ actor, users = [], groupId, groups
           <ul>{record.events.map(event => <li key={event.eventId}><strong>{event.title}</strong> · {new Date(event.start).toLocaleDateString('nl-NL')} · {event.participant ? 'Aangemeld' : 'Niet aangemeld'}{event.opkomstmaker ? ' · Opkomstmaker' : ''}{event.schoonmaker ? ' · Schoonmaker' : ''}{event.attendance === null ? '' : event.attendance ? ' · Aanwezig' : ' · Afwezig'} · {event.streepjes} streepjes{event.future ? ' · Toekomstig bij vertrek' : ''}</li>)}</ul>
         </details>)}
       </details>}
-      {moving && <UserGroupMoveDialog user={moving} groups={groups} onClose={() => setMoving(null)} onMoved={setMessage} />}
+      {membershipsFor !== undefined && <MembershipManager actor={actor} groupId={groupId || actor.groupId} user={membershipsFor} groups={groups} onClose={() => setMembershipsFor(undefined)} onChanged={setMessage} />}
       {passwordEmail && <UserPasswordEmailDialog user={passwordEmail} onClose={() => setPasswordEmail(null)} onSent={setMessage} />}
       {editing && <ManagementDialog title={editing.id ? 'Gebruiker bewerken' : 'Gebruiker toevoegen'} busy={mutation.isPending} onClose={() => setEditing(null)}>
         <form className="management-form" onSubmit={event => { event.preventDefault(); setFormError(''); mutation.mutate() }}>
-          <label>Voornaam<input {...input('firstName')} autoFocus required maxLength={80} /></label>
-          <label>Achternaam<input {...input('lastName')} required maxLength={120} /></label>
-          <label>E-mailadres<input {...input('email')} type="email" required maxLength={254} /></label>
-          {editing.id && <label>Status<select {...input('status')}>{Object.entries(USER_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>}
-          {developer && <label>Rol<select {...input('role')}><option value="user">Gebruiker</option><option value="admin">Beheerder</option></select></label>}
+          <label>Voornaam<input {...input('firstName')} readOnly={Boolean(editing.id && membershipMode && !developer)} autoFocus required maxLength={80} /></label>
+          <label>Achternaam<input {...input('lastName')} readOnly={Boolean(editing.id && membershipMode && !developer)} required maxLength={120} /></label>
+          <label>E-mailadres<input {...input('email')} readOnly={Boolean(editing.id && membershipMode && !developer)} type="email" required maxLength={254} /></label>
+          {editing.id && (!membershipMode || editing.membershipState === 'current') && <label>Status<select {...input('status')}>{Object.entries(USER_STATUS_LABELS).filter(([value]) => membershipMode ? ['active', 'inactive'].includes(value) : value !== 'alumni').map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>}
+          {developer && (!editing.id || !membershipMode || editing.membershipState === 'current') && <label>Rol<select {...input('role')}><option value="user">Gebruiker</option><option value="admin">Beheerder</option></select></label>}
           {developer && <p>Groep: {groupName(editing.groupId || groupId)}</p>}
           {!editing.id && <p>De gebruiker stelt een wachtwoord in via Wachtwoord vergeten.</p>}
           {formError && <p role="alert" className="management-error">{formError}</p>}

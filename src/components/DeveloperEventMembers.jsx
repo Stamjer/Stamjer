@@ -6,6 +6,9 @@ import { queryKeys } from '../lib/queryClient'
 export default function DeveloperEventMembers({ form, setForm, event, groupId }) {
   const members = useQuery({ queryKey: queryKeys.developer.users(groupId), queryFn: () => getUsersFull(groupId), staleTime: 0 })
   const users = members.data?.users || []
+  const membershipMode = users.some(user => user.membershipId)
+  const future = new Date(form.start) > new Date()
+  const historical = membershipMode && event && new Date(event.start) <= new Date()
   const toggle = (field, id, checked) => setForm(current => ({ ...current, [field]: checked ? [...new Set([...current[field], id])] : current[field].filter(value => value !== id) }))
   return <div className="developer-event-members">
     {members.isPending && <p role="status">Groepsleden laden…</p>}
@@ -15,8 +18,8 @@ export default function DeveloperEventMembers({ form, setForm, event, groupId })
       {users.map(user => {
         const automatic = field === 'participants' && !event && form.isOpkomst && user.status === 'active'
         const checked = automatic || form[field].includes(user.id)
-        const eligible = field === 'participants' ? user.status !== 'legacy' : user.status === 'active'
-        return <label className="management-checkbox" key={user.id}><input type="checkbox" checked={checked} disabled={automatic || (!eligible && !checked)} onChange={change => toggle(field, user.id, change.target.checked)} />{user.firstName} {user.lastName}{user.status !== 'active' ? ` (${user.status})` : ''}</label>
+        const eligible = (!user.membershipState || user.membershipState === 'current') && (field === 'participants' ? user.status !== 'legacy' : user.status === 'active')
+        return <label className="management-checkbox" key={user.id}><input type="checkbox" checked={checked} disabled={historical || automatic || (!eligible && !checked)} onChange={change => toggle(field, user.id, change.target.checked)} />{user.firstName} {user.lastName}{user.status !== 'active' ? ` (${user.status})` : ''}</label>
       })}
       {field !== 'participants' && (event?.[field === 'opkomstmakerIds' ? 'legacyOpkomstmakerNames' : 'legacySchoonmakerNames'] || []).length > 0 && <p>Historische namen: {event[field === 'opkomstmakerIds' ? 'legacyOpkomstmakerNames' : 'legacySchoonmakerNames'].join(', ')}</p>}
     </fieldset>)}
@@ -25,7 +28,7 @@ export default function DeveloperEventMembers({ form, setForm, event, groupId })
         const value = Object.hasOwn(form.attendance, user.id) ? String(form.attendance[user.id]) : ''
         const participant = form.participants.includes(user.id) || (!event && form.isOpkomst && user.status === 'active')
         const stripe = form.isOpkomst && value !== '' && participant !== (value === 'true')
-        return <label key={user.id}>{user.firstName} {user.lastName}{stripe ? ' · 1 streepje' : ''}<select value={value} onChange={change => setForm(current => {
+        return <label key={user.id}>{user.firstName} {user.lastName}{stripe ? ' · 1 streepje' : ''}<select disabled={membershipMode && future} value={value} onChange={change => setForm(current => {
           const attendance = { ...current.attendance }
           if (change.target.value === '') delete attendance[user.id]
           else attendance[user.id] = change.target.value === 'true'

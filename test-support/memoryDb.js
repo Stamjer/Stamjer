@@ -22,7 +22,7 @@ export function createMemoryDb(initial = {}) {
   const writes = []
   const indexes = new Map()
   function collection(name) {
-    const documents = () => data[name] ||= []
+    const documents = () => data[name] || []
     return {
       collectionName: name,
       find(filter = {}) {
@@ -65,7 +65,8 @@ export function createMemoryDb(initial = {}) {
         let doc = documents().find((candidate) => matches(candidate, filter))
         if (!doc && options.upsert) {
           doc = { ...filter, ...structuredClone(update.$setOnInsert || {}) }
-          documents().push(doc)
+          data[name] ||= []
+          data[name].push(doc)
         }
         if (doc) for (const [path, value] of Object.entries(update.$set || {})) {
           const parts = path.split('.')
@@ -83,7 +84,8 @@ export function createMemoryDb(initial = {}) {
       },
       async insertOne(doc) {
         writes.push({ name, action: 'insertOne' })
-        documents().push(structuredClone(doc))
+        data[name] ||= []
+        data[name].push(structuredClone(doc))
         return { insertedId: doc.id }
       },
       async bulkWrite(operations) {

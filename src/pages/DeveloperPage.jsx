@@ -11,6 +11,7 @@ import ManagementDialog from '../components/ManagementDialog'
 import DeveloperEventMembers from '../components/DeveloperEventMembers'
 import DeveloperDatabasePanel from '../components/DeveloperDatabasePanel'
 import './DeveloperPage.css'
+import { hasPendingGroupWrites } from '../lib/groupContext'
 
 const QUERY_OPTIONS = { staleTime: 0, refetchInterval: 15_000 }
 const GROUP_SETTINGS = {
@@ -23,7 +24,11 @@ function GroupEditor({ group, onClose }) {
   const [form, setForm] = useState({
     id: group?.id || '', name: group?.name || '', slug: group?.slug || '',
     status: group?.status || 'active',
-    settings: { ...Object.fromEntries(Object.keys(GROUP_SETTINGS).map(key => [key, group?.settings?.[key] || ''])), allowUserSelfAttendance: group?.settings?.allowUserSelfAttendance !== false }
+    settings: {
+      ...Object.fromEntries(Object.keys(GROUP_SETTINGS).map(key => [key, group?.settings?.[key] || ''])),
+      allowUserSelfAttendance: group?.settings?.allowUserSelfAttendance !== false,
+      enablePaymentRequests: group?.settings?.enablePaymentRequests !== false
+    }
   })
   const mutation = useMutation({
     mutationFn: () => {
@@ -40,6 +45,7 @@ function GroupEditor({ group, onClose }) {
       <label>Slug<input {...field('slug')} pattern="[a-z0-9][a-z0-9-]*" maxLength={80} placeholder={form.id} /></label>
       <label>Status<select {...field('status')}><option value="active">Actief</option><option value="archived">Gearchiveerd</option></select></label>
       {form.status === 'archived' && <p>Een gearchiveerde groep blijft leesbaar. Gebruikers en evenementen kunnen pas na heractiveren worden gewijzigd.</p>}
+      <label className="management-checkbox"><input name="enablePaymentRequests" type="checkbox" checked={form.settings.enablePaymentRequests} onChange={event => setForm(current => ({ ...current, settings: { ...current.settings, enablePaymentRequests: event.target.checked } }))} /> Declaraties inschakelen</label>
       {Object.entries(GROUP_SETTINGS).map(([key, label]) => <label key={key}>{label}<input type={key.endsWith('Email') ? 'email' : 'text'} maxLength={key.endsWith('Email') ? 254 : 300} value={form.settings[key]} onChange={event => setForm(current => ({ ...current, settings: { ...current.settings, [key]: event.target.value } }))} /></label>)}
       <label className="management-checkbox"><input type="checkbox" checked={form.settings.allowUserSelfAttendance} onChange={event => setForm(current => ({ ...current, settings: { ...current.settings, allowUserSelfAttendance: event.target.checked } }))} /> Leden mogen hun eigen aanwezigheid wijzigen</label>
       {mutation.error && <p role="alert" className="management-error">{mutation.error.message}</p>}
@@ -149,7 +155,11 @@ export default function DeveloperPage({ user, onLogout }) {
   const visibleGroups = groups.filter(group => (scope === '__all__' || group.id === scope) && `${group.name} ${group.id}`.toLowerCase().includes(search.toLowerCase()))
   return <div className="developer-page">
     <header className="developer-heading"><div><p className="developer-eyebrow">Stamjer beheer</p><h1>Developer</h1><p>Beheer groepen, gebruikers en evenementen.</p></div>
-      {tab !== 'account' && <label>Groep<select value={scope} onChange={event => { setScope(event.target.value); setSearch('') }}><option value="__all__">Alle groepen</option>{groups.map(group => <option key={group.id} value={group.id}>{group.name || group.id}{group.status === 'archived' ? ' (gearchiveerd)' : ''}</option>)}</select></label>}
+      {tab !== 'account' && <label>Groep<select value={scope} onChange={event => {
+        if (queryClient.isMutating() || hasPendingGroupWrites()) return
+        if ((groupEditor || eventEditor || deleting || rotation) && !window.confirm('Van groep wisselen en het open formulier sluiten?')) return
+        setGroupEditor(null); setEventEditor(null); setDeleting(null); setRotation(null); setScope(event.target.value); setSearch('')
+      }}><option value="__all__">Alle groepen</option>{groups.map(group => <option key={group.id} value={group.id}>{group.name || group.id}{group.status === 'archived' ? ' (gearchiveerd)' : ''}</option>)}</select></label>}
     </header>
     <nav className="developer-tabs" aria-label="Developer onderdelen">{Object.entries({ groups: 'Groepen', users: 'Gebruikers', events: 'Evenementen', database: 'Database', audit: 'Audit', account: 'Account' }).map(([key, label]) => <button key={key} className={tab === key ? 'is-active' : ''} aria-current={tab === key ? 'page' : undefined} onClick={() => { setTab(key); setSearch('') }}>{label}</button>)}</nav>
     {groupsQuery.error && <p role="alert" className="management-error">{groupsQuery.error.message}</p>}

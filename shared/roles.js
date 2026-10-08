@@ -1,5 +1,6 @@
 export function normalizeUserRole(user = {}) {
   if (!user) return 'user'
+  if (user.globalRole === 'developer') return 'developer'
   if (Object.hasOwn(user, 'role')) return ['user', 'admin', 'developer'].includes(user.role) ? user.role : 'user'
   return user.isAdmin === true ? 'admin' : 'user'
 }

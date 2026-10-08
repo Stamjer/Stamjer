@@ -154,12 +154,12 @@ export default function MyAccount({ user: userProp, onLogout }) {
       return null
     }
   }, [userProp])
-  const { data: queriedUsers = [], isLoading: usersLoading, error: usersQueryError } = useUsersWithStreepjes({ enabled: Boolean(user) })
+  const { data: queriedUsers = [], isLoading: usersLoading, error: usersQueryError } = useUsersWithStreepjes({ enabled: Boolean(user && (!user.memberships || user.groupId)) })
   const {
     data: queriedEvents = [],
     isLoading: isOpkomstenLoading,
     error: opkomstenQueryError
-  } = useRawEvents({ enabled: Boolean(user) })
+  } = useRawEvents({ enabled: Boolean(user && (!user.memberships || user.groupId)) })
   const updateProfileMutation = useUpdateUserProfile()
   const userWithStreepjes = queriedUsers.find(candidate => candidate.id === user?.id) || null
   const opkomstenError = opkomstenQueryError
@@ -386,7 +386,7 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
                         isAdmin(user) ? 'account-pill-admin' : 'account-pill-user'
                       }`}
                     >
-                      {isAdmin(user) ? 'Administrator' : 'Gebruiker'}
+                      {isAdmin(user) ? 'Beheerder' : 'Gebruiker'}
                     </span>
                   </div>
                   <div className="info-item">
@@ -486,7 +486,7 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
               </div>
               <div className="account-card-body">
                 <div className="setting-section setting-section-activity">
-                  {userStatus !== 'legacy' ? (
+                  {(user.memberships ? user.membershipState === 'current' : userStatus !== 'legacy') && (!user.memberships || user.groupId) ? (
                     <>
                       <div className="setting-item">
                         <div className="setting-label">
@@ -520,10 +520,12 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
                       <div className="setting-label">
                         <h6>Account status</h6>
                         <p>
-                          {userStatus === 'inactive'
+                          {user.memberships && !user.groupId ? 'Je account heeft geen toegankelijke groepslidmaatschappen. Je kunt je wachtwoord wijzigen en uitloggen.' : user.membershipState === 'ended' ? `Je bent Alumni in deze groep. Je kunt de kalender voor je lidmaatschapsperioden${user.permissions?.canUsePaymentRequests ? ' en je eerdere declaraties' : ''} bekijken. Historische gegevens zijn alleen leesbaar.` : userStatus === 'inactive'
                             ? 'Je account is momenteel inactief. Je wordt niet automatisch aangemeld voor opkomsten. Neem contact op met een beheerder als dit niet klopt.'
                             : isAdmin(user)
-                            ? 'Je account is Alumni. Je wordt niet meegenomen in deelnemerslijsten, maar behoudt als admin toegang tot beheer en alle sitefuncties.'
+                            ? 'Je account is Alumni. Je wordt niet meegenomen in deelnemerslijsten, maar behoudt als admin toegang tot beheer en de beschikbare sitefuncties.'
+                            : user.permissions?.canUsePaymentRequests === false
+                            ? 'Je account is Alumni. Je hebt toegang tot je account. Declaraties zijn uitgeschakeld voor deze groep.'
                             : 'Je account is Alumni. Je hebt toegang tot declaraties en je account, maar niet tot kalender, opkomsten of strepen.'}
                         </p>
                       </div>
@@ -532,7 +534,7 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
                 </div>
 
                 <div className="setting-section">
-                  <CalendarSubscription user={user} />
+                  {(!user.memberships || user.groupId) && <CalendarSubscription user={user} />}
                 </div>
 
                 <div className="setting-section">

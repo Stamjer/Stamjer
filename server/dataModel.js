@@ -1,6 +1,7 @@
 export const USER_STATUSES = Object.freeze(['active', 'inactive', 'legacy'])
 
 export function normalizeUserStatus(user = {}) {
+  if (user.membershipState) return user.membershipState === 'ended' ? 'alumni' : ['active', 'inactive'].includes(user.status) ? user.status : 'inactive'
   if (USER_STATUSES.includes(user.status)) return user.status
   return 'active'
 }

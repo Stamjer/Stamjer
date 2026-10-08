@@ -1131,6 +1131,7 @@ export default function CalendarPage({ user: currentUser }) {
 
   // Ref for calendar wrapper to handle scroll detection
   const calendarWrapperRef = useRef(null)
+  const calendarRef = useRef(null)
 
   // ================================================================
   // QUERY HOOKS - TANSTACK QUERY
@@ -1151,7 +1152,7 @@ export default function CalendarPage({ user: currentUser }) {
   const { 
     data: users = [], 
     isLoading: usersLoading 
-  } = useUsers()
+  } = useUsers({ enabled: currentUser?.membershipState !== 'ended' })
   const activeMemberUsers = useMemo(() => users.filter(isActiveMember), [users])
 
   useEffect(() => {
@@ -1459,6 +1460,11 @@ export default function CalendarPage({ user: currentUser }) {
       <div className="calendar-container">
         <div className="calendar-header">
           <h1 className="calendar-title">Kalender</h1>
+          {currentUser?.memberships && <label>Maand en jaar<input aria-label="Kalendermaand" type="month" value={`${viewDate.getFullYear()}-${String(viewDate.getMonth() + 1).padStart(2, '0')}`} onChange={event => {
+            if (!event.target.value) return
+            const date = new Date(`${event.target.value}-01T12:00:00`)
+            setViewDate(date); calendarRef.current?.getApi().gotoDate(date)
+          }} /></label>}
           {(createEventMutation.isPending || updateEventMutation.isPending || deleteEventMutation.isPending) && (
             <div className="calendar-loading-indicator">
               <div className="loading-spinner small"></div>
@@ -1486,7 +1492,7 @@ export default function CalendarPage({ user: currentUser }) {
                 showError('Er is een fout opgetreden in de kalender')
               }}
             >
-              <FullCalendar {...calendarConfig} />
+              <FullCalendar ref={calendarRef} {...calendarConfig} initialDate={viewDate} />
             </CalendarErrorBoundary>
           )}
         </div>

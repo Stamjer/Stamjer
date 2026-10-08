@@ -7,11 +7,14 @@ import { mapGroupForClient, persistGroupSettings, validateGroupInput } from './g
 import { buildUserUpdate, mapManagedUser } from './userManagement.js'
 import { EVENT_EDIT_FIELDS, validateEventInput } from './eventManagement.js'
 import { sanitizeIdArray } from './dataModel.js'
+import { membershipMode, mapMembership } from './memberships.js'
 
-export const DATABASE_COLLECTIONS = ['groups', 'users', 'events', 'userGroupHistory', 'auditLogs', 'sessions', 'resetCodes']
+export const DATABASE_COLLECTIONS = ['groups', 'users', 'events', 'userGroupHistory', 'auditLogs', 'sessions', 'resetCodes', 'groupMemberships', 'groupMembershipHistory']
 const EDIT_FIELDS = { users: ['firstName', 'lastName', 'email', 'role', 'status'], events: EVENT_EDIT_FIELDS, groups: ['name', 'slug', 'status', 'settings'] }
 function pick(record, fields) { return Object.fromEntries(fields.filter(key => Object.hasOwn(record, key)).map(key => [key, record[key]])) }
 export function mapDatabaseRecord(collection, record) {
+  if (collection === 'groupMemberships') return mapMembership(record)
+  if (collection === 'groupMembershipHistory') return pick(record, ['id', 'membershipId', 'userId', 'groupId', 'action', 'timestamp', 'actorId', 'state', 'previousState', 'role', 'status', 'previousRole', 'previousStatus', 'periods', 'migrationAccessCutoff'])
   if (collection === 'groups') return mapGroupForClient(record)
   if (collection === 'users') return mapManagedUser(record)
   if (collection === 'events') return { ...pick(record, ['id', ...EVENT_EDIT_FIELDS]), groupId: getEventGroupId(record),
@@ -64,6 +67,7 @@ export function createDatabaseManagementRouter({ requireAuthenticatedUser, getDb
     const page = Number(req.query.page || 1)
     if (!Number.isSafeInteger(page) || page < 1 || page > 100000) throw new GroupAccessError('Ongeldige pagina', 400)
     const db = await getDb()
+    const migrated = await membershipMode(db)
     let filter = {}
     if (groupId) {
       if (collection === 'groups') filter.id = groupId
@@ -73,6 +77,11 @@ export function createDatabaseManagementRouter({ requireAuthenticatedUser, getDb
         filter[field] = { $in: members.filter(user => !isDeveloper(user)).map(user => user[collection === 'sessions' ? 'id' : 'email']) }
       } else if (collection === 'auditLogs') filter.$or = [{ groupId }, { destinationGroupId: groupId }]
       else filter = ['users', 'events'].includes(collection) && groupId === 'stam-default' ? { $or: [{ groupId }, { groupId: { $exists: false } }] } : { groupId }
+      if (migrated && ['users', 'sessions', 'resetCodes'].includes(collection)) {
+        const memberships = await db.collection('groupMemberships').find({ groupId }).toArray()
+        const identities = await db.collection('users').find({ id: { $in: memberships.map(m => m.userId) } }).toArray()
+        filter = collection === 'users' ? { id: { $in: identities.map(u => u.id) } } : collection === 'sessions' ? { userId: { $in: identities.map(u => u.id) } } : { email: { $in: identities.map(u => u.email) } }
+      }
     }
     if (collection === 'auditLogs') {
       if (req.query.action) { if (typeof req.query.action !== 'string' || req.query.action.length > 80) throw new GroupAccessError('Ongeldige actie', 400); filter.action = req.query.action }
@@ -81,7 +90,7 @@ export function createDatabaseManagementRouter({ requireAuthenticatedUser, getDb
     const total = await db.collection(collection).countDocuments(filter)
     const records = await db.collection(collection).find(filter).sort(collection === 'auditLogs' ? { timestamp: -1, id: -1 } : collection === 'userGroupHistory' ? { movedAt: -1, id: -1 } : collection === 'sessions' ? { createdAt: -1, sessionId: 1 } : collection === 'resetCodes' ? { createdAt: -1, email: 1 } : { id: 1 }).skip((page - 1) * 30).limit(30).toArray()
     const groups = ['users', 'events'].includes(collection) ? await db.collection('groups').find({}).toArray() : []
-    res.json({ records: records.map(record => ({ record: mapDatabaseRecord(collection, record), editable: ['users', 'events'].includes(collection) && groups.find(group => group.id === (collection === 'users' ? getUserGroupId(record) : getEventGroupId(record)))?.status !== 'active' ? null : editableDatabaseRecord(collection, record) })), total, page, pages: Math.max(1, Math.ceil(total / 30)) })
+    res.json({ records: records.map(record => ({ record: mapDatabaseRecord(collection, record), editable: migrated && collection === 'users' ? pick(record, ['firstName', 'lastName', 'email']) : ['users', 'events'].includes(collection) && groups.find(group => group.id === (collection === 'users' ? getUserGroupId(record) : getEventGroupId(record)))?.status !== 'active' ? null : editableDatabaseRecord(collection, record) })), total, page, pages: Math.max(1, Math.ceil(total / 30)) })
   })
   router.post('/:collection/:id/preview', async (req, res) => {
     const { collection } = req.params
@@ -91,7 +100,9 @@ export function createDatabaseManagementRouter({ requireAuthenticatedUser, getDb
     const current = await db.collection(collection).findOne({ id })
     if (!current) throw new GroupAccessError('Record niet gevonden', 404)
     if (!editableDatabaseRecord(collection, current)) throw new GroupAccessError('Dit record is alleen leesbaar', 400)
-    if (collection !== 'groups') {
+    const migrated = await membershipMode(db)
+    if (migrated && collection === 'users' && Object.keys(req.body).some(key => !['firstName', 'lastName', 'email'].includes(key))) throw new GroupAccessError('Rollen en statussen worden via lidmaatschappen beheerd', 400)
+    if (collection !== 'groups' && !(migrated && collection === 'users')) {
       const groupId = collection === 'users' ? getUserGroupId(current) : getEventGroupId(current)
       const group = await db.collection('groups').findOne({ id: groupId })
       if (group?.status !== 'active') throw new GroupAccessError('Groep is gearchiveerd')
@@ -99,7 +110,14 @@ export function createDatabaseManagementRouter({ requireAuthenticatedUser, getDb
     let next
     if (collection === 'users') next = buildUserUpdate(req.databaseActor, current, req.body)
     else if (collection === 'groups') { const patch = validateGroupInput(req.body); next = { ...current, ...patch, settings: { ...current.settings, ...patch.settings } } }
-    else { validateEventInput(current, req.body, await db.collection('users').find({}).toArray()); next = { ...current, ...req.body } }
+    else {
+      const identities = await db.collection('users').find({}).toArray()
+      if (migrated) {
+        const memberships = await db.collection('groupMemberships').find({}).toArray()
+        for (const user of identities) user.memberships = memberships.filter(m => m.userId === user.id)
+      }
+      validateEventInput(current, req.body, identities); next = { ...current, ...req.body }
+    }
     const before = editableDatabaseRecord(collection, current)
     const after = editableDatabaseRecord(collection, next)
     const changedFields = Object.keys(after).filter(key => JSON.stringify(before[key]) !== JSON.stringify(after[key]))

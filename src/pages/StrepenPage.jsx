@@ -50,9 +50,9 @@ function Toast({ message, type = 'info', onClose }) {
   )
 }
 
-export default function StrepenPage() {
+export default function StrepenPage({ user: userProp }) {
   const navigate = useNavigate()
-  const [user, setUser] = useState(null)
+  const [user, setUser] = useState(userProp || null)
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [attendance, setAttendance] = useState({})
   const [isSaving, setIsSaving] = useState(false)
@@ -87,6 +87,7 @@ export default function StrepenPage() {
 
   // Get user from localStorage
   useEffect(() => {
+    if (userProp) { setUser(userProp); return }
     try {
       const userData = JSON.parse(localStorage.getItem('user'))
       if (!isAdmin(userData)) {
@@ -97,7 +98,7 @@ export default function StrepenPage() {
     } catch {
       navigate('/login')
     }
-  }, [navigate])
+  }, [navigate, userProp])
 
   // Select today's, the next, or the latest opkomst after query data arrives.
   useEffect(() => {
@@ -123,7 +124,7 @@ export default function StrepenPage() {
     if (!selectedEvent || users.length === 0) return
 
     const existing = selectedEvent.attendance || {}
-    const next = {}
+    const next = Object.fromEntries(Object.entries(existing).map(([id, value]) => [id, Boolean(value?.present ?? value)]))
 
     users.forEach(u => {
       const uid = u.id.toString()
@@ -147,6 +148,7 @@ export default function StrepenPage() {
   // Toggle updates local state and saves automatically
   const handleAttendanceToggle = async (u) => {
     if (isSaving) return // Prevent multiple simultaneous saves
+    if (user?.memberships && new Date(selectedEvent.start) > new Date()) { showToast('Aanwezigheid kan pas na de start worden vastgelegd.', 'error'); return }
     
     setIsSaving(true)
     
@@ -198,7 +200,7 @@ export default function StrepenPage() {
   }
 
   const sortedUsers = [...users]
-    .filter(u => (u.status || 'active') !== 'legacy')
+    .filter(u => user?.memberships || (u.status || 'active') !== 'legacy')
     .sort((a, b) => {
     const aP = selectedEvent.participants.includes(a.id)
     const bP = selectedEvent.participants.includes(b.id)

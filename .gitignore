@@ -94,6 +94,7 @@ vite.config.js.timestamp-*
 *.docx
 /docs/*
 !/docs/groups-remodel.md
+!/docs/membership-rollout.md
 
 # Additional system files
 Thumbs.db

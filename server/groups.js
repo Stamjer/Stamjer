@@ -27,7 +27,13 @@ export function normalizeGroupUser(user) {
 }
 
 export function getGroupMembers(users, groupId) {
-  return users.filter((user) => !isDeveloper(user) && getUserGroupId(user) === groupId)
+  return users.flatMap(user => {
+    if (isDeveloper(user)) return []
+    if (!user.memberships) return getUserGroupId(user) === groupId ? [user] : []
+    const membership = user.memberships.find(m => m.groupId === groupId)
+    return membership ? [{ ...user, groupId, role: membership.state === 'current' ? membership.role : 'user', status: membership.state === 'ended' ? 'alumni' : membership.status,
+      membershipId: membership.id, membershipState: membership.state, membership }] : []
+  })
 }
 
 export function createDefaultGroup(settings = {}, now = new Date()) {
@@ -72,9 +78,14 @@ export const GROUP_INDEXES = Object.freeze({
 export function calculateGroupStreepjes(users, events, groupId) {
   const counts = Object.fromEntries(getGroupMembers(users, groupId).map((user) => [user.id, 0]))
   for (const event of events) {
-    if (getEventGroupId(event) !== groupId || !event.isOpkomst || !event.attendance) continue
+    if (getEventGroupId(event) !== groupId || (!event.isOpkomst && !event.attendanceMeta) || !event.attendance) continue
     const participants = sanitizeIdArray(event.participants)
     for (const [id, value] of Object.entries(event.attendance)) {
+      if (event.attendanceMeta?.[id]) {
+        counts[id] = (counts[id] || 0) + event.attendanceMeta[id].streepjes
+        continue
+      }
+      if (users.some(user => user.memberships)) continue
       if (!Object.hasOwn(counts, id)) continue
       const present = Boolean(value && typeof value === 'object' ? value.present : value)
       if (participants.includes(Number(id)) !== present) counts[id]++
@@ -92,7 +103,8 @@ export function getEventMembershipError(event, input, users) {
     for (const value of input[field]) {
       const id = sanitizeUserId(value)
       const user = members.get(id)
-      if (id === null || !user) return `${field} bevat een gebruiker buiten deze groep`
+      if ((event.attendanceMeta || users.some(u => u.memberships)) && id !== null && sanitizeIdArray(event[field]).includes(id)) continue
+      if (id === null || !user || (user.membershipState && user.membershipState !== 'current')) return `${field} bevat een gebruiker buiten deze groep`
       if (!sanitizeIdArray(event[field]).includes(id) && (field === 'participants' ? user.status === 'legacy' : user.status !== 'active')) {
         return `${field} bevat een gebruiker met een ongeldige status`
       }
@@ -103,7 +115,7 @@ export function getEventMembershipError(event, input, users) {
       return 'attendance moet een object zijn'
     }
     for (const [id, value] of Object.entries(input.attendance)) {
-      if (!members.has(Number(id)) || String(Number(id)) !== id) return 'attendance bevat een gebruiker buiten deze groep'
+      if ((!members.has(Number(id)) && !Object.hasOwn(event.attendance || {}, id) && !sanitizeIdArray(event.participants).includes(Number(id))) || String(Number(id)) !== id) return 'attendance bevat een gebruiker buiten deze groep'
       if (typeof value !== 'boolean' && !(value && typeof value === 'object' && typeof value.present === 'boolean')) {
         return 'Aanwezigheid moet true of false zijn'
       }

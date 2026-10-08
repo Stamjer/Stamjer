@@ -22,6 +22,19 @@ describe('group management validation and privacy', () => {
     assert.equal(group.hasCalendarSubscription, true)
     assert.doesNotMatch(JSON.stringify(group), /private/)
   })
+  it('accepts only boolean declarations settings and exposes saved values', () => {
+    for (const enablePaymentRequests of [false, true]) {
+      const settings = { enablePaymentRequests }
+      assert.deepEqual(validateGroupInput({ settings }).settings, settings)
+      const created = validateGroupInput({ id: 'new-group', name: 'New group', settings }, { creating: true })
+      assert.equal(created.settings.enablePaymentRequests, enablePaymentRequests)
+      assert.equal(mapGroupForClient({ id: 'stam', settings }).settings.enablePaymentRequests, enablePaymentRequests)
+    }
+    for (const enablePaymentRequests of ['false', 'true', 0, 1, null, {}, []]) {
+      assert.throws(() => validateGroupInput({ settings: { enablePaymentRequests } }), { status: 400 })
+    }
+    assert.equal(mapGroupForClient({ id: 'stam', settings: {} }).settings.enablePaymentRequests, undefined)
+  })
   it('excludes developers and other groups from summaries', () => {
     const summary = summarizeGroup({ id: 'stam' }, [
       { id: 1, groupId: 'stam', role: 'admin', status: 'active' },

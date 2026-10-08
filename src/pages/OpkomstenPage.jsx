@@ -929,7 +929,7 @@ export default function OpkomstenPage({ user: currentUser }) {
                       <div className="admin-participants-grid">
                         {users.length > 0 ? (
                           users
-                            .filter(u => u.status !== 'legacy')
+                            .filter(u => u.membershipState ? u.membershipState === 'current' : u.status !== 'legacy')
                             .sort((a, b) => a.firstName.localeCompare(b.firstName, 'nl-NL'))
                             .map(user => {
                               const isParticipating = event.participants && event.participants.includes(user.id)

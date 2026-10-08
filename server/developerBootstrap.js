@@ -6,6 +6,7 @@ import { logEvent } from './logger.js'
 import { writeAudit } from './audit.js'
 
 export async function bootstrapDeveloper(db, { email, firstName = 'Developer', lastName = 'Stamjer', apply = false }) {
+  if (await db.collection('schemaMigrations').findOne({ id: 'multi-group-v2' })) throw new Error('Initial bootstrap is retired after membership migration; retain the existing global developer identity.')
   const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : ''
   if (!validator.isEmail(normalizedEmail)) throw new Error('Een geldig developer-e-mailadres is verplicht')
   if (typeof firstName !== 'string' || !firstName.trim() || firstName.length > 80

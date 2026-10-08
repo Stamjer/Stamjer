@@ -9,7 +9,7 @@ export function mapManagedUser(user, streepjes = 0) {
     id: normalized.id, firstName: normalized.firstName, lastName: normalized.lastName,
     email: normalized.email, role: normalized.role, groupId: normalized.groupId,
     isAdmin: normalized.isAdmin, isDeveloper: normalized.isDeveloper,
-    status: normalized.status, streepjes
+    status: normalized.status, streepjes, ...(user.membershipId ? { membershipId: user.membershipId, membershipState: user.membershipState } : {})
   }
 }
 

@@ -2,6 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { withSupportContact } from '../config/appInfo'
 import { submitPaymentRequest } from '../services/api'
 import './PaymentRequestPage.css'
+import PaymentHistory from '../components/PaymentHistory'
+import { useQueryClient } from '@tanstack/react-query'
+import { getGroupContext } from '../lib/groupContext'
 
 const MAX_FILES = 3
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5 MB per file
@@ -18,6 +21,7 @@ const EXTENSION_TO_TYPE = {
 }
 const DRAFT_STORAGE_PREFIX = 'paymentRequestDraft'
 const DRAFT_FIELDS = [
+  'requestKey',
   'requesterName',
   'requesterEmail',
   'expenseTitle',
@@ -137,6 +141,7 @@ function getInitialFormData(user) {
   const dateToday = new Date().toISOString().split('T')[0]
 
   return {
+    requestKey: crypto.randomUUID(),
     requesterName: fullName || '',
     requesterEmail: user?.email || '',
     expenseTitle: '',
@@ -162,7 +167,7 @@ function readFileAsDataUrl(file) {
 
 function getDraftStorageKey(user) {
   const userPart = user?.id ? String(user.id) : 'anonymous'
-  return `${DRAFT_STORAGE_PREFIX}:${userPart}`
+  return `${DRAFT_STORAGE_PREFIX}:${userPart}:${user?.groupId || 'unassigned'}`
 }
 
 function readStoredDraft(storageKey, fallbackData) {
@@ -237,11 +242,14 @@ function clearStoredDraft(storageKey) {
 }
 
 export default function PaymentRequestPage({ user: userProp }) {
+  const queryClient = useQueryClient()
   const resolvedUser = useMemo(
     () => resolveStoredUser(userProp),
     [userProp]
   )
   const draftStorageKey = getDraftStorageKey(resolvedUser)
+  const legacyDraftKey = `${DRAFT_STORAGE_PREFIX}:${resolvedUser?.id || 'anonymous'}`
+  const [hasLegacyDraft, setHasLegacyDraft] = useState(() => Boolean(localStorage.getItem(legacyDraftKey)))
   const [formData, setFormData] = useState(() => {
     const initialData = getInitialFormData(resolvedUser)
     return readStoredDraft(getDraftStorageKey(resolvedUser), initialData)
@@ -441,6 +449,7 @@ export default function PaymentRequestPage({ user: userProp }) {
     }
 
     setIsSubmitting(true)
+    const submissionScope = getGroupContext()
 
     try {
       const preparedAttachments = await Promise.all(
@@ -456,27 +465,30 @@ export default function PaymentRequestPage({ user: userProp }) {
         })
       )
 
-      await submitPaymentRequest({
+      if (submissionScope.generation !== getGroupContext().generation) throw new Error('Groep is gewijzigd; de declaratie is niet ingediend.')
+      const result = await submitPaymentRequest({
+        ...(resolvedUser.groupId ? { groupId: resolvedUser.groupId } : {}),
         userId: resolvedUser?.id,
         ...formData,
         amount: Number.parseFloat(formData.amount),
         attachments: preparedAttachments
       })
 
-      setStatusMessage('Je declaratie is verzonden! De penningmeester stuurt een bevestiging zodra de declaratie is goedgekeurd.')
-      resetForm()
+      setStatusMessage(result.msg || 'Declaratie opgeslagen; controleer de verzendstatus in de historie.')
+      if (result.declaration?.status === 'smtp-accepted') resetForm()
     } catch (error) {
       console.error('Payment request failed', error)
       setErrorMessage(withSupportContact(error.message || 'Versturen mislukt. Probeer het later opnieuw.'))
     } finally {
       setIsSubmitting(false)
+      queryClient.invalidateQueries({ queryKey: ['payment-history', resolvedUser.id, resolvedUser.groupId] })
     }
   }
 
   return (
     <section className="payment-request-page">
       <header className="payment-request-header">
-        <h1>Declaratie indienen</h1>
+        <h1>{resolvedUser.membershipState === 'ended' ? 'Mijn declaraties' : 'Declaratie indienen'}</h1>
         <p>
           Heb je voorgeschoten voor de stam?
         </p>
@@ -486,8 +498,11 @@ export default function PaymentRequestPage({ user: userProp }) {
       </header>
 
       <div className="payment-request-content">
+        {hasLegacyDraft && resolvedUser.membershipState !== 'ended' && <p>Er is een eerder concept zonder groepskeuze bewaard. <button type="button" onClick={() => {
+          setFormData(readStoredDraft(legacyDraftKey, getInitialFormData(resolvedUser))); clearStoredDraft(legacyDraftKey); setHasLegacyDraft(false)
+        }}>Concept aan deze groep koppelen</button></p>}
 
-        <form className="payment-request-form" onSubmit={handleSubmit} noValidate>
+        {resolvedUser.membershipState === 'ended' ? <p>Je kunt als Alumni je eerdere declaraties bekijken. Nieuwe aanvragen indienen is niet beschikbaar.</p> : <form className="payment-request-form" onSubmit={handleSubmit} noValidate>
           <div className="payment-request-grid">
             <div className={`form-field${validationErrors.requesterName ? ' has-error' : ''}`}>
               <label htmlFor="requesterName">Naam</label>
@@ -723,7 +738,8 @@ export default function PaymentRequestPage({ user: userProp }) {
               Alles leegmaken
             </button> */}
           </div>
-        </form>
+        </form>}
+        <PaymentHistory user={resolvedUser} />
       </div>
     </section>
   )

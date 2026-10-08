@@ -84,12 +84,14 @@ describe('group API over real HTTP with local DB/mail substitutes', () => {
     assert.equal(admin.data.user.role, 'admin')
     assert.equal(admin.data.user.groupId, 'stam-default')
     assert.equal(admin.data.user.permissions.canManageUsers, true)
+    assert.equal(admin.data.user.permissions.canUsePaymentRequests, true)
     assert.equal(admin.data.user.password, undefined)
     const developer = await api('developer', '/session')
     assert.equal(developer.data.user.role, 'developer')
     assert.equal(developer.data.user.groupId, null)
     assert.equal(developer.data.user.isAdmin, false)
     assert.equal(developer.data.user.permissions.canUseAttendance, false)
+    assert.equal(developer.data.user.permissions.canUsePaymentRequests, false)
   })
 
   it('filters user lists and keeps full profiles private for ordinary members', async () => {
@@ -179,6 +181,58 @@ describe('group API over real HTTP with local DB/mail substitutes', () => {
     assert.equal(newAdmin.data.user.role, 'admin')
   })
 
+  it('disables declarations per group for existing sessions and restores them without changing recipients', async () => {
+    const path = '/groups/stam-default'
+    const patch = { settings: { enablePaymentRequests: false } }
+    for (const actor of [null, 'member', 'admin']) {
+      assert.equal((await api(actor, path, 'PATCH', patch)).status, actor ? 403 : 401)
+    }
+    assert.equal((await api('developer', path, 'PATCH', { settings: { enablePaymentRequests: 'false' } })).status, 400)
+    const disabled = await api('developer', path, 'PATCH', patch)
+    assert.equal(disabled.status, 200)
+    assert.equal(disabled.data.group.settings.enablePaymentRequests, false)
+    assert.equal(disabled.data.group.settings.paymentRequestEmail, 'stam-pay@example.test')
+    assert.equal((await api('developer', path)).data.group.settings.enablePaymentRequests, false)
+    assert.equal(db.data.groups.find(group => group.id === 'stam-default').settings.enablePaymentRequests, false)
+    const audit = db.data.auditLogs.at(-1)
+    assert.equal(audit.action, 'group-updated')
+    assert.equal(audit.groupId, 'stam-default')
+    assert.ok(audit.changedFields.includes('settings'))
+    try {
+      for (const actor of ['member', 'admin', 'alumni']) {
+        assert.equal((await api(actor, '/session')).data.user.permissions.canUsePaymentRequests, false)
+      }
+      const login = await api(null, '/login', 'POST', { email: 'member@example.test', password: 'test-password' })
+      assert.equal(login.status, 200)
+      assert.equal(login.data.user.permissions.canUsePaymentRequests, false)
+      assert.equal((await api('foreign', '/session')).data.user.permissions.canUsePaymentRequests, true)
+      const count = sentMail.length
+      for (const actor of ['member', 'admin', 'alumni', 'developer']) {
+        const result = await api(actor, '/payment-requests', 'POST', { groupId: 'stam-default', attachments: 'invalid' })
+        assert.equal(result.status, 403)
+        assert.equal(result.data.error, 'Declaraties zijn uitgeschakeld voor deze groep.')
+      }
+      assert.equal(sentMail.length, count)
+      const request = {
+        requesterName: 'Stam Member', requesterEmail: 'member@example.test',
+        expenseTitle: 'Groepskosten', paidTo: 'Winkel', expenseDate: '2026-10-01', amount: '12.50',
+        paymentMethod: 'paymentLink', paymentLink: 'https://example.com/payment', attachments: []
+      }
+      assert.equal((await api('foreign', '/payment-requests', 'POST', request)).status, 201)
+      assert.equal(sentMail.at(-1).to, 'explorers-pay@example.test')
+      const enabled = await api('developer', path, 'PATCH', { settings: { enablePaymentRequests: true } })
+      assert.equal(enabled.status, 200)
+      assert.equal(enabled.data.group.settings.paymentRequestEmail, 'stam-pay@example.test')
+      assert.equal((await api('member', '/session')).data.user.permissions.canUsePaymentRequests, true)
+      const enabledLogin = await api(null, '/login', 'POST', { email: 'member@example.test', password: 'test-password' })
+      assert.equal(enabledLogin.data.user.permissions.canUsePaymentRequests, true)
+      assert.equal((await api('member', '/payment-requests', 'POST', request)).status, 201)
+      assert.equal(sentMail.at(-1).to, 'stam-pay@example.test')
+    } finally {
+      await api('developer', path, 'PATCH', { settings: { enablePaymentRequests: true } })
+    }
+  })
+
   it('routes payment requests to the actor group and rejects unconfigured recipients', async () => {
     const request = {
       requesterName: 'Foreign Admin', requesterEmail: 'foreign@example.test',
@@ -229,8 +283,10 @@ describe('group API over real HTTP with local DB/mail substitutes', () => {
   })
 
   it('creates and edits group settings, rejects invalid fields and archives without deleting data', async () => {
-    const created = await api('developer', '/groups', 'POST', { id: 'rovers', name: 'Rovers', settings: { paymentRequestEmail: 'rovers@example.test' } })
+    const created = await api('developer', '/groups', 'POST', { id: 'rovers', name: 'Rovers', settings: { paymentRequestEmail: 'rovers@example.test', enablePaymentRequests: false } })
     assert.equal(created.status, 201)
+    assert.equal(created.data.group.settings.enablePaymentRequests, false)
+    assert.equal((await api('developer', '/groups/rovers')).data.group.settings.enablePaymentRequests, false)
     assert.equal((await api('developer', '/groups', 'POST', { id: 'rovers', name: 'Duplicate' })).status, 409)
     assert.equal((await api('developer', '/groups/rovers', 'PATCH', { id: 'other' })).status, 400)
     assert.equal((await api('developer', '/groups/rovers', 'PATCH', { settings: { paymentRequestEmail: 'invalid' } })).status, 400)
@@ -238,6 +294,7 @@ describe('group API over real HTTP with local DB/mail substitutes', () => {
     assert.equal(updated.status, 200)
     assert.equal(updated.data.group.settings.paymentRequestEmail, 'rovers@example.test')
     assert.equal(updated.data.group.settings.calendarName, 'Rovers agenda')
+    assert.equal(updated.data.group.settings.enablePaymentRequests, false)
     assert.equal((await api('developer', '/events', 'POST', { groupId: 'rovers', title: 'Archived', start: '2099-01-01' })).status, 403)
     assert.equal((await api('developer', '/groups/rovers', 'PATCH', { status: 'active' })).status, 200)
     assert.equal((await api('developer', '/groups/rovers', 'PATCH', { slug: 'explorers' })).status, 409)
@@ -304,50 +361,13 @@ describe('group API over real HTTP with local DB/mail substitutes', () => {
     assert.equal((await api('developer', '/users/4', 'PATCH', { status: 'active' })).status, 400)
   })
 
-  it('previews and moves members through developer-only endpoints with isolated source history and revoked sessions', async () => {
-    const created = await api('developer', '/users', 'POST', { firstName: 'Moving', lastName: 'Admin', email: 'moving@example.test', groupId: 'stam-default', role: 'admin' })
-    assert.equal(created.status, 201)
-    const target = db.data.users.find(user => user.id === created.data.user.id)
-    assert.equal((await api(null, '/forgot-password', 'POST', { email: target.email })).status, 200)
-    const code = db.data.resetCodes.find(record => record.email === target.email).code
-    assert.equal((await api(null, '/reset-password', 'POST', { email: target.email, code, password: 'moving-password' })).status, 200)
-    const login = await fetch(`${origin}/api/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: target.email, password: 'moving-password' }) })
-    assert.equal(login.status, 200)
-    cookies.moving = login.headers.get('set-cookie').split(';')[0]
-    assert.equal((await api('admin', `/users/${target.id}/group/preview`, 'POST', { groupId: 'explorers' })).status, 403)
-    assert.equal((await api('moving', `/users/${target.id}/group`, 'PATCH', { groupId: 'explorers' })).status, 403)
-    assert.equal((await api('developer', `/users/${target.id}/group`, 'PATCH', { groupId: 'explorers' })).status, 400)
-    assert.equal((await api('developer', '/users/4/group/preview', 'POST', { groupId: 'explorers' })).status, 400)
-    const before = structuredClone({ users: db.data.users, events: db.data.events, sessions: db.data.sessions })
-    const preview = await api('developer', `/users/${target.id}/group/preview`, 'POST', { groupId: 'explorers' })
-    assert.equal(preview.status, 200)
-    assert.deepEqual({ users: db.data.users, events: db.data.events, sessions: db.data.sessions }, before)
-    const moved = await api('developer', `/users/${target.id}/group`, 'PATCH', { groupId: 'explorers', previewToken: preview.data.previewToken })
-    assert.equal(moved.status, 200)
-    assert.equal(moved.data.user.role, 'user')
-    assert.equal(moved.data.user.groupId, 'explorers')
-    assert.equal(moved.data.user.streepjes, 0)
-    assert.doesNotMatch(JSON.stringify(moved.data), /password|_revision/)
-    assert.equal((await api('moving', '/session')).status, 401)
-    assert.equal((await api('admin', '/users/full')).data.users.some(user => user.id === target.id), false)
-    assert.equal((await api('foreign', '/users/full')).data.users.some(user => user.id === target.id), true)
-    const history = await api('admin', '/users/group-history')
-    assert.equal(history.data.history.length, 1)
-    assert.equal(history.data.history[0].userId, target.id)
-    assert.doesNotMatch(JSON.stringify(history.data), /password|email|references|destinationGroupId/)
-    assert.equal((await api('foreign', '/users/group-history')).data.history.length, 0)
-    assert.equal((await api('alumni', '/users/group-history')).status, 403)
-    assert.equal((await api('admin', '/users/group-history?groupId=explorers')).status, 403)
-    assert.equal((await api('developer', '/users/group-history')).status, 400)
-    assert.equal((await api('developer', '/users/group-history?allGroups=true')).data.history.length, 1)
-    assert.equal((await api('developer', `/users/${target.id}/group`, 'PATCH', { groupId: 'explorers', previewToken: preview.data.previewToken })).status, 400)
-    const newLogin = await fetch(`${origin}/api/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: target.email, password: 'moving-password' }) })
-    assert.equal(newLogin.status, 200)
-    assert.equal((await newLogin.json()).user.groupId, 'explorers')
-    cookies.moving = newLogin.headers.get('set-cookie').split(';')[0]
-    assert.equal((await api('moving', '/session')).data.user.role, 'user')
-    assert.equal((await api('moving', '/users/group-history')).status, 403)
-    assert.equal((await api('moving', '/events?groupId=stam-default')).status, 403)
+  it('retires transfer endpoints without changing either group or revoking sessions', async () => {
+    const before = structuredClone(db.data)
+    for (const actor of ['admin', 'developer', 'foreign']) {
+      assert.equal((await api(actor, '/users/1/group/preview', 'POST', { groupId: 'explorers' })).status, 410)
+      assert.equal((await api(actor, '/users/1/group', 'PATCH', { groupId: 'explorers', previewToken: 'old' })).status, 410)
+    }
+    assert.deepEqual(db.data, before)
   })
 
   it('authorizes with current database roles even when another process changes a freshly cached account', async () => {
@@ -431,13 +451,14 @@ describe('group API over real HTTP with local DB/mail substitutes', () => {
   })
 
   it('records successful business writes with group/actor/field metadata and filters audit scope', async () => {
-    const response = await api('developer', '/developer/database/auditLogs?groupId=explorers&action=user-group-moved')
+    const response = await api('developer', '/developer/database/auditLogs?groupId=explorers&action=user-updated')
     assert.equal(response.status, 200)
-    assert.equal(response.data.records.length, 1)
-    const move = response.data.records[0].record
-    assert.equal(move.actorId, 4)
-    assert.equal(move.destinationGroupId, 'explorers')
-    assert.ok(move.changedFields.includes('groupId'))
+    assert.ok(response.data.records.length > 0)
+    assert.ok(response.data.records.every(item => item.record.action === 'user-updated' && item.record.groupId === 'explorers'))
+    const edit = response.data.records.find(item => item.record.actorId === 4 && item.record.changedFields.includes('firstName')).record
+    assert.equal(edit.actorId, 4)
+    assert.equal(edit.groupId, 'explorers')
+    assert.ok(edit.changedFields.includes('firstName'))
     const groups = (await api('developer', '/groups')).data.groups
     assert.ok(groups.find(group => group.id === 'explorers').summary.latestActivity)
     const count = db.data.auditLogs.length

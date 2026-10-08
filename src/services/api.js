@@ -24,6 +24,7 @@
 /**
  * Base URL for all API requests
  */
+import { getGroupContext, trackGroupRequest } from '../lib/groupContext'
 const BASE_URL = '/api'
 
 /**
@@ -81,7 +82,7 @@ async function handleResponse(response, url) {
         errorMessage = 'Je bent niet ingelogd. Log opnieuw in.'
         break
       case 403:
-        errorMessage = 'Je hebt geen toegang tot deze actie.'
+        errorMessage = errorData?.msg || errorData?.message || errorData?.error || 'Je hebt geen toegang tot deze actie.'
         break
       case 404:
         errorMessage = 'De gevraagde informatie werd niet gevonden.'
@@ -151,6 +152,7 @@ async function handleResponse(response, url) {
  * @returns {Promise<Object>} Response data
  */
 async function request(url, options = {}, timeout = DEFAULT_TIMEOUT) {
+  const requestScope = getGroupContext()
   const fullUrl = url.startsWith('http') ? url : `${BASE_URL}${url}`
 
   if (import.meta.env.DEV) {
@@ -158,10 +160,12 @@ async function request(url, options = {}, timeout = DEFAULT_TIMEOUT) {
   }
 
   const controller = new AbortController()
+  const untrack = trackGroupRequest(controller, options.method || 'GET')
   const requestOptions = {
     ...options,
     signal: controller.signal,
     credentials: 'include',
+    headers: { ...(requestScope.groupId && !options.skipGroup && !/[?&](?:groupId|allGroups)=/.test(url) && !options.body?.groupId ? { 'X-Group-Id': requestScope.groupId } : {}), ...options.headers },
   }
 
   const shouldSerializeBody =
@@ -183,7 +187,9 @@ async function request(url, options = {}, timeout = DEFAULT_TIMEOUT) {
   try {
     timeoutId = setTimeout(() => controller.abort(), timeout)
     const response = await fetch(fullUrl, requestOptions)
-    return await handleResponse(response, fullUrl)
+    const data = await handleResponse(response, fullUrl)
+    if (requestScope.generation !== getGroupContext().generation) throw new Error('Groep is gewijzigd; de oude aanvraag is genegeerd.')
+    return data
   } catch (error) {
     if (error.name === 'AbortError') {
       throw new Error('De aanvraag duurde te lang en is afgebroken.')
@@ -195,10 +201,30 @@ async function request(url, options = {}, timeout = DEFAULT_TIMEOUT) {
 
     throw error
   } finally {
+    untrack()
     if (timeoutId) {
       clearTimeout(timeoutId)
     }
   }
+}
+
+export const getMemberships = (userId, groupId) => request(`/users/${userId}/memberships${groupScopeQuery(groupId)}`)
+export const getGlobalUsers = () => request('/developer/users')
+export const addMembership = (userId, data) => request(`/users/${userId}/memberships`, { method: 'POST', body: data })
+export const changeMembership = (id, data) => request(`/memberships/${id}`, { method: 'PATCH', body: data })
+export const previewMembershipEnd = id => request(`/memberships/${id}/end/preview`, { method: 'POST', body: {} })
+export const endMembership = (id, previewToken, revision) => request(`/memberships/${id}/end`, { method: 'POST', body: { previewToken, revision } })
+export const rejoinMembership = (id, revision) => request(`/memberships/${id}/rejoin`, { method: 'POST', body: { revision } })
+export const getMembershipHistory = id => request(`/memberships/${id}/history`)
+export const rotateMembershipSubscription = id => request(`/memberships/${id}/calendar-token/rotate`, { method: 'POST', body: {} })
+export const getPaymentHistory = () => request('/payment-requests')
+export const retryPaymentRequest = id => request(`/payment-requests/${id}/retry`, { method: 'POST', body: {} })
+export const downloadPaymentReceipt = async (id, file) => {
+  const response = await request(`/payment-requests/${id}/files/${file.id}`)
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a'); link.href = url; link.download = file.name; link.click()
+  URL.revokeObjectURL(url)
 }
 
 // ================================================================
@@ -230,9 +256,10 @@ export async function login(email, password) {
  * @returns {Promise<Object>} Current session data
  */
 export async function getCurrentSession() {
-  return request('/session', {
-    method: 'GET',
-  })
+  try { return await request('/session', { method: 'GET' }) } catch (error) {
+    if (error.status === 403) return request('/session', { method: 'GET', skipGroup: true })
+    throw error
+  }
 }
 
 /**
@@ -445,14 +472,15 @@ export function groupScopeQuery(scope) {
 }
 
 export async function getGroups() { return request('/groups') }
+export async function addExistingMembership(email, groupId) { return request('/memberships/join-existing', { method: 'POST', body: { email, groupId } }) }
 export async function createGroup(data) { return request('/groups', { method: 'POST', body: data }) }
 export async function updateGroup(id, data) { return request(`/groups/${encodeURIComponent(id)}`, { method: 'PATCH', body: data }) }
 export async function rotateCalendarToken(id) { return request(`/groups/${encodeURIComponent(id)}/calendar-token/rotate`, { method: 'POST' }) }
-export async function updateManagedUser(id, data) { return request(`/users/${encodeURIComponent(id)}`, { method: 'PATCH', body: data }) }
+export async function updateManagedUser(id, data, groupId) { return request(`/users/${encodeURIComponent(id)}${groupId ? `?groupId=${encodeURIComponent(groupId)}` : ''}`, { method: 'PATCH', body: data }) }
 export async function previewUserGroupMove(id, groupId) { return request(`/users/${encodeURIComponent(id)}/group/preview`, { method: 'POST', body: { groupId } }) }
 export async function moveUserGroup(id, groupId, previewToken) { return request(`/users/${encodeURIComponent(id)}/group`, { method: 'PATCH', body: { groupId, previewToken } }) }
 export async function getUserGroupHistory(scope) { return request(`/users/group-history${groupScopeQuery(scope)}`) }
-export async function sendUserPasswordEmail(id, purpose) { return request(`/users/${encodeURIComponent(id)}/password-email`, { method: 'POST', body: { purpose } }) }
+export async function sendUserPasswordEmail(id, purpose, groupId) { return request(`/users/${encodeURIComponent(id)}/password-email${groupId ? `?groupId=${encodeURIComponent(groupId)}` : ''}`, { method: 'POST', body: { purpose } }) }
 export async function getDatabaseRecords(collection, scope = '__all__', { page = 1, action = '', actorId = '' } = {}) {
   return request(`/developer/database/${encodeURIComponent(collection)}${groupScopeQuery(scope)}&page=${page}&action=${encodeURIComponent(action)}&actorId=${encodeURIComponent(actorId)}`)
 }

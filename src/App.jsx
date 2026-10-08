@@ -33,9 +33,10 @@ import PullToRefresh from './components/PullToRefresh'
 // Query client configuration
 import { queryClient } from './lib/queryClient'
 import { performHardReset } from './lib/hardReset'
-import { getAuthenticatedLandingPath, isNonAdminAlumni } from './lib/authRouting'
+import { canUsePaymentRequests, getAuthenticatedLandingPath, isNonAdminAlumni } from './lib/authRouting'
 import { isAdmin, isDeveloper } from '../shared/roles'
 import { getCurrentSession, logout as logoutSession } from './services/api'
+import { setGroupContext, hasPendingGroupWrites } from './lib/groupContext'
 
 // Import styles
 import './App.css'
@@ -78,8 +79,9 @@ const NAV_ICON_MAP = {
 
 function AlumniRestrictedRoute({ user, children }) {
   if (isDeveloper(user)) return <Navigate to="/developer" replace />
+  if (user?.memberships && !user.groupId) return <Navigate to="/account" replace />
   if (isNonAdminAlumni(user)) {
-    return <Navigate to="/declaraties" replace />
+    return <Navigate to={getAuthenticatedLandingPath(user)} replace />
   }
 
   return children
@@ -119,14 +121,31 @@ function App() {
   const [isInitializing, setIsInitializing] = useState(true)
   const userScopeRef = useRef('anonymous')
   const updateAuthenticatedUser = useCallback((nextUser) => {
-    const nextScope = nextUser ? `${nextUser.id}:${nextUser.groupId}:${nextUser.role}` : 'anonymous'
+    if (nextUser?.memberships && !isDeveloper(nextUser)) {
+      const preferred = localStorage.getItem(`selected-group:${nextUser.id}`)
+      const selected = nextUser.memberships.find(m => m.groupId === preferred) || nextUser.memberships.find(m => m.state === 'current') || nextUser.memberships[0]
+      nextUser = { ...nextUser, groupId: selected?.groupId || null, membershipId: selected?.id || null, membershipState: selected?.state || null,
+        role: selected?.state === 'current' ? selected.role : 'user', isAdmin: selected?.state === 'current' && selected.role === 'admin',
+        status: selected?.state === 'ended' ? 'alumni' : selected?.status || 'inactive', permissions: selected?.permissions || { canUsePaymentRequests: false, canUseAttendance: false, canManageUsers: false } }
+      if (selected) localStorage.setItem(`selected-group:${nextUser.id}`, selected.groupId)
+    }
+    const nextScope = nextUser ? `${nextUser.id}:${nextUser.groupId}:${nextUser.role}:${nextUser.membershipState}` : 'anonymous'
     if (userScopeRef.current !== nextScope) {
       // Cancel in-flight reads and remove the previous account/group's data.
       queryClient.clear()
       userScopeRef.current = nextScope
     }
+    setGroupContext(nextUser)
+    if (nextUser) localStorage.setItem('user', JSON.stringify(nextUser))
     setUser(nextUser)
   }, [])
+  const switchGroup = event => {
+    if (queryClient.isMutating() || hasPendingGroupWrites()) return
+    if (!window.confirm('Van groep wisselen? Niet-opgeslagen wijzigingen in open formulieren blijven niet behouden.')) return
+    localStorage.setItem(`selected-group:${user.id}`, event.target.value)
+    updateAuthenticatedUser(user)
+    setIsMobileMenuOpen(false)
+  }
   
   // Mobile navigation state
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -337,14 +356,15 @@ function App() {
     if (isDeveloper(user)) return [{ to: '/developer', label: 'Developer', icon: UserIcon, variant: 'secondary' }]
     const baseItems = []
 
-    if (!isNonAdminAlumni(user)) {
+    if (user?.groupId && user?.memberships) baseItems.push({ to: '/kalender', label: ROUTE_LABELS['/kalender'], icon: NAV_ICON_MAP['/kalender'], variant: 'secondary' })
+    if (!isNonAdminAlumni(user) && (!user?.memberships || user.groupId)) {
       baseItems.push(
-        {
+        ...(!user?.memberships ? [{
           to: '/kalender',
           label: ROUTE_LABELS['/kalender'],
           icon: NAV_ICON_MAP['/kalender'],
           variant: 'secondary',
-        },
+        }] : []),
         {
           to: '/opkomsten',
           label: ROUTE_LABELS['/opkomsten'],
@@ -354,7 +374,7 @@ function App() {
       )
     }
 
-    baseItems.push(
+    if (canUsePaymentRequests(user)) baseItems.push(
       {
         to: '/declaraties',
         label: ROUTE_LABELS['/declaraties'],
@@ -363,7 +383,7 @@ function App() {
       }
     )
 
-    if (isAdmin(user)) {
+    if (isAdmin(user) && !isNonAdminAlumni(user)) {
       baseItems.push({
         to: '/strepen',
         label: ROUTE_LABELS['/strepen'],
@@ -399,13 +419,14 @@ function App() {
 
     const items = []
 
-    if (!isNonAdminAlumni(user)) {
+    if (user.groupId && user.memberships) items.push({ to: '/kalender', label: ROUTE_LABELS['/kalender'], icon: NAV_ICON_MAP['/kalender'] })
+    if (!isNonAdminAlumni(user) && (!user.memberships || user.groupId)) {
       items.push(
-        {
+        ...(!user.memberships ? [{
           to: '/kalender',
           label: ROUTE_LABELS['/kalender'],
           icon: NAV_ICON_MAP['/kalender'],
-        },
+        }] : []),
         {
           to: '/opkomsten',
           label: ROUTE_LABELS['/opkomsten'],
@@ -414,7 +435,7 @@ function App() {
       )
     }
 
-    items.push(
+    if (canUsePaymentRequests(user)) items.push(
       {
         to: '/declaraties',
         label: ROUTE_LABELS['/declaraties'],
@@ -422,7 +443,7 @@ function App() {
       }
     )
 
-    if (isAdmin(user)) {
+    if (isAdmin(user) && !isNonAdminAlumni(user)) {
       items.push({
         to: '/strepen',
         label: ROUTE_LABELS['/strepen'],
@@ -503,6 +524,9 @@ function App() {
                     </span>
                   </div>
                   <h1 className="nav-title">{ROUTE_LABELS[normalizedPathname] || 'Stamjer'}</h1>
+                  {user?.memberships?.length > 1 && !isDeveloper(user) && <label>Groep<select aria-label="Groep selecteren" value={user.groupId || ''} onChange={switchGroup}>
+                    {user.memberships.map(m => <option key={m.id} value={m.groupId}>{m.group.name} · {m.state === 'ended' ? 'Alumni' : m.status === 'inactive' ? 'Inactief' : 'Actief'}</option>)}
+                  </select></label>}
 
                 </div>
               </div>
@@ -531,7 +555,7 @@ function App() {
                   {user && (
                     <div className="nav-user-chip" role="group" aria-label="Gebruikersinformatie">
                       <span className="nav-user-name">{user.firstName}</span>
-                      <span className="nav-user-role">{isDeveloper(user) ? 'Developer' : isAdmin(user) ? 'Administrator' : 'Lid'}</span>
+                      <span className="nav-user-role">{isDeveloper(user) ? 'Developer' : isAdmin(user) ? 'Beheerder' : 'Lid'}</span>
                     </div>
                   )}
                 </div>
@@ -580,7 +604,7 @@ function App() {
 
           <main id="main" role="main">
             <Suspense fallback={<div className="page-loading" aria-live="polite">Laden...</div>}>
-              <Routes key={`${user?.id}:${user?.groupId}:${user?.role}`}>
+              <Routes key={`${user?.id}:${user?.groupId}:${user?.role}:${user?.membershipState}`}>
                 {/* Public Routes - Available to all users */}
                 <Route path="/" element={
                   <PageErrorBoundary pageName="Login">
@@ -601,11 +625,11 @@ function App() {
                 {/* Protected Routes - Require authentication */}
                 <Route path="/kalender" element={
                   <ProtectedRoute user={user}>
-                    <AlumniRestrictedRoute user={user}>
+                    {(user?.memberships && !user.groupId) || (!user?.memberships && isNonAdminAlumni(user)) ? <Navigate to={getAuthenticatedLandingPath(user)} replace /> : <>
                       <PageErrorBoundary pageName="Calendar">
                         <CalendarPage user={user} />
                       </PageErrorBoundary>
-                    </AlumniRestrictedRoute>
+                    </>}
                   </ProtectedRoute>
                 } />
                 <Route path="/opkomsten" element={
@@ -620,7 +644,7 @@ function App() {
                 <Route path="/declaraties" element={
                   <ProtectedRoute user={user}>
                     <PageErrorBoundary pageName="Declaraties">
-                      {isDeveloper(user) ? <Navigate to="/developer" replace /> : <PaymentRequestPage user={user} />}
+                      {canUsePaymentRequests(user) ? <PaymentRequestPage user={user} /> : <Navigate to={getAuthenticatedLandingPath(user)} replace />}
                     </PageErrorBoundary>
                   </ProtectedRoute>
                 } />
@@ -628,7 +652,7 @@ function App() {
                   <ProtectedRoute user={user}>
                     <AlumniRestrictedRoute user={user}>
                       <PageErrorBoundary pageName="Strepen">
-                        {isAdmin(user) ? <StrepenPage /> : <div>Alleen toegankelijk voor admins.</div>}
+                        {isAdmin(user) ? <StrepenPage user={user} /> : <div>Alleen toegankelijk voor admins.</div>}
                       </PageErrorBoundary>
                     </AlumniRestrictedRoute>
                   </ProtectedRoute>

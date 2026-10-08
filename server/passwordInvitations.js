@@ -3,16 +3,23 @@ import { canManageUser, GroupAccessError } from './authorization.js'
 import { getUserGroupId, isDeveloper, normalizeGroupUser } from './groups.js'
 import { lockGroups, runGroupTransaction } from './groupTransactions.js'
 import { writeAudit } from './audit.js'
+import { membershipMode, liveGroupActor, scopedUser } from './memberships.js'
 
-export async function sendPasswordInvitation(client, db, { userId, actor, purpose = 'reset', mailer, from, now = new Date() }) {
+export async function sendPasswordInvitation(client, db, { userId, actor, groupId: selectedGroupId, purpose = 'reset', mailer, from, now = new Date() }) {
   if (!['reset', 'invite'].includes(purpose)) throw new GroupAccessError('Ongeldige e-mailactie', 400)
   if (!mailer) throw new GroupAccessError('E-mail is niet beschikbaar. Probeer later opnieuw.', 503)
   const code = String(randomInt(100000, 1000000))
   const user = await runGroupTransaction(client, async session => {
-    const current = await db.collection('users').findOne({ id: userId }, { session })
-    const liveActor = actor && await db.collection('users').findOne({ id: actor.id }, { session })
+    let current = await db.collection('users').findOne({ id: userId }, { session })
+    const migrated = await membershipMode(db, session)
+    const liveActor = actor && (migrated ? await liveGroupActor(db, actor, selectedGroupId || actor.groupId, session) : await db.collection('users').findOne({ id: actor.id }, { session }))
+    if (current && migrated && actor) {
+      const membership = await db.collection('groupMemberships').findOne({ userId, groupId: selectedGroupId || actor.groupId, state: 'current' }, { session })
+      if (!membership) throw new GroupAccessError('Gebruiker niet gevonden', 404)
+      current = scopedUser(current, membership)
+    }
     if (!current || (actor && (!canManageUser(liveActor, current) || isDeveloper(current)))) throw new GroupAccessError('Gebruiker niet gevonden', 404)
-    const groupId = getUserGroupId(current)
+    const groupId = migrated ? selectedGroupId || (actor ? actor.groupId : null) : getUserGroupId(current)
     await lockGroups(db, session, [groupId], { requireActive: Boolean(actor) })
     const pending = await db.collection('resetCodes').findOne({ email: current.email }, { session })
     if (pending && new Date(pending.createdAt).getTime() > now.getTime() - 60000) throw new GroupAccessError('Er is zojuist een code verstuurd. Wacht een minuut.', 429)

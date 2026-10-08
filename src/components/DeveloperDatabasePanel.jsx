@@ -31,7 +31,7 @@ export default function DeveloperDatabasePanel({ scope, audit = false }) {
   const [editing, setEditing] = useState(null)
   const records = useQuery({ queryKey: [...queryKeys.developer.all, 'database', collection, scope, page, filters], queryFn: () => getDatabaseRecords(collection, scope, { page, ...filters }), staleTime: 0, refetchInterval: 15000 })
   return <section className="developer-database"><h2>{audit ? 'Audit' : 'Database'}</h2>
-    <div className="management-toolbar">{!audit && <label>Collectie<select value={collection} onChange={event => { setCollection(event.target.value); setPage(1) }}>{['users', 'events', 'groups', 'userGroupHistory', 'auditLogs', 'sessions', 'resetCodes'].map(name => <option key={name}>{name}</option>)}</select></label>}
+    <div className="management-toolbar">{!audit && <label>Collectie<select value={collection} onChange={event => { setCollection(event.target.value); setPage(1) }}>{['users', 'events', 'groups', 'groupMemberships', 'groupMembershipHistory', 'userGroupHistory', 'auditLogs', 'sessions', 'resetCodes'].map(name => <option key={name}>{name}</option>)}</select></label>}
       {collection === 'auditLogs' && <><label>Actie<input value={filters.action} placeholder="Bijvoorbeeld user-updated" onChange={event => { setFilters(current => ({ ...current, action: event.target.value })); setPage(1) }} /></label><label>Actor-ID<input type="number" min={1} value={filters.actorId} onChange={event => { setFilters(current => ({ ...current, actorId: event.target.value })); setPage(1) }} /></label></>}
     </div>
     {records.error && <p role="alert" className="management-error">{records.error.message}</p>}

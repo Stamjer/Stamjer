@@ -7,7 +7,7 @@ import ManagementDialog from './ManagementDialog'
 export default function UserPasswordEmailDialog({ user, onClose, onSent }) {
   const [purpose, setPurpose] = useState('reset')
   const queryClient = useQueryClient()
-  const send = useMutation({ mutationFn: () => sendUserPasswordEmail(user.id, purpose), onSuccess: result => {
+  const send = useMutation({ mutationFn: () => sendUserPasswordEmail(user.id, purpose, user.groupId), onSuccess: result => {
     onSent(result.msg)
     queryClient.invalidateQueries({ queryKey: queryKeys.developer.all })
     onClose()

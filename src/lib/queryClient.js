@@ -76,6 +76,7 @@ export const queryClient = new QueryClient({
 // QUERY KEY FACTORY
 // ================================================================
 
+import { groupCacheScope } from './groupContext'
 export const queryKeys = {
   developer: {
     all: ['developer'],
@@ -86,16 +87,16 @@ export const queryKeys = {
   // Events
   events: {
     all: ['events'],
-    raw: () => [...queryKeys.events.all, 'raw'],
-    lists: () => [...queryKeys.events.all, 'list'],
-    opkomsten: () => [...queryKeys.events.all, 'opkomsten']
+    raw: () => [...queryKeys.events.all, 'raw', ...groupCacheScope()],
+    lists: () => [...queryKeys.events.all, 'list', ...groupCacheScope()],
+    opkomsten: () => [...queryKeys.events.all, 'opkomsten', ...groupCacheScope()]
   },
   
   // Users
   users: {
     all: ['users'],
-    lists: () => [...queryKeys.users.all, 'list'],
-    full: () => [...queryKeys.users.all, 'full'],
+    lists: () => [...queryKeys.users.all, 'list', ...groupCacheScope()],
+    full: () => [...queryKeys.users.all, 'full', ...groupCacheScope()],
     history: (scope) => [...queryKeys.users.all, 'group-history', scope]
   }
 }

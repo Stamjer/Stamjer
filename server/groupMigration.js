@@ -226,6 +226,7 @@ export async function migrateGroups(
   db,
   { apply = false, defaultSettings = {} } = {}
 ) {
+  if (await db.collection('schemaMigrations').findOne({ id: 'multi-group-v2' })) return { mode: apply ? 'apply' : 'dry-run', applied: false, errors: ['Initial group migration is retired after multi-group migration begins. Use the versioned membership migration.'] }
   const names = new Set(
     (
       await db.listCollections(

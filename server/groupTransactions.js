@@ -2,6 +2,8 @@ import { GroupAccessError, canManageGroup, canManageUser, getAttendanceAuthoriza
 import { getEventGroupId, getUserGroupId, isDeveloper, normalizeGroupUser } from './groups.js'
 import { sanitizeIdArray } from './dataModel.js'
 import { recordFingerprint, writeAudit } from './audit.js'
+import { membershipMode, liveGroupActor, scopedUser, eventStartInstant, canSeeCalendarEvent, membershipFor } from './memberships.js'
+import { recordAttendanceMetadata } from './attendanceScoring.js'
 
 export async function runGroupTransaction(client, work) {
   const session = client.startSession()
@@ -51,9 +53,12 @@ export async function persistGroupRecord(client, db, collection, input, { creati
       await db.collection('resetCodes').deleteOne({ email: current.email, code: resetCode }, { session })
       await db.collection('sessions').updateMany({ userId: current.id, revokedAt: null }, { $set: { revokedAt: new Date() } }, { session })
     }
-    const liveActor = actor && await db.collection('users').findOne({ id: actor.id }, { session })
+    const migrated = await membershipMode(db, session)
+    if (migrated && collection === 'users') throw new GroupAccessError('Accountgegevens en lidmaatschappen moeten afzonderlijk worden bijgewerkt', 400)
+    const liveActor = actor && (migrated ? await liveGroupActor(db, actor, groupId, session) : await db.collection('users').findOne({ id: actor.id }, { session }))
     if (actor) {
       if (!liveActor) throw new GroupAccessError('Ongeldige sessie', 401)
+      if (migrated && collection === 'events' && !isDeveloper(liveActor) && !canSeeCalendarEvent(membershipFor(liveActor, groupId), record)) throw new GroupAccessError('Evenement valt buiten je lidmaatschapsperioden', 403)
       if (collection === 'users') {
         if (liveActor.id !== record.id && !canManageUser(liveActor, record)) throw new GroupAccessError('Geen toegang tot deze gebruiker', 403)
         if (((current && normalizeGroupUser(current).role !== normalizeGroupUser(record).role) || (!current && record.role === 'admin')) && !isDeveloper(liveActor)) {
@@ -66,15 +71,39 @@ export async function persistGroupRecord(client, db, collection, input, { creati
           }
         }
       } else if (attendance) {
-        const target = await db.collection('users').findOne({ id: attendance.targetId }, { session })
+        let target = await db.collection('users').findOne({ id: attendance.targetId }, { session })
+        if (migrated && target) {
+          const membership = await db.collection('groupMemberships').findOne({ userId: target.id, groupId }, { session })
+          target = scopedUser({ ...target, memberships: membership ? [membership] : [] }, membership)
+        }
         const group = await db.collection('groups').findOne({ id: groupId }, { session })
         if (getAttendanceAuthorizationError(liveActor, target, attendance.attending, record)
           || (normalizeGroupUser(liveActor).role === 'user' && group.settings?.allowUserSelfAttendance === false)) {
           throw new GroupAccessError('Aanwezigheid kan niet worden gewijzigd', 403)
         }
+        if (migrated && (eventStartInstant(record.start) === null || eventStartInstant(record.start) <= Date.now() || (!isDeveloper(liveActor) && !canSeeCalendarEvent(membershipFor(liveActor, groupId), record)))) throw new GroupAccessError('Historische deelname kan niet worden gewijzigd', 403)
       } else if (!canManageGroup(liveActor, groupId)) throw new GroupAccessError('Geen toegang tot deze groep', 403)
     }
     if (collection === 'events') {
+      if (migrated) {
+        const memberships = await db.collection('groupMemberships').find({ groupId }, { session }).toArray()
+        if (creating) {
+          record.publishedAt = new Date().toISOString()
+          if (record.isOpkomst) record.participants = [...new Set([...sanitizeIdArray(record.participants), ...memberships.filter(m => m.state === 'current' && m.status === 'active').map(m => m.userId)])].sort((a, b) => a - b)
+        } else record.publishedAt = current.publishedAt
+        if (!creating && eventStartInstant(current.start) <= Date.now() && ['participants', 'opkomstmakerIds', 'schoonmakerIds'].some(field => JSON.stringify(record[field]) !== JSON.stringify(current[field]))) throw new GroupAccessError('Historische deelname en taken kunnen niet worden gewijzigd', 403)
+        for (const field of ['participants', 'opkomstmakerIds', 'schoonmakerIds']) {
+          const previous = new Set(sanitizeIdArray(current?.[field]))
+          for (const id of sanitizeIdArray(record[field])) if (!previous.has(id)) {
+            const membership = memberships.find(m => m.userId === id)
+            if (!membership || membership.state !== 'current' || (field !== 'participants' && membership.status !== 'active') || !canSeeCalendarEvent(membership, record)) conflict()
+          }
+        }
+        for (const id of Object.keys(record.attendance || {})) {
+          if (!memberships.some(m => m.userId === Number(id)) && !Object.hasOwn(current?.attendance || {}, id) && !sanitizeIdArray(current?.participants).includes(Number(id))) conflict()
+        }
+        recordAttendanceMetadata(current, record, memberships)
+      } else {
       if (creating && record.isOpkomst) {
         const groupMembers = await db.collection('users').find(groupId === 'stam-default' ? { $or: [{ groupId }, { groupId: { $exists: false } }] } : { groupId }, {
           session, projection: { id: 1, groupId: 1, role: 1, isAdmin: 1, status: 1 }
@@ -97,6 +126,7 @@ export async function persistGroupRecord(client, db, collection, input, { creati
       for (const field of ['participants', 'opkomstmakerIds', 'schoonmakerIds']) {
         const previous = new Set(sanitizeIdArray(current?.[field]))
         if (sanitizeIdArray(record[field]).some(id => !previous.has(id) && (field === 'participants' ? byId.get(id).status === 'legacy' : byId.get(id).status !== 'active'))) conflict()
+      }
       }
     }
     const next = { ...record, _revision: (current?._revision || 0) + 1 }

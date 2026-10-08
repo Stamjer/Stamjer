@@ -12,7 +12,7 @@
 .management-user-meta { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; font-size: .78rem; }
 .management-badge { background: #f1f5f9; color: #475569; padding: .2rem .5rem; border-radius: 20px; }
 .management-badge.status-active { background: #dcfce7; color: #166534; }
-.management-badge.status-legacy { background: #fef3c7; color: #92400e; }
+.management-badge.status-legacy, .management-badge.status-alumni { background: #fef3c7; color: #92400e; }
 .management-actions { position: relative; }
 .management-actions summary { cursor: pointer; font-size: .85rem; padding: .4rem; }
 .management-actions > div { position: absolute; right: 0; z-index: 2; min-width: 8rem; padding: .4rem; background: white; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 4px 14px #0f172a20; }
