@@ -37,7 +37,7 @@ function escapeText(text) {
     .replace(/\\/g, '\\\\')  // Backslash must be escaped first
     .replace(/;/g, '\\;')     // Semicolon
     .replace(/,/g, '\\,')     // Comma
-    .replace(/\n/g, '\\n')    // Newline
+    .replace(/\r\n|\r|\n/g, '\\n')    // Newline
 }
 
 /**
@@ -267,7 +267,7 @@ function generateVEvent(event) {
  * @param {Array} events - Array of event objects
  * @returns {string} Complete iCalendar file content
  */
-export function generateICalendar(events) {
+export function generateICalendar(events, { calendarName = 'Stamjer Agenda' } = {}) {
   const lines = []
   
   // VCALENDAR header
@@ -276,7 +276,7 @@ export function generateICalendar(events) {
   lines.push('PRODID:-//Stamjer//Stamjer Agenda//NL')
   lines.push('CALSCALE:GREGORIAN')
   lines.push('METHOD:PUBLISH')
-  lines.push('X-WR-CALNAME:Stamjer Agenda')
+  lines.push(foldLine(`X-WR-CALNAME:${escapeText(calendarName || 'Stamjer Agenda')}`))
   lines.push('X-WR-TIMEZONE:Europe/Amsterdam')
   lines.push('X-WR-CALDESC:Stamjer evenementen en opkomsten')
   
@@ -328,10 +328,10 @@ export function createICalendarHandler(getEventsFromDb) {
   return async (req, res) => {
     try {
       // Fetch events from database
-      const events = await getEventsFromDb()
+      const events = await getEventsFromDb(req)
       
       // Generate iCalendar
-      const icalContent = generateICalendar(events)
+      const icalContent = generateICalendar(events, { calendarName: req.calendarName })
       
       // Set appropriate headers for .ics file
       res.setHeader('Content-Type', 'text/calendar; charset=utf-8')

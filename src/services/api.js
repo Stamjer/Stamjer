@@ -50,7 +50,7 @@ const JSON_HEADERS = {
  * @throws {Error} Enhanced error with user-friendly message
  */
 async function handleResponse(response, url) {
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && !url.includes('/calendar/subscription')) {
     console.log(`API Response: ${response.status} ${response.statusText} for ${url}`)
   }
   
@@ -75,7 +75,7 @@ async function handleResponse(response, url) {
     // Provide user-friendly error messages based on status code
     switch (response.status) {
       case 400:
-        errorMessage = errorData?.msg || errorData?.message || 'Ongeldige aanvraag. Controleer je invoer.'
+        errorMessage = errorData?.msg || errorData?.message || errorData?.error || 'Ongeldige aanvraag. Controleer je invoer.'
         break
       case 401:
         errorMessage = 'Je bent niet ingelogd. Log opnieuw in.'
@@ -90,7 +90,7 @@ async function handleResponse(response, url) {
         errorMessage = 'De aanvraag duurde te lang. Probeer het opnieuw.'
         break
       case 409:
-        errorMessage = 'Er is een conflict opgetreden. Probeer het opnieuw.'
+        errorMessage = errorData?.msg || errorData?.message || errorData?.error || 'Er is een conflict opgetreden. Probeer het opnieuw.'
         break
       case 422:
         errorMessage = errorData?.message || 'De invoer is ongeldig.'
@@ -127,7 +127,7 @@ async function handleResponse(response, url) {
   if (contentType.includes('application/json')) {
     try {
       const data = await response.json()
-      if (import.meta.env.DEV) {
+      if (import.meta.env.DEV && !url.includes('/calendar/subscription')) {
         console.log('API Success:', data)
       }
       return data
@@ -315,8 +315,8 @@ export async function changePassword(email, currentPassword, newPassword) {
  * Get all events
  * @returns {Promise<Array>} Events array
  */
-export async function getEvents() {
-  return request('/events')
+export async function getEvents(scope) {
+  return request(`/events${groupScopeQuery(scope)}`)
 }
 
 /**
@@ -397,8 +397,8 @@ export async function getUsers() {
  * Get all users with full information including streepjes
  * @returns {Promise<Array>} Users array with full info
  */
-export async function getUsersFull() {
-  return request('/users/full')
+export async function getUsersFull(scope) {
+  return request(`/users/full${groupScopeQuery(scope)}`)
 }
 
 export async function createUser(userData) {
@@ -414,6 +414,10 @@ export async function createUser(userData) {
  */
 export async function getUserProfile() {
   return request('/user/profile')
+}
+
+export async function getCalendarSubscription() {
+  return request('/calendar/subscription')
 }
 
 /**
@@ -434,6 +438,26 @@ export async function updateUserStatus(targetUserId, status) {
     body: { status }
   })
 }
+
+export function groupScopeQuery(scope) {
+  if (!scope) return ''
+  return scope === '__all__' ? '?allGroups=true' : `?groupId=${encodeURIComponent(scope)}`
+}
+
+export async function getGroups() { return request('/groups') }
+export async function createGroup(data) { return request('/groups', { method: 'POST', body: data }) }
+export async function updateGroup(id, data) { return request(`/groups/${encodeURIComponent(id)}`, { method: 'PATCH', body: data }) }
+export async function rotateCalendarToken(id) { return request(`/groups/${encodeURIComponent(id)}/calendar-token/rotate`, { method: 'POST' }) }
+export async function updateManagedUser(id, data) { return request(`/users/${encodeURIComponent(id)}`, { method: 'PATCH', body: data }) }
+export async function previewUserGroupMove(id, groupId) { return request(`/users/${encodeURIComponent(id)}/group/preview`, { method: 'POST', body: { groupId } }) }
+export async function moveUserGroup(id, groupId, previewToken) { return request(`/users/${encodeURIComponent(id)}/group`, { method: 'PATCH', body: { groupId, previewToken } }) }
+export async function getUserGroupHistory(scope) { return request(`/users/group-history${groupScopeQuery(scope)}`) }
+export async function sendUserPasswordEmail(id, purpose) { return request(`/users/${encodeURIComponent(id)}/password-email`, { method: 'POST', body: { purpose } }) }
+export async function getDatabaseRecords(collection, scope = '__all__', { page = 1, action = '', actorId = '' } = {}) {
+  return request(`/developer/database/${encodeURIComponent(collection)}${groupScopeQuery(scope)}&page=${page}&action=${encodeURIComponent(action)}&actorId=${encodeURIComponent(actorId)}`)
+}
+export async function previewDatabaseEdit(collection, id, patch) { return request(`/developer/database/${collection}/${encodeURIComponent(id)}/preview`, { method: 'POST', body: patch }) }
+export async function applyDatabaseEdit(collection, id, patch, previewToken) { return request(`/developer/database/${collection}/${encodeURIComponent(id)}`, { method: 'PATCH', body: { patch, previewToken } }) }
 
 // ================================================================
 // PAYMENT REQUESTS API

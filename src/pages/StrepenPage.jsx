@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import { isAdmin } from '../../shared/roles'
 import { useNavigate } from 'react-router-dom'
 import { withSupportContact } from '../config/appInfo'
 import { useIsMobile } from '../hooks/useDeviceDetection'
@@ -88,7 +89,7 @@ export default function StrepenPage() {
   useEffect(() => {
     try {
       const userData = JSON.parse(localStorage.getItem('user'))
-      if (!userData || !userData.isAdmin) {
+      if (!isAdmin(userData)) {
         navigate('/login')
         return
       }

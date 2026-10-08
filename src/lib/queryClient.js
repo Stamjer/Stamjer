@@ -77,6 +77,12 @@ export const queryClient = new QueryClient({
 // ================================================================
 
 export const queryKeys = {
+  developer: {
+    all: ['developer'],
+    groups: () => ['developer', 'groups'],
+    users: (groupId) => ['developer', 'users', groupId],
+    events: (groupId) => ['developer', 'events', groupId]
+  },
   // Events
   events: {
     all: ['events'],
@@ -89,7 +95,8 @@ export const queryKeys = {
   users: {
     all: ['users'],
     lists: () => [...queryKeys.users.all, 'list'],
-    full: () => [...queryKeys.users.all, 'full']
+    full: () => [...queryKeys.users.all, 'full'],
+    history: (scope) => [...queryKeys.users.all, 'group-history', scope]
   }
 }
 

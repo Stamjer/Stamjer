@@ -19,4 +19,9 @@ describe('authenticated landing routes', () => {
   it('keeps alumni admins in the full application', () => {
     assert.equal(getAuthenticatedLandingPath({ status: 'legacy', isAdmin: true }), '/kalender')
   })
+  it('gives developers a separate landing page regardless of member status', () => {
+    assert.equal(getAuthenticatedLandingPath({ role: 'developer', status: 'legacy', isAdmin: false }), '/developer')
+    assert.equal(getAuthenticatedLandingPath({ role: 'developer', status: 'active' }), '/developer')
+    assert.equal(getAuthenticatedLandingPath({ role: 'user', isAdmin: true, status: 'legacy' }), '/declaraties')
+  })
 })

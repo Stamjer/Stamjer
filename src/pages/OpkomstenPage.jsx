@@ -15,6 +15,7 @@
 
 // React core imports
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import { isAdmin as hasAdminRole } from '../../shared/roles'
 import { withSupportContact } from '../config/appInfo'
 import { useToast } from '../hooks/useToast'
 import { buildEventPayload } from '../lib/eventPayload'
@@ -340,7 +341,7 @@ function OpkomstEditForm({ event, onClose, onSave, users = [], currentUser = nul
     try {
       const payload = buildEventPayload(formData, { forceOpkomst: true })
 
-      if (!currentUser?.isAdmin) throw new Error('Alleen beheerders kunnen opkomsten opslaan')
+      if (!hasAdminRole(currentUser)) throw new Error('Alleen beheerders kunnen opkomsten opslaan')
       await onSave(event.id, payload)
 
       onClose()
@@ -599,8 +600,7 @@ function OpkomstEditForm({ event, onClose, onSave, users = [], currentUser = nul
 // MAIN OPKOMSTEN PAGE COMPONENT
 // ================================================================
 
-export default function OpkomstenPage() {
-  const [currentUser, setCurrentUser] = useState(null)
+export default function OpkomstenPage({ user: currentUser }) {
   const [attendance, setAttendance] = useState({}) // Track attendance for each event
   const { addToast } = useToast();
   const [editingEvent, setEditingEvent] = useState(null) // For editing events
@@ -635,7 +635,7 @@ export default function OpkomstenPage() {
 
     // Handle edit event
     const handleEditEvent = useCallback((event) => {
-      if (!currentUser || !currentUser.isAdmin) {
+      if (!hasAdminRole(currentUser)) {
         showToast('Alleen admins kunnen opkomsten bewerken', 'error')
         return
       }
@@ -680,15 +680,6 @@ export default function OpkomstenPage() {
       return saved
     }, [showToast, updateEventMutation])
 
-  // Load the current session snapshot; server data comes from TanStack Query.
-  useEffect(() => {
-    try {
-      const userData = localStorage.getItem('user')
-      if (userData) setCurrentUser(JSON.parse(userData))
-    } catch (userError) {
-      console.error('Error loading user from localStorage:', userError)
-    }
-  }, [])
   // Sync attendance state with event participants whenever events or currentUser changes
   useEffect(() => {
     if (!currentUser) return
@@ -759,7 +750,7 @@ export default function OpkomstenPage() {
 
   // Handle admin clicking on a user name to toggle their participation
   const handleAdminToggleParticipation = useCallback(async (eventId, userId) => {
-    if (!currentUser || !currentUser.isAdmin) {
+    if (!hasAdminRole(currentUser)) {
       showToast('Alleen admins kunnen deelname van anderen wijzigen', 'error')
       return
     }
@@ -903,7 +894,7 @@ export default function OpkomstenPage() {
                       }
                       onChange={(e) => handleAttendanceChange(event.id, e.target.checked)}
                       className="attendance-checkbox-input"
-                      disabled={!canChangeAttendance(event.start)}
+                      disabled={!canChangeAttendance(event.start) || currentUser?.permissions?.canUseAttendance === false}
                       title={!canChangeAttendance(event.start) ? 'Aanwezigheid kan alleen worden gewijzigd voor de datum van de opkomst' : ''}
                     />
                     <span className="attendance-checkbox-custom"></span>
@@ -912,7 +903,7 @@ export default function OpkomstenPage() {
                     </span>
                   </label>
                   
-                  {currentUser && currentUser.isAdmin && (
+                  {hasAdminRole(currentUser) && (
                     <button
                       onClick={() => handleEditEvent(event)}
                       className="edit-btn"
@@ -933,7 +924,7 @@ export default function OpkomstenPage() {
                     Aanwezigen ({event.participants ? event.participants.length : 0})
                   </div>
                   <div className="participants-content">
-                    {currentUser && currentUser.isAdmin ? (
+                    {hasAdminRole(currentUser) ? (
                       // Admin view: Show all non-legacy users with toggleable states
                       <div className="admin-participants-grid">
                         {users.length > 0 ? (

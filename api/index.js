@@ -37,10 +37,27 @@ import {
   getAssignmentDisplayNames,
   normalizeUserStatus,
   sanitizeIdArray,
+  sanitizeUserId,
   USER_STATUSES
 } from './dataModel.js'
-import { getAttendanceAuthorizationError } from './authorization.js'
+import {
+  canManageGroup, canManageUser, canReadGroup, getAttendanceAuthorizationError,
+  GroupAccessError, resolveRequestGroupId
+} from './authorization.js'
+import {
+  calculateGroupStreepjes, createDefaultGroup, DEFAULT_GROUP_ID, getEventGroupId,
+  getGroupMembers, GROUP_INDEXES, isDeveloper,
+  normalizeGroupUser, normalizeUserRole
+} from './groups.js'
 import { createSessionCookieOptions, createSessionPolicy } from './sessionPolicy.js'
+import { createGroupManagementRouter } from './groupManagement.js'
+import { buildUserUpdate, mapManagedUser } from './userManagement.js'
+import { lockGroups, persistGroupRecord, revisionFilter, runGroupTransaction } from './groupTransactions.js'
+import { applyUserGroupMove, previewUserGroupMove } from './userGroupMoves.js'
+import { writeAudit } from './audit.js'
+import { validateEventInput } from './eventManagement.js'
+import { createDatabaseManagementRouter, mapDatabaseRecord } from './databaseManagement.js'
+import { sendPasswordInvitation } from './passwordInvitations.js'
 
 // MongoDB setup
 const uri = process.env.MONGODB_URI
@@ -97,16 +114,26 @@ function maskEmail(email = '') {
   return `${start}***${end}@${domain}`
 }
 
-let indexesEnsured = false
+let databaseSetupPromise
 
 async function getDb() {
   const client = await clientPromise
   const db = client.db('Stamjer')
 
-  if (!indexesEnsured) {
-    await ensureIndexes(db)
-    indexesEnsured = true
+  if (!databaseSetupPromise) {
+    databaseSetupPromise = (async () => {
+      await ensureIndexes(db)
+      await db.collection('groups').updateOne(
+        { id: DEFAULT_GROUP_ID },
+        { $setOnInsert: createDefaultGroup({ dailyChangeEmail: DAILY_CHANGE_EMAIL, paymentRequestEmail: PAYMENT_REQUEST_EMAIL }) },
+        { upsert: true }
+      )
+    })().catch((error) => {
+      databaseSetupPromise = null
+      throw error
+    })
   }
+  await databaseSetupPromise
 
   return db
 }
@@ -116,6 +143,15 @@ async function getDb() {
  * This function only runs once per process to limit overhead.
  */
 async function ensureIndexes(db) {
+  for (const [name, definitions] of Object.entries(GROUP_INDEXES)) {
+    if (name === 'groups') {
+      // Group identity constraints must exist before concurrent default-group
+      // upserts, and failures must prevent serving a misleading group model.
+      for (const { keys, options } of definitions) await db.collection(name).createIndex(keys, options)
+      continue
+    }
+    await ensureCollectionIndexes(db.collection(name), definitions)
+  }
   const eventsCreated = await ensureCollectionIndexes(db.collection('events'), [
     { keys: { start: 1 }, options: { background: true, name: 'events_start_idx' }, description: 'events.start' },
     { keys: { isOpkomst: 1 }, options: { background: true, name: 'events_isOpkomst_idx' }, description: 'events.isOpkomst' },
@@ -331,6 +367,8 @@ function mapUserForClient(user, session = null) {
   if (!user) return null
   const safeUser = { ...user }
   delete safeUser.password
+  delete safeUser._id
+  delete safeUser._revision
   safeUser.session = session
     ? {
         deviceId: session.deviceId,
@@ -340,6 +378,17 @@ function mapUserForClient(user, session = null) {
       }
     : undefined
   return safeUser
+}
+
+async function withUserPermissions(user) {
+  if (isDeveloper(user)) return { ...user, permissions: { canUseAttendance: false, canManageUsers: true } }
+  const db = await getDb()
+  const group = await db.collection('groups').findOne({ id: user.groupId })
+  return { ...user, permissions: {
+    canManageUsers: group?.status === 'active' && normalizeUserRole(user) === 'admin',
+    canUseAttendance: group?.status === 'active' && user.status !== 'legacy'
+      && (normalizeUserRole(user) === 'admin' || group.settings?.allowUserSelfAttendance !== false)
+  } }
 }
 
 async function createUserSession(user, req) {
@@ -418,8 +467,15 @@ async function getAuthenticatedUser(req, { requireAdmin = false } = {}) {
   if (cookieToken) {
     session = await findSessionByToken(cookieToken)
     if (session) {
-      user = users.find((u) => u.id === session.userId)
+      // Session authorization must see moves/role changes made by another API
+      // process immediately, even while the shared list cache is still fresh.
+      const db = await getDb()
+      const storedUser = await db.collection('users').findOne({ id: session.userId }, { projection: { _id: 0 } })
+      user = storedUser ? normalizeGroupUser(storedUser) : null
       if (user) {
+        const index = users.findIndex(candidate => candidate.id === user.id)
+        if (index >= 0) users[index] = user
+        else users.push(user)
         await touchSession(session)
       }
     }
@@ -429,11 +485,11 @@ async function getAuthenticatedUser(req, { requireAdmin = false } = {}) {
     return { error: 'AUTH_INVALID' }
   }
 
-  if (requireAdmin && !isUserAdmin(user.id)) {
+  if (requireAdmin && !['admin', 'developer'].includes(normalizeUserRole(user))) {
     return { error: 'AUTH_FORBIDDEN' }
   }
 
-  return { user, userId: user.id, token: cookieToken, session }
+  return { user: await withUserPermissions(user), userId: user.id, token: cookieToken, session }
 }
 
 async function requireAuthenticatedUser(req, res, { requireAdmin = false } = {}) {
@@ -454,6 +510,35 @@ async function requireAuthenticatedUser(req, res, { requireAdmin = false } = {})
   return ctx
 }
 
+async function resolveGroup(req, actor, options = {}) {
+  const groupId = resolveRequestGroupId(req, actor, options)
+  if (groupId === null) return null
+  const db = await getDb()
+  const group = await db.collection('groups').findOne({ id: groupId }, { projection: { _id: 0 } })
+  if (!group) throw new GroupAccessError('Groep niet gevonden', 404)
+  if (options.requireActive && group.status !== 'active') throw new GroupAccessError('Deze groep is gearchiveerd')
+  return group
+}
+
+async function requireEventAccess(req, actor, event, { manage = false } = {}) {
+  const groupId = getEventGroupId(event)
+  if (!(manage ? canManageGroup(actor, groupId) : canReadGroup(actor, groupId))) {
+    throw new GroupAccessError('Evenement niet gevonden', 404)
+  }
+  if (req.query?.groupId !== undefined && req.query.groupId !== groupId) {
+    throw new GroupAccessError('De geselecteerde groep hoort niet bij dit evenement', 400)
+  }
+  // Existing records supply the group for developers; groupId cannot be used to move an event.
+  await resolveGroup({ ...req, query: { ...req.query, groupId: req.query?.groupId ?? groupId } }, actor, { requireActive: true })
+}
+
+async function getGroupEmail(groupId, setting) {
+  const db = await getDb()
+  const group = await db.collection('groups').findOne({ id: groupId })
+  const email = group?.settings?.[setting]
+  return typeof email === 'string' && validator.isEmail(email) ? email : null
+}
+
 // Tussenopslag gebruikers en evenementen
 let users = []
 let events = []
@@ -472,7 +557,7 @@ async function loadUsers() {
     .then((list) =>
       list.map((user) => {
         const normalizedUser = {
-          ...user,
+          ...normalizeGroupUser(user),
           sessionVersion: Number.isFinite(user.sessionVersion) ? user.sessionVersion : 0,
           status: normalizeUserStatus(user)
         }
@@ -497,6 +582,7 @@ async function loadEvents() {
     .toArray())
     .map((event) => ({
       ...event,
+      groupId: getEventGroupId(event),
       opkomstmakerIds: sanitizeIdArray(event.opkomstmakerIds),
       schoonmakerIds: sanitizeIdArray(event.schoonmakerIds),
       legacyOpkomstmakerNames: Array.isArray(event.legacyOpkomstmakerNames) ? event.legacyOpkomstmakerNames : [],
@@ -508,18 +594,20 @@ async function loadEvents() {
 }
 
 function mapEventForClient(event) {
+  const safeEvent = mapDatabaseRecord('events', event)
+  const groupUsers = getGroupMembers(users, event.groupId)
   const opkomstmakerNames = getAssignmentDisplayNames(
     event.opkomstmakerIds,
     event.legacyOpkomstmakerNames,
-    users
+    groupUsers
   )
   const schoonmakerNames = getAssignmentDisplayNames(
     event.schoonmakerIds,
     event.legacySchoonmakerNames,
-    users
+    groupUsers
   )
   return {
-    ...event,
+    ...safeEvent,
     opkomstmakers: opkomstmakerNames.join(', '),
     schoonmakers: schoonmakerNames.join(', ')
   }
@@ -538,15 +626,12 @@ function applyEventInput(event, input = {}) {
   }
   if (Object.hasOwn(input, 'opkomstmakerIds')) {
     updated.opkomstmakerIds = sanitizeIdArray(input.opkomstmakerIds)
-      .filter((id) => users.some((user) => user.id === id && user.status === 'active'))
   }
   if (Object.hasOwn(input, 'schoonmakerIds')) {
     updated.schoonmakerIds = sanitizeIdArray(input.schoonmakerIds)
-      .filter((id) => users.some((user) => user.id === id && user.status === 'active'))
   }
   if (Object.hasOwn(input, 'participants')) {
     updated.participants = sanitizeIdArray(input.participants)
-      .filter((id) => users.some((user) => user.id === id && user.status !== 'legacy'))
   }
   if (Object.hasOwn(input, 'schoonmaakOptions')) {
     updated.schoonmaakOptions = Array.isArray(input.schoonmaakOptions) ? input.schoonmaakOptions : []
@@ -568,23 +653,22 @@ async function ensureEventsFresh(maxAgeMs = 2000) {
   }
 }
 
-function sanitizeUserId(userId) {
-  const parsed = Number.parseInt(userId, 10)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
 async function syncUserAttendanceForFutureOpkomsten(userId, shouldBePresent) {
   const uid = parseInt(userId, 10)
   if (!Number.isInteger(uid)) {
     return { updatedEvents: 0 }
   }
+  const user = users.find((candidate) => candidate.id === uid)
+  if (!user || isDeveloper(user)) return { updatedEvents: 0 }
+  await ensureEventsFresh()
 
   const now = new Date()
   let updatedEvents = 0
   const saveOperations = []
 
-  events.forEach(event => {
-    if (!event || !event.isOpkomst) return
+  events.forEach(cachedEvent => {
+    const event = { ...cachedEvent }
+    if (!event || !event.isOpkomst || event.groupId !== user.groupId) return
     if (!event.start) return
 
     const eventStart = new Date(event.start)
@@ -604,14 +688,14 @@ async function syncUserAttendanceForFutureOpkomsten(userId, shouldBePresent) {
       uniqueParticipants.push(uid)
       uniqueParticipants.sort((a, b) => a - b)
       event.participants = uniqueParticipants
-      saveOperations.push(saveEvent(event))
+      saveOperations.push(saveEvent(event, { action: 'attendance-auto-sync' }))
       updatedEvents++
       return
     }
 
     if (!shouldBePresent && hasUser) {
       event.participants = uniqueParticipants.filter(id => id !== uid)
-      saveOperations.push(saveEvent(event))
+      saveOperations.push(saveEvent(event, { action: 'attendance-auto-sync' }))
       updatedEvents++
       return
     }
@@ -622,42 +706,25 @@ async function syncUserAttendanceForFutureOpkomsten(userId, shouldBePresent) {
 
   if (saveOperations.length > 0) {
     await Promise.all(saveOperations)
+    await loadEvents()
     logEvent({
       action: 'attendance-auto-sync',
-      metadata: { userId: uid, shouldBePresent, updatedEvents }
+      metadata: { userId: uid, groupId: user.groupId, shouldBePresent, updatedEvents }
     })
   }
 
   return { updatedEvents }
 }
 
-async function saveUser(user) {
+async function saveUser(user, options = {}) {
   const db = await getDb()
-
-  await db.collection('users').updateOne(
-    { id: user.id },
-    { $set: user },
-    { upsert: true }
-  )
+  try {
+    const saved = await persistGroupRecord(await clientPromise, db, 'users', normalizeGroupUser(user), options)
+    user._revision = saved._revision
+  } catch (error) { lastUsersLoadedAt = 0; throw error }
 }
 
 // Helper functions for reset codes in MongoDB
-async function saveResetCode(email, code, expiresAt) {
-  const db = await getDb()
-  await db.collection('resetCodes').updateOne(
-    { email },
-    {
-      $set: {
-        email,
-        code,
-        expiresAt: new Date(expiresAt),
-        createdAt: new Date()
-      }
-    },
-    { upsert: true }
-  )
-}
-
 async function getResetCode(email) {
   const db = await getDb()
   return await db.collection('resetCodes').findOne({ email })
@@ -705,7 +772,7 @@ async function cleanupExpiredSessions() {
   }
 }
 
-async function saveEvent(event) {
+async function saveEvent(event, options = {}) {
   const db = await getDb()
   const storedEvent = { ...event }
   delete storedEvent.opkomstmakers
@@ -717,16 +784,24 @@ async function saveEvent(event) {
     participants: sanitizeIdArray(event.participants)
   }
 
-  await db.collection('events').updateOne(
-    { id: event.id },
-    { $set: normalizedEvent },
-    { upsert: true }
-  )
+  try {
+    const saved = await persistGroupRecord(await clientPromise, db, 'events', normalizedEvent, options)
+    Object.assign(event, saved)
+  } catch (error) { lastEventsLoadedAt = 0; lastUsersLoadedAt = 0; throw error }
 }
 
-async function deleteEventById(id) {
+async function deleteEventById(event, actor) {
   const db = await getDb()
-  await db.collection('events').deleteOne({ id })
+  try {
+    await runGroupTransaction(await clientPromise, async session => {
+      await lockGroups(db, session, [event.groupId])
+      const liveActor = await db.collection('users').findOne({ id: actor.id }, { session })
+      if (!canManageGroup(liveActor, event.groupId)) throw new GroupAccessError('Geen toegang tot deze groep', 403)
+      const result = await db.collection('events').deleteOne(revisionFilter(event), { session })
+      if (!result.deletedCount) throw new GroupAccessError('Evenement is ondertussen gewijzigd. Vernieuw de pagina.', 409)
+      await writeAudit(db, { action: 'event-deleted', actor: liveActor, groupId: event.groupId, collection: 'events', targetId: event.id }, session)
+    })
+  } catch (error) { lastEventsLoadedAt = 0; throw error }
 }
 
 // E-mail setup
@@ -743,7 +818,7 @@ async function createMailerTransport() {
     const portEnv = parseInt(process.env.SMTP_PORT, 10)
     const port = Number.isFinite(portEnv) ? portEnv : 587
     const secure = parseBoolean(process.env.SMTP_SECURE, port === 465)
-    const rejectUnauthorized = parseBoolean(process.env.SMTP_REJECT_UNAUTHORIZED, false)
+    const rejectUnauthorized = parseBoolean(process.env.SMTP_REJECT_UNAUTHORIZED, true)
 
     const transportOptions = {
       host,
@@ -768,7 +843,7 @@ async function createMailerTransport() {
     const transportOptions = {
       service,
       auth: user && pass ? { user, pass } : undefined,
-      tls: { rejectUnauthorized: parseBoolean(process.env.SMTP_REJECT_UNAUTHORIZED, false) }
+      tls: { rejectUnauthorized: parseBoolean(process.env.SMTP_REJECT_UNAUTHORIZED, true) }
     }
 
     if (!transportOptions.auth) {
@@ -778,6 +853,10 @@ async function createMailerTransport() {
     return nodemailer.createTransport(transportOptions)
   }
 
+  if (isProduction) {
+    warnLog('[mail] Configureer SMTP_HOST of SMTP_SERVICE voor e-mail in productie')
+    return null
+  }
   const testAccount = await nodemailer.createTestAccount()
   infoLog(`[mail] Gebruik Ethereal test inbox ${testAccount.user} voor uitgaande e-mail`)
 
@@ -828,41 +907,6 @@ async function ensureMailerTransport() {
 }
 
 // Hulpfuncties
-function generateCode() {
-  return Math.floor(100000 + Math.random() * 900000).toString()
-}
-
-function isUserAdmin(userId) {
-  const u = users.find(u => u.id === parseInt(userId, 10))
-  return u && u.isAdmin
-}
-
-// Replace your old calculateStreepjes with:
-function calculateStreepjes() {
-  const counts = {}
-  users.forEach(u => { counts[u.id] = 0 })
-
-  events.forEach(ev => {
-    if (!ev.isOpkomst || !ev.attendance) return
-
-    Object.entries(ev.attendance).forEach(([uid, a]) => {
-      const idNum = parseInt(uid, 10)
-      // normalize to boolean present/absent
-      const present = (typeof a === 'object' && 'present' in a)
-        ? Boolean(a.present)
-        : Boolean(a)
-
-      const isPart = ev.participants?.includes(idNum)
-      // wrong attendance = signed-up but absent OR not-signed-up but present
-      if ((isPart && !present) || (!isPart && present)) {
-        counts[idNum]++
-      }
-    })
-  })
-
-  return counts
-}
-
 function escapeHtml(value = '') {
   return String(value)
     .replace(/&/g, '&amp;')
@@ -1439,6 +1483,15 @@ app.use(createRequestLogger())
 
 // API-router
 const apiRouter = express.Router()
+apiRouter.use('/developer/database', createDatabaseManagementRouter({ requireAuthenticatedUser, getDb,
+  getClient: () => clientPromise, secret: TOKEN_SECRET, updateUser: updateManagedUser, updateEvent: updateManagedEvent }))
+apiRouter.use('/groups', createGroupManagementRouter({
+  requireAuthenticatedUser, getDb, getClient: () => clientPromise, mapEventForClient,
+  getData: async () => {
+    await Promise.all([ensureUsersFresh(), ensureEventsFresh()])
+    return { users, events }
+  }
+}))
 
 // Eenvoudige test
 apiRouter.get('/test', (req, res) => {
@@ -1451,17 +1504,19 @@ apiRouter.get('/users', async (req, res) => {
     const auth = await requireAuthenticatedUser(req, res)
     if (!auth) return
 
-    await loadUsers()
-    if (users.length === 0) await loadUsers()
-    const safeUsers = users.map(u => ({
+    const group = await resolveGroup(req, auth.user, { allowAllGroups: true })
+    const visibleUsers = users.filter((user) => !isDeveloper(user) && (!group || user.groupId === group.id))
+    const safeUsers = visibleUsers.map(u => ({
       id: u.id,
       firstName: u.firstName,
       lastName: u.lastName,
       role: u.role,
+      groupId: u.groupId,
       status: u.status
     }))
     res.json(safeUsers)
   } catch (err) {
+    if (err instanceof GroupAccessError) throw err
     console.error('Fout bij ophalen gebruikers:', err)
     logSystemError(err, { action: 'GET /api/users', status: 500 })
     res.status(500).json({ error: 'Opvragen gebruikers mislukt', message: err.message })
@@ -1473,28 +1528,136 @@ apiRouter.get('/users/full', async (req, res) => {
     const auth = await requireAuthenticatedUser(req, res)
     if (!auth) return
 
-    await loadUsers()
-    if (users.length === 0) await loadUsers()
-
-    const streepjes = calculateStreepjes()
-    const visibleUsers = auth.user.isAdmin
-      ? users
-      : users.filter((user) => user.id === auth.userId)
+    const group = await resolveGroup(req, auth.user, { allowAllGroups: true })
+    await ensureEventsFresh()
+    const visibleUsers = users.filter((user) => !isDeveloper(user)
+      && (!group || user.groupId === group.id)
+      && (normalizeUserRole(auth.user) !== 'user' || user.id === auth.userId))
+    const streepjes = Object.assign({}, ...Array.from(new Set(visibleUsers.map((user) => user.groupId)))
+      .map((groupId) => calculateGroupStreepjes(users, events, groupId)))
     res.json({
-      users: visibleUsers.map(u => ({
-        id: u.id,
-        firstName: u.firstName,
-        lastName: u.lastName,
-        isAdmin: u.isAdmin || false,
-        streepjes: streepjes[u.id] || 0,
-        status: u.status
-      }))
+      users: visibleUsers.map(u => mapManagedUser(u, streepjes[u.id] || 0))
     })
   } catch (err) {
+    if (err instanceof GroupAccessError) throw err
     console.error('Fout bij ophalen volledige gebruikerslijst:', err)
     logSystemError(err, { action: 'GET /api/users/full', status: 500 })
     res.status(500).json({ error: 'Opvragen volledige gebruikerslijst mislukt', message: err.message })
   }
+})
+
+async function updateManagedUser(req, res, { roleOnly = false, expectedFingerprint } = {}) {
+  const auth = await requireAuthenticatedUser(req, res, { requireAdmin: true })
+  if (!auth) return
+  const id = sanitizeUserId(req.params.id)
+  if (id === null) throw new GroupAccessError('Ongeldig gebruikers-ID', 400)
+  const index = users.findIndex((user) => user.id === id)
+  const current = users[index]
+  if (!current || !canManageUser(auth.user, current)) throw new GroupAccessError('Gebruiker niet gevonden', 404)
+  if (!isDeveloper(current)) {
+    if (req.query?.groupId !== undefined && req.query.groupId !== current.groupId) throw new GroupAccessError('Deze gebruiker hoort niet bij de geselecteerde groep', 400)
+    await resolveGroup({ query: { groupId: current.groupId }, body: {} }, auth.user, { requireActive: true })
+  }
+  if (roleOnly && (!req.body || Object.keys(req.body).length !== 1 || !Object.hasOwn(req.body, 'role'))) {
+    throw new GroupAccessError('Alleen role kan via dit endpoint worden gewijzigd', 400)
+  }
+  const updated = buildUserUpdate(auth.user, current, req.body)
+  const changedFields = Object.keys(req.body).filter((key) => updated[key] !== current[key])
+  if (changedFields.includes('email')) {
+    await loadUsers()
+    if (users.some((user) => user.id !== id && user.email?.toLowerCase() === updated.email)) {
+      throw new GroupAccessError('Dit e-mailadres bestaat al', 409)
+    }
+  }
+  try { await saveUser(updated, { actor: auth.user, expectedFingerprint }) } catch (error) {
+    if (error.code === 11000) throw new GroupAccessError('Dit e-mailadres bestaat al', 409)
+    throw error
+  }
+  // A refresh above may have replaced the shared users array.
+  users[users.findIndex((user) => user.id === id)] = updated
+  let attendanceUpdates = 0
+  if (changedFields.includes('status')) {
+    attendanceUpdates = (await syncUserAttendanceForFutureOpkomsten(id, updated.status === 'active')).updatedEvents
+    await sendStatusChangeEmail(updated, updated.status)
+  }
+  if (changedFields.includes('role') || changedFields.includes('email')) {
+    await revokeUserSessions(id, { exceptSessionId: id === auth.userId ? auth.session?.sessionId : null })
+  }
+  logEvent({ action: 'user-updated', actor: auth.userId, metadata: { groupId: updated.groupId, targetUserId: id, role: updated.role, changedFields: changedFields.join(',') } })
+  res.json({ user: mapManagedUser(updated), attendanceUpdates, msg: 'Gebruiker bijgewerkt' })
+}
+
+apiRouter.patch('/users/:id', (req, res) => updateManagedUser(req, res))
+apiRouter.patch('/users/:id/role', (req, res) => updateManagedUser(req, res, { roleOnly: true }))
+apiRouter.post('/users/:id/password-email', async (req, res) => {
+  const auth = await requireAuthenticatedUser(req, res, { requireAdmin: true })
+  if (!auth) return
+  const id = sanitizeUserId(req.params.id)
+  const target = users.find(user => user.id === id)
+  if (!target || !canManageUser(auth.user, target) || isDeveloper(target)) throw new GroupAccessError('Gebruiker niet gevonden', 404)
+  await resolveGroup({ query: { groupId: target.groupId }, body: {} }, auth.user, { requireActive: true })
+  if (!req.body || Object.keys(req.body).some(key => key !== 'purpose')) throw new GroupAccessError('Ongeldige e-mailactie', 400)
+  await sendPasswordInvitation(await clientPromise, await getDb(), { userId: id, actor: auth.user, purpose: req.body.purpose,
+    mailer: await ensureMailerTransport(), from: process.env.SMTP_FROM || 'stamjer.mpd@gmail.com' })
+  res.json({ msg: 'E-mail verstuurd. De herstelcode is 15 minuten geldig.' })
+})
+
+apiRouter.post('/users/:id/group/preview', async (req, res) => {
+  const auth = await requireAuthenticatedUser(req, res)
+  if (!auth) return
+  if (!isDeveloper(auth.user)) throw new GroupAccessError('Alleen developers kunnen gebruikers verplaatsen', 403)
+  const userId = sanitizeUserId(req.params.id)
+  if (userId === null) throw new GroupAccessError('Ongeldig gebruikers-ID', 400)
+  if (!req.body || Object.keys(req.body).some(key => key !== 'groupId')) throw new GroupAccessError('Gebruik alleen groupId', 400)
+  res.setHeader('Cache-Control', 'no-store')
+  res.json(await previewUserGroupMove(await clientPromise, await getDb(), {
+    userId, destinationGroupId: req.body.groupId, actorId: auth.userId, secret: TOKEN_SECRET
+  }))
+})
+
+apiRouter.patch('/users/:id/group', async (req, res) => {
+  const auth = await requireAuthenticatedUser(req, res)
+  if (!auth) return
+  if (!isDeveloper(auth.user)) throw new GroupAccessError('Alleen developers kunnen gebruikers verplaatsen', 403)
+  const userId = sanitizeUserId(req.params.id)
+  if (userId === null) throw new GroupAccessError('Ongeldig gebruikers-ID', 400)
+  if (!req.body || Object.keys(req.body).some(key => !['groupId', 'previewToken'].includes(key))) throw new GroupAccessError('Ongeldige verplaatsingsgegevens', 400)
+  const result = await applyUserGroupMove(await clientPromise, await getDb(), {
+    userId, destinationGroupId: req.body.groupId, previewToken: req.body.previewToken,
+    actorId: auth.userId, secret: TOKEN_SECRET
+  })
+  // Refresh both shared caches only after the atomic move committed.
+  lastUsersLoadedAt = 0
+  lastEventsLoadedAt = 0
+  await loadUsers()
+  await loadEvents()
+  logEvent({ action: 'user-group-moved', actor: auth.userId, metadata: {
+    targetUserId: userId, groupId: result.summary.sourceGroupId, destinationGroupId: result.summary.destinationGroupId,
+    role: 'developer', changedFields: 'groupId,role,sessions,eventReferences', moveId: result.moveId
+  } })
+  res.json({ user: mapManagedUser(result.user), summary: result.summary, msg: 'Gebruiker verplaatst. Opnieuw inloggen is vereist.' })
+})
+
+apiRouter.get('/users/group-history', async (req, res) => {
+  const auth = await requireAuthenticatedUser(req, res, { requireAdmin: true })
+  if (!auth) return
+  const group = await resolveGroup(req, auth.user, { allowAllGroups: true })
+  const db = await getDb()
+  const history = await db.collection('userGroupHistory').find(group ? { groupId: group.id } : {}).toArray()
+  res.setHeader('Cache-Control', 'no-store')
+  res.json({ history: history.sort((a, b) => new Date(b.movedAt) - new Date(a.movedAt)).map(record => ({
+    id: record.id, userId: record.userId, groupId: record.groupId, name: record.name,
+    movedAt: record.movedAt, previousRole: record.previousRole, status: record.status,
+    streepjes: record.streepjes, events: record.events.map(event => ({
+      eventId: event.eventId, title: event.title, start: event.start, future: event.future,
+      participant: sanitizeIdArray(event.references.participants).includes(record.userId),
+      opkomstmaker: sanitizeIdArray(event.references.opkomstmakerIds).includes(record.userId),
+      schoonmaker: sanitizeIdArray(event.references.schoonmakerIds).includes(record.userId),
+      attendance: Object.hasOwn(event.references.attendance || {}, record.userId)
+        ? Boolean(event.references.attendance[record.userId]?.present ?? event.references.attendance[record.userId]) : null,
+      streepjes: event.streepjes
+    }))
+  })) })
 })
 
 apiRouter.post('/users', async (req, res) => {
@@ -1505,7 +1668,14 @@ apiRouter.post('/users', async (req, res) => {
     const firstName = safeTrimmedString(req.body?.firstName, 80)
     const lastName = safeTrimmedString(req.body?.lastName, 120)
     const email = safeTrimmedString(req.body?.email, 254).toLowerCase()
-    const isAdmin = req.body?.isAdmin === true
+    const group = await resolveGroup(req, auth.user, { requireActive: true })
+    const role = req.body?.role ?? (req.body?.isAdmin === true ? 'admin' : 'user')
+    if (!['user', 'admin'].includes(role)) {
+      return res.status(400).json({ error: 'Kies de rol user of admin' })
+    }
+    if (role === 'admin' && !isDeveloper(auth.user)) {
+      return res.status(403).json({ error: 'Alleen developers kunnen beheerders aanmaken' })
+    }
 
     if (!firstName || !lastName || !validator.isEmail(email)) {
       return res.status(400).json({ error: 'Voornaam, achternaam en een geldig e-mailadres zijn verplicht' })
@@ -1527,23 +1697,28 @@ apiRouter.post('/users', async (req, res) => {
       lastName,
       email,
       password: await bcrypt.hash(randomBytes(32).toString('base64url'), 10),
-      isAdmin,
+      role,
+      groupId: group.id,
+      isAdmin: role === 'admin',
+      isDeveloper: false,
       status: 'active',
       sessionVersion: 0,
       createdAt: new Date()
     }
 
-    const db = await getDb()
-    await db.collection('users').insertOne(newUser)
+    await saveUser(newUser, { creating: true, actor: auth.user })
     users.push(newUser)
     const attendanceSync = await syncUserAttendanceForFutureOpkomsten(newUser.id, true)
 
     logEvent({
       action: 'user-created',
+      actor: auth.userId,
       metadata: {
         targetUserId: newUser.id,
         createdBy: auth.userId,
-        isAdmin
+        groupId: group.id,
+        role,
+        changedFields: 'firstName,lastName,email,role,groupId,status'
       }
     })
 
@@ -1553,6 +1728,7 @@ apiRouter.post('/users', async (req, res) => {
       msg: 'Gebruiker toegevoegd'
     })
   } catch (err) {
+    if (err instanceof GroupAccessError) throw err
     if (err?.code === 11000) {
       return res.status(409).json({ error: 'Dit e-mailadres of gebruikers-ID bestaat al' })
     }
@@ -1564,6 +1740,8 @@ apiRouter.post('/users', async (req, res) => {
 // Helper function to send active status change notification email
 async function sendStatusChangeEmail(user, newStatus) {
   try {
+    const recipient = await getGroupEmail(user.groupId, 'dailyChangeEmail')
+    if (!recipient) return
     const statusText = newStatus === 'active' ? 'actief' : newStatus === 'inactive' ? 'inactief' : 'alumni'
 
     const mailer = await ensureMailerTransport()
@@ -1574,7 +1752,7 @@ async function sendStatusChangeEmail(user, newStatus) {
 
     await mailer.sendMail({
       from: process.env.SMTP_FROM || 'stamjer.mpd@gmail.com',
-      to: DAILY_CHANGE_EMAIL,
+      to: recipient,
       subject: `Stamjer - Status wijziging: ${user.firstName} ${user.lastName}`,
       html: `
         <h2>Status wijziging</h2>
@@ -1609,18 +1787,19 @@ async function sendStatusChangeEmail(user, newStatus) {
   }
 }
 
-async function applyUserStatusChange(user, status, changedBy) {
+async function applyUserStatusChange(user, status, changedBy, actor) {
   const previousStatus = user.status
   if (previousStatus === status) return { updatedEvents: 0, changed: false }
 
-  user.status = status
+  const updated = { ...user, status }
+  await saveUser(updated, { actor })
+  Object.assign(user, updated)
   const attendanceSync = await syncUserAttendanceForFutureOpkomsten(user.id, status === 'active')
-  await saveUser(user)
   await sendStatusChangeEmail(user, status)
   logEvent({
     action: 'user-status-changed',
     actor: changedBy,
-    metadata: { targetUserId: user.id, previousStatus, newStatus: status }
+    metadata: { targetUserId: user.id, groupId: user.groupId, previousStatus, newStatus: status, changedFields: 'status' }
   })
   return { ...attendanceSync, changed: true }
 }
@@ -1630,6 +1809,12 @@ apiRouter.put('/user/profile', async (req, res) => {
   try {
     const auth = await requireAuthenticatedUser(req, res)
     if (!auth) return
+
+    if (isDeveloper(auth.user)) return res.status(403).json({ error: 'Developers hebben geen aanwezigheidsstatus' })
+    await resolveGroup(req, auth.user, { requireActive: true })
+    if (normalizeUserRole(auth.user) === 'user' && auth.user.permissions?.canUseAttendance === false) {
+      return res.status(403).json({ error: 'Zelf aanwezigheid wijzigen is voor deze groep uitgeschakeld' })
+    }
 
     const { status } = req.body
     if (!['active', 'inactive'].includes(status)) {
@@ -1642,13 +1827,14 @@ apiRouter.put('/user/profile', async (req, res) => {
       return res.status(403).json({ error: 'Een alumni-status kan alleen door een beheerder worden gewijzigd' })
     }
 
-    const attendanceSync = await applyUserStatusChange(users[idx], status, auth.userId)
+    const attendanceSync = await applyUserStatusChange(users[idx], status, auth.userId, auth.user)
     res.json({ 
-      user: mapUserForClient(users[idx]),
+      user: mapUserForClient(await withUserPermissions(users[idx])),
       msg: 'Profiel succesvol bijgewerkt',
       attendanceUpdates: attendanceSync.updatedEvents
     })
   } catch (err) {
+    if (err instanceof GroupAccessError) throw err
     console.error(err)
     logSystemError(err, { action: 'PUT /api/user/profile', status: 500, metadata: req.body })
     res.status(500).json({ error: 'Profiel bijwerken mislukt' })
@@ -1672,18 +1858,26 @@ apiRouter.patch('/users/:id/status', async (req, res) => {
 
     const idx = users.findIndex(u => u.id === targetId)
     if (idx < 0) return res.status(404).json({ error: 'Gebruiker niet gevonden' })
+    if (!canManageUser(auth.user, users[idx]) || isDeveloper(users[idx])) {
+      return res.status(404).json({ error: 'Gebruiker niet gevonden' })
+    }
+    if (req.query?.groupId !== undefined && req.query.groupId !== users[idx].groupId) {
+      throw new GroupAccessError('De geselecteerde groep hoort niet bij deze gebruiker', 400)
+    }
+    await resolveGroup({ ...req, query: { ...req.query, groupId: req.query?.groupId ?? users[idx].groupId } }, auth.user, { requireActive: true })
 
     if (users[idx].status === status) {
       return res.json({ user: { id: targetId, status }, msg: 'Status ongewijzigd' })
     }
 
-    await applyUserStatusChange(users[idx], status, auth.userId)
+    await applyUserStatusChange(users[idx], status, auth.userId, auth.user)
 
     res.json({
       user: { id: targetId, status },
       msg: `Status bijgewerkt naar ${status}`
     })
   } catch (err) {
+    if (err instanceof GroupAccessError) throw err
     logSystemError(err, { action: 'PATCH /api/users/:id/status', status: 500 })
     res.status(500).json({ error: 'Status bijwerken mislukt' })
   }
@@ -1701,24 +1895,24 @@ apiRouter.get('/user/profile', async (req, res) => {
     return res.status(404).json({ error: 'Gebruiker niet gevonden' })
   }
 
-  res.json({ user: mapUserForClient(user, auth.session) })
+  res.json({ user: mapUserForClient(auth.user, auth.session) })
 })
 
 // Evenementen ophalen
 apiRouter.get('/events', async (req, res) => {
   const auth = await requireAuthenticatedUser(req, res)
   if (!auth) return
-
+  const group = await resolveGroup(req, auth.user, { allowAllGroups: true })
   await ensureEventsFresh()
-  res.json({ events: events.map(mapEventForClient) })
+  res.json({ events: events.filter((event) => !group || event.groupId === group.id).map(mapEventForClient) })
 })
 
 apiRouter.get('/events/opkomsten', async (req, res) => {
   const auth = await requireAuthenticatedUser(req, res)
   if (!auth) return
-
+  const group = await resolveGroup(req, auth.user, { allowAllGroups: true })
   await ensureEventsFresh()
-  res.json({ events: events.filter(e => e.isOpkomst).map(mapEventForClient) })
+  res.json({ events: events.filter(e => e.isOpkomst && (!group || e.groupId === group.id)).map(mapEventForClient) })
 })
 
 // Evenement aanmaken
@@ -1727,10 +1921,12 @@ apiRouter.post('/events', async (req, res) => {
     const auth = await requireAuthenticatedUser(req, res, { requireAdmin: true })
     if (!auth) return
     await ensureEventsFresh()
-
-    const id = Math.random().toString(36).substr(2, 6)
+    const group = await resolveGroup(req, auth.user, { requireActive: true })
+    validateEventInput({ groupId: group.id }, req.body, users, { creating: true })
+    const id = randomUUID()
     const newEv = applyEventInput({
       id,
+      groupId: group.id,
       title: '', start: '', end: '', allDay: false, location: '', description: '',
       isOpkomst: false, opkomstmakerIds: [], legacyOpkomstmakerNames: [],
       isSchoonmaak: false, schoonmakerIds: [], legacySchoonmakerNames: [],
@@ -1738,28 +1934,12 @@ apiRouter.post('/events', async (req, res) => {
     }, req.body)
     if (!newEv.title || !newEv.start) return res.status(400).json({ msg: 'Titel en startdatum zijn vereist' })
 
-    if (newEv.isOpkomst) {
-      if (!users || users.length === 0) {
-        await loadUsers()
-      }
-      const activeUserIds = users
-        .filter(u => u.status === 'active')
-        .map(u => u.id)
-        .filter(Number.isFinite)
-
-      const combinedParticipants = Array.from(
-        new Set([...newEv.participants, ...activeUserIds])
-      ).sort((a, b) => a - b)
-
-      newEv.participants = combinedParticipants
-    }
-
-    events.push(newEv)
-    await saveEvent(newEv)
+    await saveEvent(newEv, { creating: true, actor: auth.user })
     await ensureEventsFresh(0)
-    logEvent({ action: 'event-created', actor: auth.userId, metadata: { eventId: id } })
+    logEvent({ action: 'event-created', actor: auth.userId, metadata: { eventId: id, groupId: group.id, changedFields: Object.keys(req.body).join(',') } })
     res.status(201).json(mapEventForClient(newEv))
   } catch (err) {
+    if (err instanceof GroupAccessError) throw err
     console.error(err)
     logSystemError(err, { action: 'POST /api/events', status: 500, metadata: req.body })
     res.status(500).json({ msg: 'Aanmaken evenement mislukt' })
@@ -1767,7 +1947,7 @@ apiRouter.post('/events', async (req, res) => {
 })
 
 // Evenement bijwerken
-apiRouter.put('/events/:id', async (req, res) => {
+async function updateManagedEvent(req, res, { expectedFingerprint } = {}) {
   try {
     const auth = await requireAuthenticatedUser(req, res, { requireAdmin: true })
     if (!auth) return
@@ -1775,20 +1955,23 @@ apiRouter.put('/events/:id', async (req, res) => {
     const { id } = req.params
     const idx = events.findIndex(e => e.id === id)
     if (idx < 0) return res.status(404).json({ msg: 'Niet gevonden' })
+    await requireEventAccess(req, auth.user, events[idx], { manage: true })
+    validateEventInput(events[idx], req.body, users)
     const updated = applyEventInput(events[idx], req.body)
     if (!updated.title || !updated.start) return res.status(400).json({ msg: 'Titel en startdatum zijn vereist' })
 
-    events[idx] = updated
-    await saveEvent(updated)
+    await saveEvent(updated, { actor: auth.user, expectedFingerprint })
     await ensureEventsFresh(0)
-    logEvent({ action: 'event-updated', actor: auth.userId, metadata: { eventId: id } })
+    logEvent({ action: 'event-updated', actor: auth.userId, metadata: { eventId: id, groupId: updated.groupId, changedFields: Object.keys(req.body).join(',') } })
     res.json(mapEventForClient(updated))
   } catch (err) {
+    if (err instanceof GroupAccessError) throw err
     console.error(err)
     logSystemError(err, { action: 'PUT /api/events/:id', status: 500, metadata: req.body })
     res.status(500).json({ msg: 'Bijwerken evenement mislukt' })
   }
-})
+}
+apiRouter.put('/events/:id', (req, res) => updateManagedEvent(req, res))
 
 // Evenement verwijderen
 apiRouter.delete('/events/:id', async (req, res) => {
@@ -1799,12 +1982,14 @@ apiRouter.delete('/events/:id', async (req, res) => {
     const { id } = req.params
     const idx = events.findIndex(e => e.id === id)
     if (idx < 0) return res.status(404).json({ msg: 'Niet gevonden' })
-    const [removed] = events.splice(idx, 1)
-    await deleteEventById(id)
+    await requireEventAccess(req, auth.user, events[idx], { manage: true })
+    const removed = events[idx]
+    await deleteEventById(removed, auth.user)
     await ensureEventsFresh(0)
-    logEvent({ action: 'event-deleted', actor: auth.userId, metadata: { eventId: id } })
+    logEvent({ action: 'event-deleted', actor: auth.userId, metadata: { eventId: id, groupId: removed.groupId } })
     res.json({ msg: 'Evenement verwijderd', event: mapEventForClient(removed) })
   } catch (err) {
+    if (err instanceof GroupAccessError) throw err
     console.error(err)
     logSystemError(err, { action: 'DELETE /api/events/:id', status: 500, metadata: req.params })
     res.status(500).json({ msg: 'Verwijderen mislukt' })
@@ -1824,15 +2009,20 @@ apiRouter.put('/events/:id/attendance', async (req, res) => {
     if (requestedUserId === null) return res.status(400).json({ msg: 'Ongeldig gebruikers-ID' })
     const targetUser = users.find((user) => user.id === requestedUserId)
     if (!targetUser) return res.status(404).json({ msg: 'Gebruiker niet gevonden' })
-    const attendanceAuthorizationError = getAttendanceAuthorizationError(auth.user, targetUser, attending)
+    const cachedEvent = events.find(e => e.id === id)
+    if (!cachedEvent) return res.status(404).json({ msg: 'Niet gevonden' })
+    const ev = { ...cachedEvent, attendance: { ...cachedEvent.attendance } }
+    await requireEventAccess(req, auth.user, ev)
+    if (normalizeUserRole(auth.user) === 'user' && auth.user.permissions?.canUseAttendance === false) {
+      return res.status(403).json({ msg: 'Zelf aanwezigheid wijzigen is voor deze groep uitgeschakeld' })
+    }
+    const attendanceAuthorizationError = getAttendanceAuthorizationError(auth.user, targetUser, attending, ev)
     if (attendanceAuthorizationError === 'FORBIDDEN') {
       return res.status(403).json({ msg: 'Je kunt alleen je eigen aanwezigheid wijzigen' })
     }
     if (attendanceAuthorizationError === 'ALUMNI_ATTENDANCE') {
       return res.status(400).json({ msg: 'Alumni kunnen niet aan een opkomst worden toegevoegd' })
     }
-    const ev = events.find(e => e.id === id)
-    if (!ev) return res.status(404).json({ msg: 'Niet gevonden' })
     
     // Only opkomst events have participants/attendance
     if (!ev.isOpkomst) {
@@ -1845,6 +2035,7 @@ apiRouter.put('/events/:id/attendance', async (req, res) => {
     
     // Track the change for logging
     const changeDetails = {
+      groupId: ev.groupId,
       title: ev.title,
       start: ev.start,
       participantId: uid,
@@ -1868,11 +2059,13 @@ apiRouter.put('/events/:id/attendance', async (req, res) => {
       }
     }
     
-    await saveEvent(ev)
+    await saveEvent(ev, { actor: auth.user, attendance: { targetId: requestedUserId, attending } })
+    await loadEvents()
     
     logEvent({ action: 'attendance-updated', actor: auth.userId, metadata: changeDetails })
     res.json({ msg: 'Aanwezigheid bijgewerkt', event: mapEventForClient(ev) })
   } catch (err) {
+    if (err instanceof GroupAccessError) throw err
     console.error(err)
     logSystemError(err, { action: 'PUT /api/events/:id/attendance', status: 500, metadata: req.body })
     res.status(500).json({ msg: 'Bijwerken aanwezigheid mislukt' })
@@ -1908,8 +2101,9 @@ apiRouter.get('/session', async (req, res) => {
 
 apiRouter.post('/login', async (req, res) => {
   try {
+    await loadUsers()
     const { email, password } = req.body
-    if (!email || !password) return res.status(400).json({ msg: 'Inloggegevens ontbreken' })
+    if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) return res.status(400).json({ msg: 'Inloggegevens ontbreken' })
     
     // Normalize email to lowercase for consistent comparison
     const normalizedEmail = email.trim().toLowerCase()
@@ -1923,8 +2117,9 @@ apiRouter.post('/login', async (req, res) => {
     const { token, session } = await createUserSession(u, req)
     setSessionCookie(res, token)
 
-    res.json({ user: mapUserForClient(u, session) })
+    res.json({ user: mapUserForClient(await withUserPermissions(u), session) })
   } catch (err) {
+    if (err instanceof GroupAccessError) throw err
     console.error('Login error details:', err)
     logSystemError(err, { action: 'POST /api/login', status: 500, metadata: req.body })
     res.status(500).json({ msg: 'Inloggen mislukt' })
@@ -1943,7 +2138,7 @@ apiRouter.post('/logout', async (req, res) => {
     const idx = users.findIndex((u) => u.id === auth.userId)
     if (idx >= 0) {
       users[idx].sessionVersion = (users[idx].sessionVersion || 0) + 1
-      await saveUser(users[idx])
+      await saveUser(users[idx], { actor: auth.user, allowArchived: true })
     }
 
     clearSessionCookie(res)
@@ -1959,56 +2154,31 @@ apiRouter.post('/logout', async (req, res) => {
 apiRouter.post('/forgot-password', async (req, res) => {
   try {
     // Normalize email the same way as reset-password
-    const rawEmail = (req.body.email || '').trim().toLowerCase()
+    const rawEmail = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : ''
     
     debugLog('Forgot password request received', { email: maskEmail(rawEmail) })
     
     if (!rawEmail || !validator.isEmail(rawEmail))
       return res.status(400).json({ msg: 'Ongeldig e-mailadres' })
 
+    await loadUsers()
     const u = users.find(u => u.email.toLowerCase() === rawEmail)
     debugLog('Forgot password lookup result', { email: maskEmail(rawEmail), userFound: Boolean(u) })
     debugLog('Known user accounts for debugging', { count: users.length })
     
     const generic = 'Als het e-mailadres bestaat, ontvang je een herstelcode via e-mail.'
     if (u) {
-      const code = generateCode()
-      const expiresAt = Date.now() + 15 * 60 * 1000 // 15 minutes
-      
-      // Store in MongoDB instead of memory
-      await saveResetCode(rawEmail, code, expiresAt)
-      
-      debugLog('Issued password reset code', { email: maskEmail(rawEmail) })
-      debugLog('Stored password reset code with expiry', { email: maskEmail(rawEmail), expiresAt })
-      
-      const mailer = await ensureMailerTransport()
-      if (!mailer) {
-        warnLog('Herstelcode e-mail overgeslagen: transporter niet beschikbaar')
-      } else {
-        await mailer.sendMail({
-        from: process.env.SMTP_FROM || 'stamjer.mpd@gmail.com',
-        to: u.email,
-        subject: 'Herstel je Stamjer-wachtwoord',
-        html: `
-          <div style="font-family: Arial, sans-serif; color: #222; background-color: #f9f9f9; padding: 20px; border-radius: 8px; max-width: 500px;">
-            <h2 style="color: #1e40af; text-align: center;">Wachtwoordherstel Stamjer</h2>
-            <p>Hallo,</p>
-            <p>Je hebt aangegeven je Stamjer-wachtwoord te willen herstellen. Gebruik onderstaande code om verder te gaan:</p>
-            <p style="font-size: 20px; font-weight: bold; text-align: center; color: #2563eb; background: #eef2ff; padding: 10px; border-radius: 6px;">${code}</p>
-            <p>De code is geldig gedurende <strong>15 minuten</strong>. Vul deze in op de herstelpagina om een nieuw wachtwoord in te stellen.</p>
-            <p>Heb je dit verzoek niet zelf gedaan? Dan kun je deze e-mail negeren.</p>
-            <hr style="margin: 20px 0;">
-            <p style="font-size: 12px; color: #666; text-align: center;">
-              Dit bericht is automatisch verzonden door Stamjer. Reageren op deze e-mail is niet nodig.
-            </p>
-          </div>
-        `
-        })
+      try {
+        await sendPasswordInvitation(await clientPromise, await getDb(), { userId: u.id,
+          mailer: await ensureMailerTransport(), from: process.env.SMTP_FROM || 'stamjer.mpd@gmail.com' })
+      } catch (error) {
+        // Keep the public response generic, including delivery/rate-limit failure.
+        if (!(error instanceof GroupAccessError) || ![429, 503].includes(error.status)) throw error
       }
-
     }
     res.json({ msg: generic })
   } catch (err) {
+    if (err instanceof GroupAccessError) throw err
     console.error(err)
     logSystemError(err, { action: 'POST /api/forgot-password', status: 500, metadata: req.body })
     res.status(500).json({ msg: 'Verzoek wachtwoordherstel mislukt' })
@@ -2019,7 +2189,7 @@ apiRouter.post('/forgot-password', async (req, res) => {
 apiRouter.post('/reset-password', async (req, res) => {
   try {
     // 1) Normalize & trim email
-    const rawEmail = (req.body.email || '').trim().toLowerCase()
+    const rawEmail = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : ''
 
     // 2) Grab the code (trim whitespace), support both `code` and `verificationCode`
     const code = (req.body.code ?? req.body.verificationCode ?? '')
@@ -2030,10 +2200,10 @@ apiRouter.post('/reset-password', async (req, res) => {
     const newPassword = (req.body.password ?? req.body.newPassword) || ''
 
     // 4) Basic validations
-    if (!rawEmail || !code || newPassword.length < 6) {
+    if (!rawEmail || !code || typeof newPassword !== 'string' || newPassword.length < 12) {
       return res
         .status(400)
-        .json({ msg: 'E-mail, code en minimaal 6-karakter wachtwoord zijn vereist' })
+        .json({ msg: 'E-mail, code en minimaal 12-karakter wachtwoord zijn vereist' })
     }
 
     // 5) Lookup pending code & validate expiry
@@ -2046,7 +2216,10 @@ apiRouter.post('/reset-password', async (req, res) => {
       return res.status(400).json({ msg: 'Geen actieve herstelcode gevonden voor dit e-mailadres' })
     }
     
+    if ((rec.failedAttempts || 0) >= 5) return res.status(429).json({ msg: 'Te veel onjuiste pogingen. Vraag een nieuwe herstelcode aan.' })
     if (rec.code !== code) {
+      const db = await getDb()
+      await db.collection('resetCodes').updateOne({ email: rawEmail, code: rec.code }, { $inc: { failedAttempts: 1 } })
       return res.status(400).json({ msg: 'Ongeldige herstelcode' })
     }
     
@@ -2056,21 +2229,21 @@ apiRouter.post('/reset-password', async (req, res) => {
     }
 
     // 6) Find user and hash the new password
+    await loadUsers()
     const idx = users.findIndex(u => u.email.toLowerCase() === rawEmail)
     if (idx < 0) {
       return res.status(400).json({ msg: 'Gebruiker niet gevonden' })
     }
 
-    users[idx].password = await bcrypt.hash(newPassword, 10)
-    users[idx].sessionVersion = (users[idx].sessionVersion || 0) + 1
-    await saveUser(users[idx])
-    await revokeUserSessions(users[idx].id)
-    await deleteResetCode(rawEmail) // Clean up used reset code
+    const updated = { ...users[idx], password: await bcrypt.hash(newPassword, 10), sessionVersion: (users[idx].sessionVersion || 0) + 1 }
+    await saveUser(updated, { allowArchived: true, resetCode: code, action: 'password-reset-completed' })
+    await loadUsers()
 
     // 7) Success response
     res.json({ msg: 'Wachtwoord succesvol gereset' })
 
   } catch (err) {
+    if (err instanceof GroupAccessError) throw err
     console.error('Reset-password error:', err)
     logSystemError(err, { action: 'POST /api/reset-password', status: 500, metadata: req.body })
     res.status(500).json({ msg: 'Wachtwoordherstel mislukt' })
@@ -2085,6 +2258,7 @@ apiRouter.post('/change-password', async (req, res) => {
     if (!auth) return
 
     const { email, currentPassword, newPassword } = req.body
+    if (typeof email !== 'string' || typeof currentPassword !== 'string' || typeof newPassword !== 'string' || newPassword.length < 12) return res.status(400).json({ msg: 'Gebruik een nieuw wachtwoord van minimaal 12 tekens' })
 
     // Normalize email to lowercase for consistent comparison
     const normalizedEmail = email.trim().toLowerCase()
@@ -2095,12 +2269,13 @@ apiRouter.post('/change-password', async (req, res) => {
     const valid = await bcrypt.compare(currentPassword, u.password)
     if (!valid) return res.status(400).json({ msg: 'Huidig wachtwoord onjuist' })
 
-    u.password = await bcrypt.hash(newPassword, 10)
-    u.sessionVersion = (u.sessionVersion || 0) + 1
-    await saveUser(u)
+    const updated = { ...u, password: await bcrypt.hash(newPassword, 10), sessionVersion: (u.sessionVersion || 0) + 1 }
+    await saveUser(updated, { actor: auth.user, allowArchived: true, action: 'password-changed' })
+    await loadUsers()
     await revokeUserSessions(u.id, { exceptSessionId: auth.session?.sessionId || null })
     res.json({ msg: 'Wachtwoord gewijzigd' })
   } catch (err) {
+    if (err instanceof GroupAccessError) throw err
     console.error(err)
     logSystemError(err, { action: 'POST /api/change-password', status: 500, metadata: req.body })
     res.status(500).json({ msg: 'Wijzigen mislukt' })
@@ -2112,6 +2287,9 @@ apiRouter.post('/payment-requests', async (req, res) => {
   try {
     const auth = await requireAuthenticatedUser(req, res)
     if (!auth) return
+    const group = await resolveGroup(req, auth.user, { requireActive: true })
+    const recipient = await getGroupEmail(group.id, 'paymentRequestEmail')
+    if (!recipient) return res.status(503).json({ msg: 'Voor deze groep is geen declaratieadres ingesteld.' })
 
     const {
       requesterName = '',
@@ -2358,7 +2536,7 @@ apiRouter.post('/payment-requests', async (req, res) => {
 
     const sendResult = await mailer.sendMail({
       from: process.env.SMTP_FROM || 'stamjer.mpd@gmail.com',
-      to: PAYMENT_REQUEST_EMAIL,
+      to: recipient,
       replyTo,
       subject,
       html: htmlBody,
@@ -2382,6 +2560,7 @@ apiRouter.post('/payment-requests', async (req, res) => {
         expenseTitle: trimmedExpenseTitle,
         paidTo: trimmedPaidTo,
         paymentMethod: normalizedPaymentMethod,
+        groupId: group.id,
         attachments: sanitizedAttachments.length,
         ibanMasked: normalizedPaymentMethod === 'iban' ? maskIban(sanitizedIban) : null
       }
@@ -2395,17 +2574,62 @@ apiRouter.post('/payment-requests', async (req, res) => {
 
     res.status(201).json(responsePayload)
   } catch (error) {
+    if (error instanceof GroupAccessError) throw error
     console.error('Payment request error:', error)
     logSystemError(error, { action: 'POST /api/payment-requests', status: 500, metadata: req.body })
     res.status(500).json({ msg: 'Declaratie versturen mislukt.' })
   }
 })
 
-// iCalendar feed endpoint
-apiRouter.get('/calendar.ics', createICalendarHandler(async () => {
+// External calendar applications cannot send the browser's session cookie.
+// Give members a secret group feed URL; never fall back to a global public feed.
+apiRouter.get('/calendar/subscription', async (req, res) => {
+  const auth = await requireAuthenticatedUser(req, res)
+  if (!auth) return
+  const group = await resolveGroup(req, auth.user)
+  const db = await getDb()
+  if (!group.calendarFeedToken) await runGroupTransaction(await clientPromise, async session => {
+    const current = await db.collection('groups').findOne({ id: group.id }, { session })
+    if (current.calendarFeedToken) return
+    await lockGroups(db, session, [group.id], { requireActive: false })
+    const actor = await db.collection('users').findOne({ id: auth.userId }, { session })
+    if (!canReadGroup(actor, group.id)) throw new GroupAccessError('Geen toegang tot deze groep')
+    await db.collection('groups').updateOne({ id: group.id }, { $set: { calendarFeedToken: randomBytes(32).toString('base64url') } }, { session })
+    await writeAudit(db, { action: 'calendar-token-created', actor, groupId: group.id, collection: 'groups', targetId: group.id, changedFields: ['calendarFeedToken'] }, session)
+  })
+  const currentGroup = await db.collection('groups').findOne({ id: group.id })
+  res.setHeader('Cache-Control', 'no-store')
+  res.json({ url: `/api/calendar.ics?groupId=${encodeURIComponent(group.id)}&token=${encodeURIComponent(currentGroup.calendarFeedToken)}` })
+})
+
+apiRouter.get('/calendar.ics', async (req, res, next) => {
+  if (req.query.token !== undefined) {
+    const { groupId, token } = req.query
+    if (typeof groupId !== 'string' || typeof token !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(token)) {
+      return res.status(401).json({ error: 'Ongeldig agenda-abonnement' })
+    }
+    const db = await getDb()
+    const group = await db.collection('groups').findOne({ id: groupId, calendarFeedToken: token })
+    if (!group) return res.status(401).json({ error: 'Ongeldig agenda-abonnement' })
+    req.calendarGroupId = group.id
+    req.calendarName = group.settings?.calendarName
+  } else {
+    const auth = await requireAuthenticatedUser(req, res)
+    if (!auth) return
+    const group = await resolveGroup(req, auth.user)
+    req.calendarGroupId = group.id
+    req.calendarName = group.settings?.calendarName
+  }
+  next()
+}, createICalendarHandler(async (req) => {
   await ensureEventsFresh()
-  return events
+  return events.filter((event) => event.groupId === req.calendarGroupId)
 }))
+
+apiRouter.use((error, req, res, next) => {
+  if (error instanceof GroupAccessError) return res.status(error.status).json({ error: error.message })
+  next(error)
+})
 
 // API-mounting
 app.use('/api', apiRouter)

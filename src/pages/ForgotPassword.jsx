@@ -26,8 +26,6 @@ export default function ForgotPassword() {
     e.preventDefault()
     const normalizedEmail = email.trim().toLowerCase()
     
-    console.log('Sending forgot password request for:', normalizedEmail) // Debug log
-    
     if (!normalizedEmail) {
       setError('Vul je e-mailadres in.')
       return
@@ -71,8 +69,8 @@ export default function ForgotPassword() {
       setError('Vul de verificatiecode in.')
       return
     }
-    if (password.length < 6) {
-      setError('Wachtwoord moet minimaal 6 karakters bevatten.')
+    if (password.length < 12) {
+      setError('Wachtwoord moet minimaal 12 karakters bevatten.')
       return
     }
 
@@ -81,7 +79,6 @@ export default function ForgotPassword() {
     setIsLoading(true)
     try {
       const normalizedEmail = email.trim().toLowerCase()
-      console.log('Sending reset password request:', { email: normalizedEmail, code: code.trim() }) // Debug log
       await resetPassword(normalizedEmail, code.trim(), password)
       setSuccess('Wachtwoord succesvol gereset! Je wordt doorgestuurd naar de inlogpagina...')
       setTimeout(() => navigate('/login'), 2000)
@@ -149,6 +146,9 @@ export default function ForgotPassword() {
               <button type="submit" className="btn-primary" disabled={isLoading || !email.trim()}>
                 {isLoading ? 'Verzenden…' : 'Verstuur herstelcode'}
               </button>
+              <button type="button" className="btn-secondary" disabled={isLoading || !email.trim()} onClick={event => {
+                if (event.currentTarget.form.reportValidity()) { setError(null); setStep('reset') }
+              }}>Ik heb al een code</button>
             </form>
           ) : (
             <>
@@ -183,7 +183,7 @@ export default function ForgotPassword() {
                         className="form-input"
                         placeholder="••••••••"
                         required
-                        minLength={6}
+                        minLength={12}
                         disabled={isLoading}
                         autoComplete="new-password"
                         aria-label="Nieuw wachtwoord"

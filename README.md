@@ -8,6 +8,7 @@ Full‑stack calendar for Stamjer members with authentication, attendance, and a
 - Calendar: Dutch locale, desktop month view + mobile list/agenda, event modals
 - Attendance: toggle presence per event; admins manage participants
 - Admin tools: manage “opkomsten”, assign makers, edit/delete events
+- Groups: isolated memberships/events/settings, developer management, transactional moves/history, audit and curated database tools
 - UX quality: toasts, error boundaries, a11y, and resilient client logic
 
 ## Tech Stack
@@ -19,7 +20,7 @@ Full‑stack calendar for Stamjer members with authentication, attendance, and a
 ## Prerequisites
 
 - Node.js 20+ (LTS recommended)
-- MongoDB connection string (Atlas or local)
+- MongoDB connection string (Atlas or a local replica set; mutations require transactions)
 - SMTP credentials (optional in dev; Ethereal is auto‑provisioned if not set)
 
 ## Quick Start
@@ -58,6 +59,9 @@ Alternatively:
 
 - `npm test` - run the automated test suite
 - `npm run test:watch` - run tests in watch mode
+- `npm run test:groups:browser` - production UI checks with local DB/mail substitutes (Node 22+ and Chromium)
+- `npm run test:groups:mongo` - optional isolated transaction/index checks with `MONGODB_GROUPS_TEST_URI`
+- `npm run migrate:groups` / `npm run bootstrap:developer` - read-only migration/bootstrap previews; `--apply` enables maintenance writes
 
 ## Environment Variables (.env)
 
@@ -71,10 +75,12 @@ Required unless noted otherwise:
 - SESSION_MAX_AGE_DAYS — optional rolling session lifetime (default 365 days)
 - SESSION_TOUCH_INTERVAL_HOURS — optional interval for renewing active sessions (default 24 hours)
 - SMTP_SERVICE — optional (e.g. gmail, outlook); if omitted in dev, an Ethereal test inbox is used
+- SMTP_HOST / SMTP_PORT / SMTP_SECURE — alternative SMTP server configuration; production requires a host or service
+- SMTP_REJECT_UNAUTHORIZED — certificate verification defaults to true
 - SMTP_USER — optional; SMTP username
 - SMTP_PASS — optional; SMTP password/app password
 - SMTP_FROM — optional; From address for outgoing emails
-- DAILY_CHANGE_EMAIL - optional recipient for membership-status change emails
+- DAILY_CHANGE_EMAIL / PAYMENT_REQUEST_EMAIL - initial default-group recipients; later routing uses each group's settings
 
 ## Project Structure
 
@@ -107,13 +113,19 @@ Base path: /api
 - POST /api/forgot-password — request reset code via email
 - POST /api/reset-password — reset password using code
 - POST /api/change-password — change password when logged in
-- GET /api/calendar.ics — public calendar feed with title, time, and location only
+- GET /api/calendar/subscription — authenticated secret group subscription URL
+- GET /api/calendar.ics — own-group browser feed, or external group feed with a valid secret token
+- PATCH /api/users/:id — scoped management; roles are developer-only
+- POST /api/users/:id/password-email — confirmed invitation/reset email action
+- POST /api/users/:id/group/preview and PATCH /api/users/:id/group — developer-only transactional moves
+- /api/groups — developer group management and calendar-token rotation
+- /api/developer/database — curated inspection/audit and guarded JSON preview/confirmation
 
 Notes:
 
-- User and JSON event endpoints require an authenticated session; the limited `.ics` feed is intentionally public
+- User and JSON event endpoints require an authenticated session and group authorization; developer reads require explicit `groupId` or `allGroups=true`. External `.ics` subscriptions require a secret group token.
 - CORS is restricted via CLIENT_ORIGIN (with dev fallbacks for localhost and Vercel envs)
-- MongoDB collections: users, events, resetCodes, sessions (with indexes ensured on startup)
+- MongoDB collections: users, events, groups, userGroupHistory, auditLogs, resetCodes, sessions (with indexes ensured on startup)
 - Passwords are hashed with bcrypt before storing
 
 ## Development Workflow
@@ -129,6 +141,8 @@ Notes:
 - Preview: npm run preview (serves the built site locally)
 
 ## Deployment
+
+Follow [Groups remodel deployment and administration](docs/groups-remodel.md) for the production maintenance window, verified complete `Stamjer` backup, migration, bootstrap, SMTP, calendar subscription changes and production validation. Use the existing Atlas cluster; rollback restores both the database and matching previous code. Migration/bootstrap default to read-only; their apply commands require stopped writers and a verified backup. Keep compatibility fallbacks until persisted migration is verified.
 
 ### Vercel
 

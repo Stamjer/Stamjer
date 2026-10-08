@@ -18,6 +18,7 @@
 // React core imports
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { isAdmin as hasAdminRole } from '../../shared/roles'
 // FullCalendar imports for calendar functionality
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
@@ -175,7 +176,7 @@ function EventModal({ event, onClose, onDelete, onEdit, isAdmin = false, current
   const initialAttending = !!(currentUser && participants.includes(Number(currentUser.id)))
   const [attending, setAttending] = useState(initialAttending)
   useEffect(() => { setAttending(initialAttending) }, [initialAttending])
-  const attendanceDisabled = !currentUser || !canChangeAttendance(start)
+  const attendanceDisabled = !currentUser || currentUser.permissions?.canUseAttendance === false || !canChangeAttendance(start)
 
   if (!event) return null
 
@@ -344,7 +345,7 @@ function EventModal({ event, onClose, onDelete, onEdit, isAdmin = false, current
                     {attending ? 'Aangemeld' : 'Afgemeld'}
                   </label>
                   {attendanceDisabled && (
-                    <div className="muted-text">Je kan je aanwezigheid niet meer aanpassen</div>
+                    <div className="muted-text">{currentUser?.permissions?.canUseAttendance === false ? 'Je kunt je aanwezigheid niet zelf wijzigen.' : 'Je kan je aanwezigheid niet meer aanpassen'}</div>
                   )}
                 </div>
               </div>
@@ -1116,7 +1117,7 @@ function TimeInput24({ value, onChange, disabled, error }) {
 // MAIN CALENDAR PAGE COMPONENT
 // ================================================================
 
-export default function CalendarPage() {
+export default function CalendarPage({ user: currentUser }) {
   // ================================================================
   // STATE MANAGEMENT
   // ================================================================
@@ -1124,7 +1125,6 @@ export default function CalendarPage() {
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [showNewForm, setShowNewForm] = useState(false)
   const [editingEvent, setEditingEvent] = useState(null)
-  const [currentUser, setCurrentUser] = useState(null)
   const isMobile = useIsMobile()
   const [viewDate, setViewDate] = useState(new Date())
   const [searchParams, setSearchParams] = useSearchParams()
@@ -1224,21 +1224,8 @@ export default function CalendarPage() {
   // USER AUTHENTICATION
   // ================================================================
 
-  // Load current user from localStorage
-  React.useEffect(() => {
-    try {
-      const userData = localStorage.getItem('user')
-      if (userData) {
-        const user = JSON.parse(userData)
-        setCurrentUser(user)
-      }
-    } catch (error) {
-      console.error('Error loading user from localStorage:', error)
-    }
-  }, [])
-
   // Check if current user is admin
-  const isAdmin = currentUser && currentUser.isAdmin === true
+  const isAdmin = hasAdminRole(currentUser)
 
   // ================================================================
   // EVENT HANDLERS
@@ -1251,7 +1238,7 @@ export default function CalendarPage() {
 
   // Handle event deletion with optimistic updates
   const handleDelete = useCallback(async (ev) => {
-    if (!currentUser || !currentUser.isAdmin) {
+    if (!hasAdminRole(currentUser)) {
       showError('Alleen admins kunnen evenementen verwijderen')
       return
     }
@@ -1293,7 +1280,7 @@ export default function CalendarPage() {
 
   // Handle edit button click
   const handleEdit = useCallback((ev) => {
-    if (!currentUser || !currentUser.isAdmin) {
+    if (!hasAdminRole(currentUser)) {
       showError('Alleen admins kunnen evenementen bewerken')
       return
     }

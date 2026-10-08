@@ -4,7 +4,7 @@ function safeMetadata(metadata) {
   const allowedKeys = new Set([
     'environment', 'eventId', 'userId', 'targetUserId', 'participantId',
     'createdBy', 'changedBy', 'isAdmin', 'previousStatus', 'newStatus',
-    'shouldBePresent', 'updatedEvents', 'action'
+    'shouldBePresent', 'updatedEvents', 'action', 'groupId', 'role', 'changedFields', 'destinationGroupId', 'moveId'
   ])
   for (const [key, value] of Object.entries(metadata)) {
     if (!allowedKeys.has(key)) continue
@@ -23,7 +23,8 @@ export function createRequestLogger() {
     res.on('finish', () => {
       console.info(JSON.stringify({
         timestamp: new Date().toISOString(),
-        action: `${req.method} ${req.originalUrl}`,
+        // Feed tokens are bearer credentials; do not log query strings.
+        action: `${req.method} ${req.originalUrl.split('?')[0]}`,
         status: res.statusCode,
         durationMs: Date.now() - startedAt
       }))

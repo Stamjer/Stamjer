@@ -15,7 +15,9 @@
  * @version 1.0.0
  */
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
+import { getCalendarSubscription } from '../services/api'
+import { isAdmin, isDeveloper } from '../../shared/roles'
 import './CalendarSubscription.css'
 
 // Toggle this to show/hide for all users
@@ -24,14 +26,31 @@ const ADMIN_ONLY = false
 export default function CalendarSubscription({ user }) {
   const [copied, setCopied] = useState(false)
   const [showInstructions, setShowInstructions] = useState(false)
+  const [calendarUrl, setCalendarUrl] = useState('')
+  const [subscriptionError, setSubscriptionError] = useState('')
+  const userId = user?.id
+  const groupId = user?.groupId
+  const role = user?.role
+
+  useEffect(() => {
+    let cancelled = false
+    setCalendarUrl('')
+    setSubscriptionError('')
+    if (userId && role !== 'developer') {
+      getCalendarSubscription().then(({ url }) => {
+        if (!cancelled) setCalendarUrl(new URL(url, window.location.origin).href)
+      }).catch(() => {
+        if (!cancelled) setSubscriptionError('Het agenda-abonnement kon niet geladen worden.')
+      })
+    }
+    return () => { cancelled = true }
+  }, [userId, groupId, role])
   
   // Hide from non-admins if ADMIN_ONLY is true
-  if (ADMIN_ONLY && !user?.isAdmin) {
+  if (!user || isDeveloper(user) || (ADMIN_ONLY && !isAdmin(user))) {
     return null
   }
   
-  // Get the calendar URL - use the current origin to handle both dev and production
-  const calendarUrl = `${window.location.origin}/api/calendar.ics`
   
   const handleCopyUrl = async () => {
     try {
@@ -69,10 +88,11 @@ export default function CalendarSubscription({ user }) {
         type="button"
         className="btn btn-secondary"
         onClick={handleCopyUrl}
-        disabled={copied}
+        disabled={copied || !calendarUrl}
       >
         {copied ? '✓ Gekopieerd' : 'Kopieer URL'}
       </button>
+      {subscriptionError && <p role="alert">{subscriptionError}</p>}
       
       <button
         type="button"

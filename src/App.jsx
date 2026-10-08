@@ -34,6 +34,7 @@ import PullToRefresh from './components/PullToRefresh'
 import { queryClient } from './lib/queryClient'
 import { performHardReset } from './lib/hardReset'
 import { getAuthenticatedLandingPath, isNonAdminAlumni } from './lib/authRouting'
+import { isAdmin, isDeveloper } from '../shared/roles'
 import { getCurrentSession, logout as logoutSession } from './services/api'
 
 // Import styles
@@ -50,6 +51,7 @@ const MyAccount = lazy(() => import('./pages/MyAccount'))
 const StrepenPage = lazy(() => import('./pages/StrepenPage'))
 const PaymentRequestPage = lazy(() => import('./pages/PaymentRequestPage'))
 const NotFound = lazy(() => import('./pages/NotFound'))
+const DeveloperPage = lazy(() => import('./pages/DeveloperPage'))
 
 const ROUTE_LABELS = {
   '/': 'Login',
@@ -60,6 +62,7 @@ const ROUTE_LABELS = {
   '/declaraties': 'Declaraties',
   '/strepen': 'Strepen',
   '/account': 'Account',
+  '/developer': 'Developer',
 }
 
 const NAV_ICON_MAP = {
@@ -68,11 +71,13 @@ const NAV_ICON_MAP = {
   '/declaraties': EuroIcon,
   '/strepen': TrophyIcon,
   '/account': UserIcon,
+  '/developer': UserIcon,
   '/login': LoginIcon,
   '/': LoginIcon,
 }
 
 function AlumniRestrictedRoute({ user, children }) {
+  if (isDeveloper(user)) return <Navigate to="/developer" replace />
   if (isNonAdminAlumni(user)) {
     return <Navigate to="/declaraties" replace />
   }
@@ -112,6 +117,16 @@ function App() {
   // This stores the currently logged-in user information
   const [user, setUser] = useState(null)
   const [isInitializing, setIsInitializing] = useState(true)
+  const userScopeRef = useRef('anonymous')
+  const updateAuthenticatedUser = useCallback((nextUser) => {
+    const nextScope = nextUser ? `${nextUser.id}:${nextUser.groupId}:${nextUser.role}` : 'anonymous'
+    if (userScopeRef.current !== nextScope) {
+      // Cancel in-flight reads and remove the previous account/group's data.
+      queryClient.clear()
+      userScopeRef.current = nextScope
+    }
+    setUser(nextUser)
+  }, [])
   
   // Mobile navigation state
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -162,10 +177,10 @@ function App() {
         if (cancelled) return
         if (data?.user && (data.user.email || data.user.id)) {
           localStorage.setItem('user', JSON.stringify(data.user))
-          setUser(data.user)
+          updateAuthenticatedUser(data.user)
         } else {
           localStorage.removeItem('user')
-          setUser(null)
+          updateAuthenticatedUser(null)
         }
       } catch (error) {
         if (cancelled) return
@@ -173,7 +188,7 @@ function App() {
           console.error('Error loading authenticated session:', error)
         } else {
           localStorage.removeItem('user')
-          setUser(null)
+          updateAuthenticatedUser(null)
         }
       } finally {
         if (initial && !cancelled) setIsInitializing(false)
@@ -189,7 +204,7 @@ function App() {
       window.clearInterval(intervalId)
       window.removeEventListener('focus', handleFocus)
     }
-  }, [])
+  }, [updateAuthenticatedUser])
 
   /**
    * Close mobile menu when clicking outside or pressing escape
@@ -238,18 +253,18 @@ function App() {
     try {
       await logoutSession()
       localStorage.removeItem('user')
-      setUser(null)
+      updateAuthenticatedUser(null)
       navigate('/login')
       setIsMobileMenuOpen(false) // Close mobile menu on logout
     } catch (error) {
       console.error('Error during logout:', error)
       // Force logout even if there's an error
       localStorage.removeItem('user')
-      setUser(null)
+      updateAuthenticatedUser(null)
       navigate('/login')
       setIsMobileMenuOpen(false)
     }
-  }, [navigate])
+  }, [navigate, updateAuthenticatedUser])
 
   /**
    * Handle user login
@@ -258,13 +273,13 @@ function App() {
   const handleLogin = useCallback((userData) => {
     try {
       localStorage.setItem('user', JSON.stringify(userData))
-      setUser(userData)
+      updateAuthenticatedUser(userData)
     } catch (error) {
       console.error('Error saving user to localStorage:', error)
       // Still set user in state even if localStorage fails
-      setUser(userData)
+      updateAuthenticatedUser(userData)
     }
-  }, [])
+  }, [updateAuthenticatedUser])
 
   /**
    * Toggle mobile menu visibility
@@ -319,6 +334,7 @@ function App() {
   }, [location.pathname])
 
   const navMenuItems = useMemo(() => {
+    if (isDeveloper(user)) return [{ to: '/developer', label: 'Developer', icon: UserIcon, variant: 'secondary' }]
     const baseItems = []
 
     if (!isNonAdminAlumni(user)) {
@@ -347,7 +363,7 @@ function App() {
       }
     )
 
-    if (user?.isAdmin) {
+    if (isAdmin(user)) {
       baseItems.push({
         to: '/strepen',
         label: ROUTE_LABELS['/strepen'],
@@ -376,6 +392,7 @@ function App() {
   }, [user])
 
   const mobileNavItems = useMemo(() => {
+    if (isDeveloper(user)) return [{ to: '/developer', label: 'Developer', icon: UserIcon }]
     if (!user) {
       return []
     }
@@ -405,7 +422,7 @@ function App() {
       }
     )
 
-    if (user.isAdmin) {
+    if (isAdmin(user)) {
       items.push({
         to: '/strepen',
         label: ROUTE_LABELS['/strepen'],
@@ -514,7 +531,7 @@ function App() {
                   {user && (
                     <div className="nav-user-chip" role="group" aria-label="Gebruikersinformatie">
                       <span className="nav-user-name">{user.firstName}</span>
-                      <span className="nav-user-role">{user.isAdmin ? 'Administrator' : 'Lid'}</span>
+                      <span className="nav-user-role">{isDeveloper(user) ? 'Developer' : isAdmin(user) ? 'Administrator' : 'Lid'}</span>
                     </div>
                   )}
                 </div>
@@ -563,7 +580,7 @@ function App() {
 
           <main id="main" role="main">
             <Suspense fallback={<div className="page-loading" aria-live="polite">Laden...</div>}>
-              <Routes>
+              <Routes key={`${user?.id}:${user?.groupId}:${user?.role}`}>
                 {/* Public Routes - Available to all users */}
                 <Route path="/" element={
                   <PageErrorBoundary pageName="Login">
@@ -586,7 +603,7 @@ function App() {
                   <ProtectedRoute user={user}>
                     <AlumniRestrictedRoute user={user}>
                       <PageErrorBoundary pageName="Calendar">
-                        <CalendarPage />
+                        <CalendarPage user={user} />
                       </PageErrorBoundary>
                     </AlumniRestrictedRoute>
                   </ProtectedRoute>
@@ -595,7 +612,7 @@ function App() {
                   <ProtectedRoute user={user}>
                     <AlumniRestrictedRoute user={user}>
                       <PageErrorBoundary pageName="Opkomsten">
-                        <OpkomstenPage />
+                        <OpkomstenPage user={user} />
                       </PageErrorBoundary>
                     </AlumniRestrictedRoute>
                   </ProtectedRoute>
@@ -603,7 +620,7 @@ function App() {
                 <Route path="/declaraties" element={
                   <ProtectedRoute user={user}>
                     <PageErrorBoundary pageName="Declaraties">
-                      <PaymentRequestPage user={user} />
+                      {isDeveloper(user) ? <Navigate to="/developer" replace /> : <PaymentRequestPage user={user} />}
                     </PageErrorBoundary>
                   </ProtectedRoute>
                 } />
@@ -611,7 +628,7 @@ function App() {
                   <ProtectedRoute user={user}>
                     <AlumniRestrictedRoute user={user}>
                       <PageErrorBoundary pageName="Strepen">
-                        {user && user.isAdmin ? <StrepenPage /> : <div>Alleen toegankelijk voor admins.</div>}
+                        {isAdmin(user) ? <StrepenPage /> : <div>Alleen toegankelijk voor admins.</div>}
                       </PageErrorBoundary>
                     </AlumniRestrictedRoute>
                   </ProtectedRoute>
@@ -619,7 +636,14 @@ function App() {
                 <Route path="/account" element={
                   <ProtectedRoute user={user}>
                     <PageErrorBoundary pageName="My Account">
-                      <MyAccount user={user} onLogout={handleLogout} />
+                      {isDeveloper(user) ? <Navigate to="/developer" replace /> : <MyAccount user={user} onLogout={handleLogout} />}
+                    </PageErrorBoundary>
+                  </ProtectedRoute>
+                } />
+                <Route path="/developer" element={
+                  <ProtectedRoute user={user}>
+                    <PageErrorBoundary pageName="Developer">
+                      {isDeveloper(user) ? <DeveloperPage user={user} onLogout={handleLogout} /> : <Navigate to={getAuthenticatedLandingPath(user)} replace />}
                     </PageErrorBoundary>
                   </ProtectedRoute>
                 } />

@@ -92,7 +92,8 @@ vite.config.js.timestamp-*
 *.sln
 *.sw?
 *.docx
-docs
+/docs/*
+!/docs/groups-remodel.md
 
 # Additional system files
 Thumbs.db
