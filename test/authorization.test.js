@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { getAttendanceAuthorizationError } from '../api/authorization.js'
+import { getAttendanceAuthorizationError } from '../server/authorization.js'
 
 const member = { id: 1, status: 'active', isAdmin: false }
 const otherMember = { id: 2, status: 'inactive', isAdmin: false }

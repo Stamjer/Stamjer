@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { applyUserGroupMove, planUserGroupMove, previewUserGroupMove } from '../api/userGroupMoves.js'
-import { persistGroupRecord, runGroupTransaction } from '../api/groupTransactions.js'
-import { planGroupMigration } from '../api/groupMigration.js'
-import { calculateGroupStreepjes } from '../api/groups.js'
+import { applyUserGroupMove, planUserGroupMove, previewUserGroupMove } from '../server/userGroupMoves.js'
+import { persistGroupRecord, runGroupTransaction } from '../server/groupTransactions.js'
+import { planGroupMigration } from '../server/groupMigration.js'
+import { calculateGroupStreepjes } from '../server/groups.js'
 import { createMemoryClient, createMemoryDb } from '../test-support/memoryDb.js'
 
 const now = new Date('2026-10-04T12:00:00Z')

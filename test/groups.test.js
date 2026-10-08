@@ -3,11 +3,11 @@ import { describe, it } from 'node:test'
 import {
   calculateGroupStreepjes, DEFAULT_GROUP_ID, getEventMembershipError,
   getGroupMembers, normalizeGroupUser
-} from '../api/groups.js'
+} from '../server/groups.js'
 import {
   canManageGroup, canManageUser, canReadGroup, getAttendanceAuthorizationError,
   resolveRequestGroupId
-} from '../api/authorization.js'
+} from '../server/authorization.js'
 
 const user = { id: 1, groupId: 'stam', role: 'user', status: 'active' }
 const admin = { id: 2, groupId: 'stam', role: 'admin', status: 'active' }

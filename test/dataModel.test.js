@@ -5,7 +5,7 @@ import {
   normalizeUserStatus,
   sanitizeIdArray,
   sanitizeUserId
-} from '../api/dataModel.js'
+} from '../server/dataModel.js'
 
 describe('user status', () => {
   it('accepts canonical statuses and defaults missing values to active', () => {

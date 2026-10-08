@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { bootstrapDeveloper } from '../api/developerBootstrap.js'
+import { bootstrapDeveloper } from '../server/developerBootstrap.js'
 import { createMemoryDb } from '../test-support/memoryDb.js'
 
 describe('developer bootstrap', () => {

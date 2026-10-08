@@ -31,33 +31,33 @@ import { fileURLToPath } from 'url'
 import { dirname } from 'path'
 import { randomUUID, randomBytes, createHmac } from 'crypto'
 import { MongoClient } from 'mongodb'
-import { createRequestLogger, logError as logSystemError, logEvent } from './logger.js'
-import { createICalendarHandler } from './icalendar.js'
+import { createRequestLogger, logError as logSystemError, logEvent } from '../server/logger.js'
+import { createICalendarHandler } from '../server/icalendar.js'
 import {
   getAssignmentDisplayNames,
   normalizeUserStatus,
   sanitizeIdArray,
   sanitizeUserId,
   USER_STATUSES
-} from './dataModel.js'
+} from '../server/dataModel.js'
 import {
   canManageGroup, canManageUser, canReadGroup, getAttendanceAuthorizationError,
   GroupAccessError, resolveRequestGroupId
-} from './authorization.js'
+} from '../server/authorization.js'
 import {
   calculateGroupStreepjes, createDefaultGroup, DEFAULT_GROUP_ID, getEventGroupId,
   getGroupMembers, GROUP_INDEXES, isDeveloper,
   normalizeGroupUser, normalizeUserRole
-} from './groups.js'
-import { createSessionCookieOptions, createSessionPolicy } from './sessionPolicy.js'
-import { createGroupManagementRouter } from './groupManagement.js'
-import { buildUserUpdate, mapManagedUser } from './userManagement.js'
-import { lockGroups, persistGroupRecord, revisionFilter, runGroupTransaction } from './groupTransactions.js'
-import { applyUserGroupMove, previewUserGroupMove } from './userGroupMoves.js'
-import { writeAudit } from './audit.js'
-import { validateEventInput } from './eventManagement.js'
-import { createDatabaseManagementRouter, mapDatabaseRecord } from './databaseManagement.js'
-import { sendPasswordInvitation } from './passwordInvitations.js'
+} from '../server/groups.js'
+import { createSessionCookieOptions, createSessionPolicy } from '../server/sessionPolicy.js'
+import { createGroupManagementRouter } from '../server/groupManagement.js'
+import { buildUserUpdate, mapManagedUser } from '../server/userManagement.js'
+import { lockGroups, persistGroupRecord, revisionFilter, runGroupTransaction } from '../server/groupTransactions.js'
+import { applyUserGroupMove, previewUserGroupMove } from '../server/userGroupMoves.js'
+import { writeAudit } from '../server/audit.js'
+import { validateEventInput } from '../server/eventManagement.js'
+import { createDatabaseManagementRouter, mapDatabaseRecord } from '../server/databaseManagement.js'
+import { sendPasswordInvitation } from '../server/passwordInvitations.js'
 
 // MongoDB setup
 const uri = process.env.MONGODB_URI

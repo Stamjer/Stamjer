@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import { MongoClient } from 'mongodb'
-import { migrateGroups } from '../api/groupMigration.js'
+import { migrateGroups } from '../server/groupMigration.js'
 
 const flags = process.argv.slice(2)
 if (flags.some((flag) => !['--apply', '--dry-run'].includes(flag)) || (flags.includes('--apply') && flags.includes('--dry-run'))) {

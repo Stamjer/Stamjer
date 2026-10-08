@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { mapGroupForClient, summarizeGroup, validateGroupInput } from '../api/groupManagement.js'
-import { buildUserUpdate, mapManagedUser } from '../api/userManagement.js'
+import { mapGroupForClient, summarizeGroup, validateGroupInput } from '../server/groupManagement.js'
+import { buildUserUpdate, mapManagedUser } from '../server/userManagement.js'
 import { filterManagedUsers } from '../src/lib/userManagement.js'
 
 describe('group management validation and privacy', () => {

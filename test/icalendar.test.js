@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { generateICalendar } from '../api/icalendar.js'
+import { generateICalendar } from '../server/icalendar.js'
 
 describe('public calendar privacy', () => {
   it('includes public event details without exposing internal fields', () => {

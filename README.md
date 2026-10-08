@@ -85,7 +85,8 @@ Required unless noted otherwise:
 ## Project Structure
 
 ```
-api/               Express API source (routes mounted under /api)
+api/index.js       Single Vercel Serverless Function (routes mounted under /api)
+server/            Backend helper modules
 public/            Static assets served by Vite
 src/               React application
    components/      Shared components (error boundaries, protected routes)

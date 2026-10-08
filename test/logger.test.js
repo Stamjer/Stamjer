@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { createRequestLogger, logEvent } from '../api/logger.js'
+import { createRequestLogger, logEvent } from '../server/logger.js'
 
 describe('group audit logging', () => {
   it('records group and actor metadata and excludes feed credentials from request logs', () => {

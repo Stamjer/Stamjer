@@ -5,7 +5,7 @@ import {
   createSessionPolicy,
   DEFAULT_SESSION_MAX_AGE_DAYS,
   DEFAULT_SESSION_TOUCH_INTERVAL_HOURS
-} from '../api/sessionPolicy.js'
+} from '../server/sessionPolicy.js'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 

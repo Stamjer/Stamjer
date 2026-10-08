@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { mapDatabaseRecord, readRecordPreview, signRecordPreview } from '../api/databaseManagement.js'
-import { persistGroupRecord } from '../api/groupTransactions.js'
-import { persistGroupSettings } from '../api/groupManagement.js'
-import { sendPasswordInvitation } from '../api/passwordInvitations.js'
+import { mapDatabaseRecord, readRecordPreview, signRecordPreview } from '../server/databaseManagement.js'
+import { persistGroupRecord } from '../server/groupTransactions.js'
+import { persistGroupSettings } from '../server/groupManagement.js'
+import { sendPasswordInvitation } from '../server/passwordInvitations.js'
 import { createMemoryClient, createMemoryDb } from '../test-support/memoryDb.js'
 
 function fixture() {

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { migrateGroups, planGroupMigration } from '../api/groupMigration.js'
-import { DEFAULT_GROUP_ID } from '../api/groups.js'
+import { migrateGroups, planGroupMigration } from '../server/groupMigration.js'
+import { DEFAULT_GROUP_ID } from '../server/groups.js'
 import { createMemoryDb } from '../test-support/memoryDb.js'
 
 const legacyData = {
