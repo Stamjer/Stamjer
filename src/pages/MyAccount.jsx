@@ -359,17 +359,17 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
   return (
     <>
       <div className="account-page-wrapper">
-        <div className="account-page-container">
-          <div className="account-header">
+        <div className="page-content page-content-narrow account-page-container">
+          <div className="page-header page-header-navigation account-header">
             <h1 className="account-title">Account</h1>
           </div>
 
           <div className="account-content-grid">
-            <div className="account-card account-card-personal">
-              <div className="account-card-header">
+            <div className="card card-elevated account-card account-card-personal">
+              <div className="card-header account-card-header">
                 <h4>Persoonlijke gegevens</h4>
               </div>
-              <div className="account-card-body">
+              <div className="card-body account-card-body">
                 <div className="info-grid">
                   <div className="info-item">
                     <label>Naam</label>
@@ -411,11 +411,11 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
               </div>
             </div>
 
-            <div className="account-card account-card-opkomsten">
-              <div className="account-card-header">
+            <div className="card card-elevated account-card account-card-opkomsten">
+              <div className="card-header account-card-header">
                 <h4>Mijn evenementen</h4>
               </div>
-              <div className="account-card-body">
+              <div className="card-body account-card-body">
                 <div className="opkomst-list">
                   {isOpkomstenLoading ? (
                     <p className="opkomst-list__status">Evenementen laden...</p>
@@ -482,11 +482,11 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
               </div>
             </div>
 
-            <div className="account-card account-card-settings">
-              <div className="account-card-header">
+            <div className="card card-elevated account-card account-card-settings">
+              <div className="card-header account-card-header">
                 <h4>Instellingen</h4>
               </div>
-              <div className="account-card-body">
+              <div className="card-body account-card-body">
                 {user.memberships?.length > 1 && <div className="setting-section account-group-setting">
                   <label className="account-group-selector">
                     <h6>Groep</h6>
@@ -511,6 +511,7 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
                         </div>
                         <div className="toggle-container">
                           <ToggleSwitch
+                            ariaLabel="Actief lid"
                             isToggled={activeStatus}
                             onToggle={event => handleActiveStatusChange(event.target.checked)}
                             disabled={isUpdatingActive || user.permissions?.canUseAttendance === false}

@@ -12,7 +12,7 @@ function NotFound() {
   return (
     <div className="not-found-page">
       <div className="not-found-content">
-        <h1 ref={headingRef} tabIndex={-1}>Pagina niet gevonden</h1>
+        <h1 className="page-title" ref={headingRef} tabIndex={-1}>Pagina niet gevonden</h1>
         <p>We konden de gevraagde pagina niet vinden. Controleer het adres of keer terug naar de startpagina.</p>
         <div className="not-found-actions">
           <Link to="/" className="btn btn-primary">

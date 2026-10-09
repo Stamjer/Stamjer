@@ -33,7 +33,7 @@ export default function UserGroupMoveDialog({ user, groups, onClose, onMoved }) 
   return <ManagementDialog title="Gebruiker verplaatsen" busy={busy} onClose={onClose}>
     <form className="management-form" onSubmit={event => { event.preventDefault(); if (preview) moveMutation.mutate(); else previewMutation.mutate() }}>
       <p>{user.firstName} {user.lastName} · {groupName(user.groupId)}</p>
-      <label>Bestemmingsgroep<select autoFocus required value={destination} disabled={busy} onChange={event => { setDestination(event.target.value); setPreview(null); setError('') }}>
+      <label>Bestemmingsgroep<select className="form-select" autoFocus required value={destination} disabled={busy} onChange={event => { setDestination(event.target.value); setPreview(null); setError('') }}>
         <option value="">Kies een groep</option>{groups.filter(group => group.status === 'active' && group.id !== user.groupId).map(group => <option key={group.id} value={group.id}>{group.name || group.id}</option>)}
       </select></label>
       <p>De oude groep bewaart aanwezigheid, taken en streepjes in het groepsarchief. De gebruiker begint in de nieuwe groep met 0 streepjes en moet opnieuw inloggen.</p>

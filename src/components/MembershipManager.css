@@ -1,20 +1,143 @@
-.membership-manager { gap: 1.25rem; }
-.membership-manager p { margin: 0; font-size: .875rem; line-height: 1.6; }
-.membership-identity { display: grid; gap: .25rem; overflow-wrap: anywhere; }
-.membership-identity span { color: var(--secondary-600); font-size: .875rem; }
-.membership-card { display: grid; gap: 1rem; padding: 1rem; background: var(--secondary-50); border: 1px solid var(--secondary-200); border-radius: 12px; min-width: 0; }
-.membership-card-heading { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
-.membership-card-heading h3 { margin: 0; font-size: 1rem !important; line-height: 1.4; overflow-wrap: anywhere; }
-.membership-periods { margin: 0; padding-left: 1.15rem; color: var(--secondary-600); font-size: .8125rem; line-height: 1.6; }
-.membership-periods li + li { margin-top: .5rem; }
-.membership-periods span { display: block; }
-.membership-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: .75rem; }
-.membership-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
-.membership-add-form { display: grid; gap: .75rem; }
-.membership-preview { display: grid; gap: .75rem; padding: 1rem; border: 1px solid var(--primary-200); border-radius: 12px; background: var(--primary-50); }
-.membership-history { border-top: 1px solid var(--secondary-200); padding-top: 1rem; font-size: .875rem; }
-.membership-history summary { cursor: pointer; font-weight: 600; }
-.membership-history ul { padding-left: 1.15rem; line-height: 1.6; overflow-wrap: anywhere; }
+/* MembershipManager component styles. */
+
+.membership-manager {
+  gap: 1.25rem;
+}
+
+.membership-manager p {
+  margin: 0;
+  font-size: .875rem;
+  line-height: 1.6;
+}
+
+.membership-identity {
+  display: grid;
+  gap: .25rem;
+  overflow-wrap: anywhere;
+}
+
+.membership-identity span {
+  color: var(--secondary-600);
+  font-size: .875rem;
+}
+
+.membership-card {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--secondary-50);
+  border: 1px solid var(--secondary-200);
+  border-radius: 12px;
+  min-width: 0;
+}
+
+.membership-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  flex-wrap: wrap;
+}
+
+.membership-card-heading h3 {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.membership-periods {
+  margin: 0;
+  padding-left: 1.15rem;
+  color: var(--secondary-600);
+  font-size: .8125rem;
+  line-height: 1.6;
+}
+
+.membership-periods li + li {
+  margin-top: .5rem;
+}
+
+.membership-periods span {
+  display: block;
+}
+
+.membership-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: .75rem;
+}
+
+.membership-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+
+.membership-add-form {
+  display: grid;
+  gap: .75rem;
+}
+
+.membership-preview {
+  display: grid;
+  gap: .75rem;
+  padding: 1rem;
+  border: 1px solid var(--primary-200);
+  border-radius: 12px;
+  background: var(--primary-50);
+}
+
+.membership-history {
+  border-top: 1px solid var(--secondary-200);
+  padding-top: 1rem;
+  font-size: .875rem;
+}
+
+.membership-history summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.membership-history ul {
+  padding-left: 1.15rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 480px) {
-  .membership-actions { display: grid; grid-template-columns: minmax(0, 1fr); }
+
+  .membership-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.management-move-preview {
+  padding: 1rem;
+  background: #f0f5ff;
+  border: 1px solid #dce5f5;
+  border-radius: .75rem;
+}
+
+.management-move-preview ul {
+  padding-left: 1.25rem;
+}
+
+.management-history {
+  margin-top: 1.5rem;
+  border-top: 1px solid #dce5f5;
+  padding-top: 1rem;
+  font-size: .9rem;
+}
+
+.management-history summary {
+  cursor: pointer;
+  padding: .5rem 0;
+  font-weight: 600;
+}
+
+.management-history li {
+  margin: .5rem 0;
+  overflow-wrap: anywhere;
 }

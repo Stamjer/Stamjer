@@ -1,11 +1,13 @@
 import React from 'react';
 import './ToggleSwitch.css';
 
-const ToggleSwitch = ({ isToggled, onToggle, disabled = false, variant = 'activity' }) => {
+const ToggleSwitch = ({ isToggled, onToggle, disabled = false, variant = 'activity', id, ariaLabel }) => {
   if (variant === 'activity') {
     return (
       <label className="activity-switch">
         <input
+          id={id}
+          aria-label={ariaLabel}
           type="checkbox"
           checked={isToggled}
           onChange={onToggle}
@@ -21,6 +23,8 @@ const ToggleSwitch = ({ isToggled, onToggle, disabled = false, variant = 'activi
   return (
     <label className="toggle-switch">
       <input
+        id={id}
+        aria-label={ariaLabel}
         type="checkbox"
         checked={isToggled}
         onChange={onToggle}

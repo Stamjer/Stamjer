@@ -1,4 +1,5 @@
 import React from 'react'
+import './DeveloperEventMembers.css'
 import { useQuery } from '@tanstack/react-query'
 import { getUsersFull } from '../services/api'
 import { queryKeys } from '../lib/queryClient'
@@ -30,7 +31,7 @@ export default function DeveloperEventMembers({ form, setForm, event, groupId })
         const value = Object.hasOwn(form.attendance, user.id) ? String(form.attendance[user.id]) : ''
         const participant = form.participants.includes(user.id) || (!event && form.isOpkomst && user.status === 'active')
         const stripe = form.isOpkomst && value !== '' && participant !== (value === 'true')
-        return <label key={user.id}>{user.firstName} {user.lastName}{stripe ? ' · 1 streepje' : ''}<select disabled={membershipMode && future} value={value} onChange={change => setForm(current => {
+        return <label key={user.id}>{user.firstName} {user.lastName}{stripe ? ' · 1 streepje' : ''}<select className="form-select" disabled={membershipMode && future} value={value} onChange={change => setForm(current => {
           const attendance = { ...current.attendance }
           if (change.target.value === '') delete attendance[user.id]
           else attendance[user.id] = change.target.value === 'true'
@@ -38,6 +39,6 @@ export default function DeveloperEventMembers({ form, setForm, event, groupId })
         })}><option value="">Standaard ({participant ? 'aanwezig' : 'afwezig'})</option><option value="true">Aanwezig</option><option value="false">Afwezig</option></select></label>
       })}
     </fieldset>
-    <label>Schoonmaakopties (één per regel)<textarea rows={3} value={form.schoonmaakOptions.join('\n')} onChange={change => setForm(current => ({ ...current, schoonmaakOptions: change.target.value.split('\n') }))} /></label>
+    <label>Schoonmaakopties (één per regel)<textarea className="form-textarea" rows={3} value={form.schoonmaakOptions.join('\n')} onChange={change => setForm(current => ({ ...current, schoonmaakOptions: change.target.value.split('\n') }))} /></label>
   </div>
 }

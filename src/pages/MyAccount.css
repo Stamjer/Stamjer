@@ -1,103 +1,71 @@
-/* MyAccount Page - Professional Redesign */
+/* MyAccount: scoped layout and feature-specific presentation. */
 
-.account-page-wrapper {
-  min-height: 100vh;
-  background: linear-gradient(135deg, var(--secondary-50) 0%, var(--primary-50) 100%);
-  padding: var(--space-2) var(--space-4);
-}
-
-.account-page-container {
-  width: 100%;
-  max-width: 1000px;
-  margin: 0 auto;
-}
-
-.account-header {
-  text-align: center;
-  margin-bottom: var(--space-4);
-  animation: fadeInUp var(--duration-slow) var(--ease-out);
-}
-
-/* h1 styles now handled by shared.css */
-.account-title {
+:where(.account-page-wrapper) .account-title {
   margin-bottom: var(--space-1);
 }
 
-.account-subtitle {
-  font-size: 1.25rem;
-  color: var(--secondary-600);
-  font-weight: var(--font-weight-medium);
-}
-
-.account-content-grid {
+:where(.account-page-wrapper) .account-content-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-8);
   align-items: start;
 }
 
-.account-card-personal {
+:where(.account-page-wrapper) .account-card-personal {
   grid-column: 1;
   grid-row: 1;
 }
 
-.account-card-settings {
+:where(.account-page-wrapper) .account-card-settings {
   grid-column: 2;
   grid-row: 1;
 }
 
-.account-card-opkomsten {
+:where(.account-page-wrapper) .account-card-opkomsten {
   grid-column: 1 / -1;
 }
 
 @media (max-width: 900px) {
-  .account-content-grid {
+
+  :where(.account-page-wrapper) .account-content-grid {
     grid-template-columns: 1fr;
   }
 
-  .account-card-personal,
-  .account-card-settings,
-  .account-card-opkomsten {
+  :where(.account-page-wrapper) .account-card-personal,
+  :where(.account-page-wrapper) .account-card-settings,
+  :where(.account-page-wrapper) .account-card-opkomsten {
     grid-column: auto;
     grid-row: auto;
   }
 }
 
-.account-card {
-  background: white;
-  border-radius: var(--radius-2xl);
-  box-shadow: var(--shadow-lg);
-  border: 1px solid var(--secondary-200);
+:where(.account-page-wrapper) .account-card {
   overflow: hidden;
-  animation: slideInUp var(--duration-slow) var(--ease-out);
 }
 
-.account-card-header {
-  padding: var(--space-4) var(--space-6);
-  border-bottom: 1px solid var(--secondary-200);
-  background: var(--secondary-50);
+:where(.account-page-wrapper) .account-card-header {
+  padding: var(--card-padding);
 }
 
-.account-card-header h3 {
+:where(.account-page-wrapper) .account-card-header h3 {
   font-size: 1.25rem;
   font-weight: var(--font-weight-semibold);
   color: var(--secondary-800);
   margin: 0;
 }
 
-.account-card-body {
-  padding: var(--space-6);
+:where(.account-page-wrapper) .account-card-body {
+  padding: var(--card-padding);
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
 }
 
-.account-card-opkomsten .account-card-body {
+:where(.account-page-wrapper) .account-card-opkomsten .account-card-body {
   gap: var(--space-4);
 }
 
-/* User Info Card */
-.account-group-selector {
+:where(.account-page-wrapper) .account-group-selector {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -107,97 +75,59 @@
   font-weight: var(--font-weight-semibold);
 }
 
-.account-group-selector .account-group-select {
+:where(.account-page-wrapper) .account-group-selector .account-group-select {
   min-width: 0;
   max-width: 100%;
   min-height: 44px;
   text-overflow: ellipsis;
 }
 
-.info-grid {
+:where(.account-page-wrapper) .info-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--space-5);
 }
 
-.info-item {
+:where(.account-page-wrapper) .info-item {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
 }
 
-.info-item label {
+:where(.account-page-wrapper) .info-item label {
   font-size: 0.875rem;
   font-weight: var(--font-weight-medium);
   color: var(--secondary-500);
 }
 
-.info-item span {
+:where(.account-page-wrapper) .info-item span {
   font-size: 1rem;
   font-weight: var(--font-weight-semibold);
   color: var(--secondary-800);
 }
 
-/* Pill styles - Now using shared.css
- * All pill styles (.pill, .pill-admin, .pill-user)
- * are defined in src/styles/shared.css
- */
-
-.streepjes-count {
+:where(.account-page-wrapper) .streepjes-count {
   font-size: 1.125rem;
   font-weight: var(--font-weight-bold);
 }
 
-.streepjes-count.has-streepjes {
+:where(.account-page-wrapper) .streepjes-count.has-streepjes {
   color: var(--accent-red);
 }
 
-.streepjes-loading {
+:where(.account-page-wrapper) .streepjes-loading {
   color: var(--secondary-500);
   font-style: italic;
 }
 
-/* Settings Card */
-.setting-item-vertical {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-3);
-}
-
-.setting-item-vertical .btn {
-  margin-top: var(--space-0);
-}
-
-.setting-item {
+:where(.account-page-wrapper) .setting-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: var(--space-4);
 }
 
-.setting-label h6 {
-  font-size: 1rem;
-  font-weight: var(--font-weight-semibold);
-  color: var(--secondary-800);
-  margin: 0 0 var(--space-1) 0;
-}
-
-.setting-label p {
-  font-size: 0.875rem;
-  color: var(--secondary-600);
-  margin: 0;
-  max-width: 300px;
-}
-
-.setting-divider {
-  border: none;
-  height: 1px;
-  background-color: var(--secondary-200);
-  margin: 0;
-}
-
-.setting-success, .setting-error {
+:where(.account-page-wrapper) .setting-success, :where(.account-page-wrapper) .setting-error {
   padding: var(--space-3);
   border-radius: var(--radius-md);
   font-size: 0.875rem;
@@ -205,37 +135,35 @@
   margin-top: var(--space-2);
 }
 
-.setting-success {
+:where(.account-page-wrapper) .setting-success {
   background-color: var(--primary-50);
   color: var(--primary-800);
 }
 
-.setting-error {
+:where(.account-page-wrapper) .setting-error {
   background-color: #fee2e2;
   color: #b91c1c;
 }
 
-/* Password Form */
-.password-form {
+:where(.account-page-wrapper) .password-form {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
 }
 
-.password-form h4 {
+:where(.account-page-wrapper) .password-form h4 {
   font-size: 1.125rem;
   margin-bottom: var(--space-2);
 }
 
-.password-form-actions {
+:where(.account-page-wrapper) .password-form-actions {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-3);
   margin-top: var(--space-2);
 }
 
-/* Footer Actions */
-.account-footer {
+:where(.account-page-wrapper) .account-footer {
   margin-top: var(--space-8);
   padding-top: var(--space-6);
   border-top: 1px solid var(--secondary-200);
@@ -243,13 +171,13 @@
   justify-content: flex-end;
 }
 
-.opkomst-list {
+:where(.account-page-wrapper) .opkomst-list {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
 
-.opkomst-list__items {
+:where(.account-page-wrapper) .opkomst-list__items {
   list-style: none;
   padding: 0;
   margin: 0;
@@ -258,7 +186,7 @@
   gap: var(--space-1);
 }
 
-.opkomst-list__item {
+:where(.account-page-wrapper) .opkomst-list__item {
   width: 100%;
   border: 1px solid var(--secondary-200);
   border-radius: var(--radius-lg);
@@ -279,8 +207,8 @@
   gap: var(--space-0);
 }
 
-.opkomst-list__item:hover,
-.opkomst-list__item:focus-visible {
+:where(.account-page-wrapper) .opkomst-list__item:hover,
+:where(.account-page-wrapper) .opkomst-list__item:focus-visible {
   background-color: var(--secondary-100);
   box-shadow: var(--shadow-md);
   transform: translateY(-1px);
@@ -289,55 +217,54 @@
   outline-offset: 2px;
 }
 
-.opkomst-list__item:active {
+:where(.account-page-wrapper) .opkomst-list__item:active {
   transform: translateY(0);
 }
 
-.opkomst-list__header {
+:where(.account-page-wrapper) .opkomst-list__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-.opkomst-list__title {
+:where(.account-page-wrapper) .opkomst-list__title {
   font-weight: var(--font-weight-semibold);
   color: var(--secondary-800);
   font-size: 1.05rem;
 }
 
-.opkomst-list__item:hover .opkomst-list__chevron,
-.opkomst-list__item:focus-visible .opkomst-list__chevron {
+:where(.account-page-wrapper) .opkomst-list__item:hover .opkomst-list__chevron,
+:where(.account-page-wrapper) .opkomst-list__item:focus-visible .opkomst-list__chevron {
   transform: translateX(4px);
   color: var(--primary-600);
 }
 
-.opkomst-list__meta {
+:where(.account-page-wrapper) .opkomst-list__meta {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: var(--space-2);
 }
 
-
-.opkomst-list__meta-value {
+:where(.account-page-wrapper) .opkomst-list__meta-value {
   font-size: 0.95rem;
   color: var(--secondary-800);
   font-weight: var(--font-weight-medium);
 }
 
-.opkomst-list__makers {
+:where(.account-page-wrapper) .opkomst-list__makers {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }
 
-.opkomst-list__makers-badges {
+:where(.account-page-wrapper) .opkomst-list__makers-badges {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
 }
 
-.opkomst-list__maker-pill {
+:where(.account-page-wrapper) .opkomst-list__maker-pill {
   padding: 0rem 0.5rem;
   background: var(--primary-50);
   border: 1px solid var(--primary-100);
@@ -347,99 +274,35 @@
   font-weight: var(--font-weight-medium);
 }
 
-.opkomst-list__status {
+:where(.account-page-wrapper) .opkomst-list__status {
   font-size: 0.95rem;
   color: var(--secondary-600);
 }
 
-.opkomst-list__status--error {
+:where(.account-page-wrapper) .opkomst-list__status--error {
   color: #b91c1c;
 }
 
-.description-text {
-  white-space: pre-line;
-}
-
 @media (max-width: 600px) {
-  .opkomst-list__item {
+
+  :where(.account-page-wrapper) .opkomst-list__item {
     padding: var(--space-3);
   }
 
-  .opkomst-list__title {
+  :where(.account-page-wrapper) .opkomst-list__title {
     font-size: 1rem;
   }
 
-  .opkomst-list__meta-value {
+  :where(.account-page-wrapper) .opkomst-list__meta-value {
     font-size: 0.9rem;
   }
 
-  .opkomst-list__maker-pill {
+  :where(.account-page-wrapper) .opkomst-list__maker-pill {
     font-size: 0.75rem;
   }
 }
 
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.625rem 1.25rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  border-radius: var(--radius-md);
-  transition: all 0.2s ease;
-  cursor: pointer;
-  border: none;
-}
-
-/* Button Styles - Now using shared.css
- * All button styles (.btn, .btn-primary, .btn-secondary, .btn-danger, etc.)
- * are defined in src/styles/shared.css
- */
-
-/* Calendar Subscription Card Styling */
-.account-card-calendar {
-  grid-column: 1 / -1;
-}
-
-.account-card-calendar .account-card-body {
-  padding: 0;
-}
-
-.account-card-calendar .calendar-subscription {
-  margin: 0;
-}
-
-/* Event Details Modal Styles */
-.event-details {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.detail-item {
-  padding: var(--space-3);
-  background: var(--secondary-50);
-  border-radius: var(--radius-lg);
-  transition: all var(--duration-fast) var(--ease-out);
-}
-
-.detail-item:hover {
-  background: var(--secondary-100);
-}
-
-.detail-content {
-  width: 100%;
-}
-
-.detail-content strong {
-  color: var(--secondary-800);
-  font-weight: var(--font-weight-semibold);
-  display: block;
-  margin-bottom: var(--space-1);
-}
-
-.setting-section {
+:where(.account-page-wrapper) .setting-section {
   border: 1px solid var(--secondary-200);
   border-radius: var(--radius-2xl);
   background: linear-gradient(
@@ -454,40 +317,24 @@
   gap: var(--space-4);
 }
 
-.setting-section + .setting-section {
+:where(.account-page-wrapper) .setting-section + .setting-section {
   margin-top: var(--space-4);
 }
 
-.setting-section-activity .setting-item {
+:where(.account-page-wrapper) .setting-section-activity .setting-item {
   flex-direction: column;
   align-items: flex-start;
   gap: var(--space-3);
 }
 
-.setting-section__header h6 {
-  margin: 0;
-  font-size: 1rem;
-  color: var(--secondary-900);
-  letter-spacing: -0.01em;
-}
-
-.setting-section__header p {
-  margin: var(--space-1) 0 0 0;
-  color: var(--secondary-600);
-  font-size: 0.95rem;
-}
-
 @media (max-width: 600px) {
-  .setting-section {
+
+  :where(.account-page-wrapper) .setting-section {
     padding: var(--space-4);
   }
 }
 
-/* ================================================================
-   ADMIN USER MANAGEMENT
-   ================================================================ */
-
-.account-card-admin-users {
+:where(.account-page-wrapper) .account-card-admin-users {
   grid-column: 1 / -1;
   margin-top: var(--space-4);
 }

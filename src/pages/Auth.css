@@ -1,6 +1,5 @@
-/* Authentication Pages Styling - Enhanced */
+/* Auth: scoped layout and feature-specific presentation. */
 
-/* Main Auth Container */
 .auth-container {
   min-height: 100vh;
   display: flex;
@@ -12,7 +11,6 @@
   overflow: hidden;
 }
 
-/* Animated Background Pattern */
 .auth-container::before {
   content: '';
   position: absolute;
@@ -20,278 +18,71 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-image: 
-    radial-gradient(circle at 25% 25%, var(--primary-100) 0%, transparent 50%),
+  background-image: radial-gradient(circle at 25% 25%, var(--primary-100) 0%, transparent 50%),
     radial-gradient(circle at 75% 75%, var(--secondary-100) 0%, transparent 50%);
   opacity: 0.6;
   z-index: 0;
-  animation: backgroundFloat 20s ease-in-out infinite;
+  animation: auth-backgroundFloat 20s ease-in-out infinite;
 }
 
-@keyframes backgroundFloat {
-  0%, 100% { transform: translateY(0px) rotate(0deg); }
-  50% { transform: translateY(-20px) rotate(1deg); }
+@keyframes auth-backgroundFloat {
+
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+
+  50% {
+    transform: translateY(-20px) rotate(1deg);
+  }
 }
 
-/* Auth Card */
-.auth-card {
-  position: relative;
-  z-index: 1;
-  /* background: rgba(255, 255, 255, 0.95); */
-  backdrop-filter: blur(20px);
-  overflow: hidden;
-
-  background: white;
-  border-radius: var(--radius-2xl);
-  box-shadow: var(--shadow-lg);
-  border: 1px solid var(--secondary-200);
-  overflow: hidden;
-  transition: all var(--duration-normal) var(--ease-out);
-  animation: slideInUp var(--duration-slow) var(--ease-out);
-}
-
-/* Animations - Now using shared.css
- * All standard animations are defined in src/styles/shared.css
- */
-
-/* Auth Header */
-.auth-header {
-  padding: 0 var(--space-8) var(--space-2);
+:where(.auth-container) .auth-header {
   text-align: center;
   background: transparent;
   border-bottom: 1px solid var(--secondary-100);
   padding: var(--space-6);
 }
 
-.auth-logo {
+:where(.auth-container) .auth-logo {
   width: 5rem;
   height: 5rem;
   border-radius: var(--radius-xl);
   object-fit: cover;
 }
 
-/* h1 styles now handled by shared.css */
-.auth-title {
+:where(.auth-container) .auth-title {
   margin-bottom: var(--space-2);
 }
 
-.auth-subtitle {
+:where(.auth-container) .auth-subtitle {
   color: var(--secondary-600);
   font-size: 1rem;
   margin-bottom: 0;
   font-weight: var(--font-weight-medium);
 }
 
-/* Auth Body */
-.auth-body {
+:where(.auth-container) .auth-body {
   padding: var(--space-6);
 }
 
-/* Enhanced Form Styling */
-.auth-form {
+:where(.auth-container) .auth-form {
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
 }
 
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.form-label {
-  font-weight: var(--font-weight-semibold);
-  color: var(--secondary-700);
-  font-size: 0.9375rem;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-1);
-}
-
-.input-wrapper {
+:where(.auth-container) .input-wrapper {
   position: relative;
-  min-height: 3.5rem; /* guarantee room for the input */
+  min-height: 3.5rem;
 }
 
-/* Form Inputs & Password Field - Now using shared.css
- * All form input styles (.form-input, .password-field, .password-toggle, .field-error)
- * are defined in src/styles/shared.css
- * Only Auth-specific form customizations below if needed:
- */
-
-/* Field Error Messages - Already in shared.css, keeping for animation reference */
-.field-error {
-  color: var(--accent-red);
-  font-size: 0.875rem;
-  font-weight: var(--font-weight-medium);
-  margin-top: var(--space-1);
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  animation: shake var(--duration-normal) var(--ease-out);
-}
-
-/* Checkbox Styling */
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  cursor: pointer;
-  font-size: 0.9375rem;
-  font-weight: var(--font-weight-medium);
-  color: var(--secondary-700);
-  transition: color var(--duration-fast) var(--ease-out);
-}
-
-.checkbox-label:hover {
-  color: var(--secondary-800);
-}
-
-.checkbox-input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.checkbox-custom {
-  width: 1.25rem;
-  height: 1.25rem;
-  border: 2px solid var(--secondary-300);
-  border-radius: var(--radius-sm);
-  background: white;
-  position: relative;
-  transition: all var(--duration-fast) var(--ease-out);
-  flex-shrink: 0;
-}
-
-.checkbox-input:checked + .checkbox-custom {
-  background: var(--primary-600);
-  border-color: var(--primary-600);
-}
-
-.checkbox-input:checked + .checkbox-custom::after {
-  content: '✓';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  color: white;
-  font-size: 0.875rem;
-  font-weight: var(--font-weight-bold);
-}
-
-.checkbox-input:focus-visible + .checkbox-custom {
-  outline: 2px solid var(--primary-500);
-  outline-offset: 2px;
-}
-
-.checkbox-input:disabled + .checkbox-custom {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Button Styles - Now using shared.css
- * All button styles (.btn, .btn-primary, .btn-secondary, etc.)
- * are defined in src/styles/shared.css
- * Auth-specific override: make buttons full-width
- */
-.btn-primary,
-.btn-secondary {
-  width: 100%;
-  /* Make the edges round */
-  border-radius: var(--radius-lg);
-  padding: 0.5rem;
-}
-
-/* Loading Spinner - Already in shared.css as .spinner */
-/* Keeping local reference for now */
-.loading-spinner {
-  width: 1.25rem;
-  height: 1.25rem;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top: 2px solid white;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-/* Error Message */
-.error-message {
-  background: linear-gradient(135deg, var(--accent-red-light) 0%, var(--accent-red) 100%);
-  color: white;
-  padding: var(--space-4);
-  border-radius: var(--radius-lg);
-  font-weight: var(--font-weight-medium);
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  animation: slideInDown var(--duration-normal) var(--ease-out);
-  box-shadow: var(--shadow-md);
-}
-
-@keyframes slideInDown {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Success Message */
-.success-message {
-  background: linear-gradient(135deg, var(--primary-50) 0%, var(--primary-100) 100%);
-  color: var(--primary-800);
-  padding: var(--space-4);
-  border-radius: var(--radius-lg);
-  font-weight: var(--font-weight-medium);
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  animation: slideInDown var(--duration-normal) var(--ease-out);
-  box-shadow: var(--shadow-md);
-}
-
-/* Success and Error Messages */
-.auth-success {
-  background: var(--primary-50);
-  border: 1px solid var(--primary-200);
-  color: var(--primary-800);
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-lg);
-  margin-bottom: var(--space-4);
-  font-weight: var(--font-weight-medium);
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  animation: slideInDown var(--duration-normal) var(--ease-out);
-}
-
-.auth-error {
-  background: var(--accent-red-50, #fef2f2);
-  border: 1px solid var(--accent-red-200, #fecaca);
-  color: var(--accent-red-800, #991b1b);
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-lg);
-  margin-bottom: var(--space-4);
-  font-weight: var(--font-weight-medium);
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  animation: slideInDown var(--duration-normal) var(--ease-out);
-}
-
-/* Auth Footer */
-.auth-footer {
+:where(.auth-container) .auth-footer {
   padding: var(--space-6) var(--space-8) var(--space-8);
   border-top: 1px solid var(--secondary-100);
   background: linear-gradient(135deg, rgba(248, 250, 252, 0.5) 0%, rgba(255, 255, 255, 0.5) 100%);
 }
 
-.auth-links {
+:where(.auth-container) .auth-links {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -299,205 +90,50 @@
   flex-wrap: wrap;
 }
 
-.btn-link {
-  background: none;
-  border: none;
-  color: var(--primary-600);
-  font-size: 0.9375rem;
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
-  text-decoration: none;
-  transition: all var(--duration-fast) var(--ease-out);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-md);
-}
-
-.btn-link:hover:not(:disabled) {
-  color: var(--primary-800);
-  background: var(--primary-50);
-  text-decoration: underline;
-  transform: translateY(-1px);
-}
-
-.btn-link:focus-visible {
-  outline: 2px solid var(--primary-500);
-  outline-offset: 2px;
-}
-
-.btn-link:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.auth-divider {
-  color: var(--secondary-400);
-  font-weight: var(--font-weight-bold);
-  user-select: none;
-}
-
-
-
-/* Accessibility improvements */
 @media (prefers-reduced-motion: reduce) {
-  .auth-card,
-  .error-message,
-  .success-message,
-  .field-error {
+
+  :where(.auth-container) .auth-card,
+  :where(.auth-container) .error-message,
+  :where(.auth-container) .success-message,
+  :where(.auth-container) .field-error {
     animation: none;
   }
 
   .auth-container::before {
     animation: none;
   }
-
-  .btn-primary::before {
-    transition: none;
-  }
-}
-
-/* High contrast mode */
-@media (prefers-contrast: high) {
-  .auth-card {
-    border: 3px solid var(--secondary-800);
-  }
-
-  .form-input {
-    border-width: 3px;
-  }
-
-  .checkbox-custom {
-    border-width: 3px;
-  }
-}
-
-
-/* Badge styles - Now using shared.css
- * All badge styles (.badge, .badge-admin, .badge-user, .badge-streepjes)
- * are defined in src/styles/shared.css
- */
-
-/* Toggle switch container */
-.toggle-container {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-/* Verberg de standaard checkbox */
-.toggle-input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-/* De switch-track */
-.toggle-switch {
-  position: relative;
-  width: 3rem;
-  height: 1.5rem;
-  background: var(--secondary-500); /* Inactief */
-  border-radius: 1rem;
-  cursor: pointer;
-  transition: background 0.3s;
-}
-
-/* De rondje binnenin */
-.switch-ball {
-  position: absolute;
-  top: 0.125rem;
-  left: 0.125rem;
-  width: 1.25rem;
-  height: 1.25rem;
-  background: white;
-  border-radius: 50%;
-  transition: transform 0.3s;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-}
-
-/* Checked-staat */
-.toggle-input:checked + .toggle-switch {
-  background: var(--primary-600); /* Actief */
-}
-
-.toggle-input:checked + .toggle-switch .switch-ball {
-  transform: translateX(1.5rem);
-}
-
-/* Label naast de switch */
-.toggle-label {
-  font-size: 0.95rem;
-  color: var(--secondary-800);
-}
-
-.toggle-label small {
-  font-size: 0.8rem;
-  color: var(--secondary-600);
-}
-
-/* Container met achtergrond en border voor de toggle */
-.toggle-section {
-  background: var(--secondary-50);
-  border: 1px solid var(--secondary-200);
-  border-radius: var(--radius-md);
-  padding: 1rem;
-}
-
-/* Houd toggle en label netjes op 1 lijn */
-.toggle-container {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-/* Label rechts van de switch */
-.toggle-label {
-  font-weight: 500;
-  color: var(--secondary-800);
-}
-
-/* Beschrijving onder de switch, ingesprongen */
-.toggle-desc {
-  margin-top: 0.5rem;
-  margin-left: 0.5rem; /* past onder de switch */
-  font-size: 0.875rem;
-  color: var(--secondary-600);
-}
-
-/* Success message, ook ingesprongen en groen */
-.toggle-success {
-  margin-top: 0.5rem;
-  margin-left: 3.75rem;
-  font-size: 0.875rem;
-  color: var(--primary-700);
-  font-weight: 500;
 }
 
 
 @media (max-width: 600px) {
+
   .auth-container {
     padding: var(--space-4) var(--space-3);
   }
 
-  .auth-card {
+  :where(.auth-container) .auth-card {
     max-width: 100%;
-    padding: 1rem;
-    border-radius: var(--radius-lg);
   }
 
-  .auth-header {
+  :where(.auth-container) .auth-header {
     text-align: center;
   }
 
-  /* Mobile h1 size adjustment handled by shared.css */
-
-  .auth-description {
-    font-size: 1rem;
-  }
-
-  .auth-footer .btn-primary,
-  .auth-footer .btn-secondary,
-  .auth-links .btn-primary,
-  .auth-links .btn-secondary {
+  :where(.auth-container) .auth-footer .btn-primary,
+  :where(.auth-container) .auth-footer .btn-secondary,
+  :where(.auth-container) .auth-links .btn-primary,
+  :where(.auth-container) .auth-links .btn-secondary {
     width: 100%;
   }
+}
+
+:where(.auth-container) .auth-back-action {
+  margin-top: var(--space-3);
+}
+
+:where(.auth-container) .auth-card {
+  position: relative;
+  z-index: 1;
+  animation: slideInUp var(--duration-slow) var(--ease-out);
+  width: min(100%, 28rem);
 }

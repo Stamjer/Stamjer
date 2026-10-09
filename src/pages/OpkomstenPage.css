@@ -1,124 +1,58 @@
-/**
- * ================================================================
- * OPKOMSTEN PAGE - CARD-BASED LAYOUT
- * ================================================================
- * 
- * Modern card-based design replacing the old table layout.
- * Handles responsive design and admin participant management.
- */
+/* OpkomstenPage: scoped layout and feature-specific presentation. */
 
-/* ================================================================
- * PAGE LAYOUT
- * ================================================================ */
-
-.opkomsten-page-wrapper {
-  min-height: 100vh;
-  background: linear-gradient(135deg, var(--secondary-50) 0%, var(--primary-50) 100%);
-  padding: var(--space-0) 0 var(--space-1);
-  /* Add some space below */
-  margin-bottom: var(--space-8);
-}
-
-.opkomsten-container {
-  width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 var(--space-6);
-}
-
-.opkomsten-header {
-  text-align: center;
-  margin-bottom: var(--space-2);
-  animation: fadeInUp var(--duration-slow) var(--ease-out);
-}
-
-/* h1 styles now handled by shared.css */
-.opkomsten-title {
-  margin-bottom: var(--space-1);
-  line-height: 1.2;
-}
-
-@media (min-width: 768px) {
-  .opkomsten-title {
-    font-size: 3rem;
-  }
-}
-
-/* ================================================================
- * CARD-BASED LAYOUT STYLES
- * ================================================================ */
-
-/* Cards Grid Layout */
-.opkomsten-cards-grid {
+:where(.opkomsten-page-wrapper) .opkomsten-cards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 28rem), 1fr));
   gap: var(--space-6);
   width: 100%;
   animation: fadeInUp var(--duration-slow) var(--ease-out);
 }
 
 @media (max-width: 768px) {
-  .opkomsten-cards-grid {
-    grid-template-columns: 1fr;
+
+  :where(.opkomsten-page-wrapper) .opkomsten-cards-grid {
     gap: var(--space-4);
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
-/* Individual Card Styles */
-.opkomst-card {
-  background: white;
-  border-radius: var(--radius-2xl);
-  box-shadow: var(--shadow-lg);
-  border: 1px solid var(--secondary-200);
+:where(.opkomsten-page-wrapper) .opkomst-card {
   overflow: hidden;
-  transition: all var(--duration-normal) var(--ease-out);
-  animation: slideInUp var(--duration-slow) var(--ease-out);
 }
 
-.opkomst-card:hover {
-  box-shadow: var(--shadow-2xl);
-  transform: translateY(-4px);
-  border-color: var(--primary-200);
-}
-
-/* Card Header */
-.card-header {
+:where(.opkomsten-page-wrapper) .card-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding: var(--space-6);
-  border-bottom: 1px solid var(--secondary-100);
-  background: linear-gradient(135deg, var(--primary-50) 0%, var(--secondary-50) 100%);
+  padding: var(--card-padding);
 }
 
-.date-section {
+:where(.opkomsten-page-wrapper) .date-section {
   flex: 1;
 }
 
-.date-content {
+:where(.opkomsten-page-wrapper) .date-content {
   font-weight: var(--font-weight-bold);
   color: var(--secondary-900);
   font-size: 1.1rem;
   line-height: 1.3;
 }
 
-.time-info {
+:where(.opkomsten-page-wrapper) .time-info {
   font-size: 0.9rem;
   color: var(--secondary-600);
   margin-top: var(--space-1);
   font-weight: var(--font-weight-medium);
 }
 
-.card-actions {
+:where(.opkomsten-page-wrapper) .card-actions {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: var(--space-3);
 }
 
-/* Attendance Toggle */
-.attendance-toggle {
+:where(.opkomsten-page-wrapper) .attendance-toggle {
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -130,34 +64,32 @@
   transition: all var(--duration-fast) var(--ease-out);
 }
 
-.attendance-toggle:hover {
+:where(.opkomsten-page-wrapper) .attendance-toggle:hover {
   border-color: var(--primary-300);
-  background: var(--primary-25);
+  background: var(--primary-50);
 }
 
-.attendance-label {
+:where(.opkomsten-page-wrapper) .attendance-label {
   font-weight: var(--font-weight-medium);
   color: var(--secondary-700);
   font-size: 0.9rem;
   user-select: none;
 }
 
-/* Card Body */
-.card-body {
-  padding: var(--space-6);
+:where(.opkomsten-page-wrapper) .card-body {
+  padding: var(--card-padding);
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
 }
 
-/* Content Sections */
-.content-section {
+:where(.opkomsten-page-wrapper) .content-section {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
 
-.section-title {
+:where(.opkomsten-page-wrapper) .section-title {
   font-size: 0.65rem;
   font-weight: var(--font-weight-bold);
   color: var(--secondary-600);
@@ -168,8 +100,7 @@
   border-bottom: 1px solid var(--primary-200);
 }
 
-/* Opkomstmakers badges */
-.opkomsten-card__makers {
+:where(.opkomsten-page-wrapper) .opkomsten-card__makers {
   margin: 0;
   color: var(--secondary-600);
   font-weight: var(--font-weight-medium);
@@ -180,15 +111,15 @@
   flex-wrap: wrap;
 }
 
-.opkomsten-card__makers-badges {
+:where(.opkomsten-page-wrapper) .opkomsten-card__makers-badges {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2) !important;
+  gap: var(--space-2);
 }
 
-.opkomsten-card__maker-pill {
+:where(.opkomsten-page-wrapper) .opkomsten-card__maker-pill {
   padding: 0.25rem 0.75rem;
-  background: white !important;
+  background: white;
   border: 1px solid var(--primary-100);
   border-radius: var(--radius-full);
   color: var(--primary-700);
@@ -196,48 +127,35 @@
   font-weight: var(--font-weight-medium);
 }
 
-.opkomstmaker-badge {
-  display: inline-block;
-  background: var(--gradient-primary);
-  color: white;
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-full);
-  font-size: 0.85rem;
-  font-weight: var(--font-weight-semibold);
-  line-height: 1.2;
-  box-shadow: var(--shadow-sm);
-}
-
-/* Admin Participants Grid */
-.admin-participants-grid {
+:where(.opkomsten-page-wrapper) .admin-participants-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: var(--space-1);
   padding: var(--space-2);
   border: 1px solid var(--secondary-200);
   border-radius: var(--radius-lg);
-  background: var(--secondary-25);
+  background: var(--secondary-50);
 }
 
-.admin-participants-grid::-webkit-scrollbar {
+:where(.opkomsten-page-wrapper) .admin-participants-grid::-webkit-scrollbar {
   width: 6px;
 }
 
-.admin-participants-grid::-webkit-scrollbar-track {
+:where(.opkomsten-page-wrapper) .admin-participants-grid::-webkit-scrollbar-track {
   background: var(--secondary-100);
   border-radius: 3px;
 }
 
-.admin-participants-grid::-webkit-scrollbar-thumb {
+:where(.opkomsten-page-wrapper) .admin-participants-grid::-webkit-scrollbar-thumb {
   background: var(--secondary-300);
   border-radius: 3px;
 }
 
-.admin-participants-grid::-webkit-scrollbar-thumb:hover {
+:where(.opkomsten-page-wrapper) .admin-participants-grid::-webkit-scrollbar-thumb:hover {
   background: var(--secondary-400);
 }
 
-.participant-toggle {
+:where(.opkomsten-page-wrapper) .participant-toggle {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -252,39 +170,36 @@
   min-height: 28px;
 }
 
-.participant-toggle.participating {
+:where(.opkomsten-page-wrapper) .participant-toggle.participating {
   background: var(--gradient-primary);
   color: white;
   border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
 }
 
-.participant-toggle.participating:hover {
+:where(.opkomsten-page-wrapper) .participant-toggle.participating:hover {
   background: linear-gradient(135deg, var(--primary-600) 0%, var(--primary-700) 100%);
   transform: translateY(-1px);
   box-shadow: 0 3px 6px rgba(59, 130, 246, 0.4);
 }
 
-.participant-toggle.not-participating {
+:where(.opkomsten-page-wrapper) .participant-toggle.not-participating {
   background: var(--secondary-200);
   color: var(--secondary-600);
 }
 
-.participant-toggle.not-participating:hover {
+:where(.opkomsten-page-wrapper) .participant-toggle.not-participating:hover {
   background: var(--secondary-300);
   color: var(--secondary-700);
 }
 
-
-
-/* Regular Participants List */
-.participants-list {
+:where(.opkomsten-page-wrapper) .participants-list {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
 }
 
-.participant-badge {
+:where(.opkomsten-page-wrapper) .participant-badge {
   display: inline-block;
   background: linear-gradient(135deg, var(--primary-500) 0%, var(--primary-600) 100%);
   color: white;
@@ -298,395 +213,53 @@
   transition: all var(--duration-fast) var(--ease-out);
 }
 
-.participant-badge:hover {
+:where(.opkomsten-page-wrapper) .participant-badge:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
 }
 
-/* Description Section */
-.description-content {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.description-text {
-  margin: 0;
-  color: var(--secondary-700);
-  line-height: 1.6;
-}
-
-.location-info {
+:where(.opkomsten-page-wrapper) .location-info {
   margin: 0;
   color: var(--secondary-600);
   font-weight: var(--font-weight-medium);
   font-size: 0.9rem;
 }
 
-/* No Content States */
-.no-content {
+:where(.opkomsten-page-wrapper) .no-content {
   color: var(--secondary-500);
   font-style: italic;
   font-size: 0.9rem;
 }
 
-/* Edit Button */
-.edit-btn {
-  background: var(--gradient-primary);
-  color: white;
-  border: none;
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-md);
-  font-size: 0.85rem;
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-out);
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  box-shadow: var(--shadow-sm);
-}
-
-.edit-btn:hover {
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
-}
-
-/* ================================================================
- * ATTENDANCE CHECKBOX (PAGE-SCOPED)
- * ================================================================ */
-
-.attendance-checkbox-input {
-  position: absolute;
-  opacity: 0;
-  cursor: pointer;
-  height: 0;
-  width: 0;
-}
-
-.attendance-checkbox-custom {
-  height: 20px;
-  width: 20px;
-  background-color: white;
-  border: 2px solid var(--secondary-300);
-  border-radius: var(--radius-sm);
-  position: relative;
-  transition: all var(--duration-fast) var(--ease-out);
-  display: inline-block;
-}
-
-.attendance-checkbox-input:checked + .attendance-checkbox-custom {
-  background-color: var(--primary-600);
-  border-color: var(--primary-600);
-}
-
-.attendance-checkbox-input:checked + .attendance-checkbox-custom::after {
-  content: '';
-  position: absolute;
-  left: 6px;
-  top: 2px;
-  width: 6px;
-  height: 10px;
-  border: solid white;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-}
-
-.attendance-checkbox-custom:hover {
-  border-color: var(--secondary-400);
-  transform: scale(1.05);
-}
-
-.attendance-checkbox-input:checked + .attendance-checkbox-custom:hover {
-  border-color: var(--primary-400);
-  background-color: var(--primary-400);
-}
-
-.attendance-checkbox-input:disabled + .attendance-checkbox-custom {
-  background-color: var(--secondary-100);
-  border-color: var(--secondary-300);
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.attendance-checkbox-input:disabled:checked + .attendance-checkbox-custom {
-  background-color: var(--secondary-500);
-  border-color: var(--secondary-500);
-}
-
-.attendance-checkbox-input:disabled:checked + .attendance-checkbox-custom::after {
-  border-color: var(--secondary-100);
-}
-
-.attendance-checkbox-input:disabled ~ .attendance-checkbox-custom:hover {
-  border-color: var(--secondary-300);
-  background-color: var(--secondary-100);
-  transform: none;
-}
-
-/* ================================================================
- * RESPONSIVE DESIGN
- * ================================================================ */
-
 @media (max-width: 768px) {
-  .opkomsten-container {
-    padding: 0 var(--space-4);
-  }
-  
-  .card-header {
+
+  :where(.opkomsten-page-wrapper) .card-header {
     flex-direction: column;
     gap: var(--space-2);
     align-items: stretch;
   }
-  
-  .card-actions {
+
+  :where(.opkomsten-page-wrapper) .card-actions {
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
   }
-  
-  .admin-participants-grid {
+
+  :where(.opkomsten-page-wrapper) .admin-participants-grid {
     grid-template-columns: repeat(3, 1fr);
     gap: var(--space-1);
   }
-  
-  .date-content {
+
+  :where(.opkomsten-page-wrapper) .date-content {
     font-size: 1rem;
   }
-  
-  .section-title {
+
+  :where(.opkomsten-page-wrapper) .section-title {
     font-size: 0.85rem;
   }
 }
 
-/* ================================================================
- * LOADING AND ERROR STATES
- * ================================================================ */
-
-.loading-state,
-.error-state,
-.empty-state {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 400px;
-  text-align: center;
-}
-
-.loading-content,
-.error-content,
-.empty-content {
-  background: white;
-  padding: var(--space-8);
-  border-radius: var(--radius-2xl);
-  box-shadow: var(--shadow-lg);
-  border: 1px solid var(--secondary-200);
-  max-width: 500px;
-}
-
-.loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid var(--secondary-200);
-  border-top: 4px solid var(--primary-500);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 0 auto var(--space-4);
-}
-
-/* Animations - Now using shared.css */
-
-/* ================================================================
- * MODAL STYLES - Now using shared.css
- * ================================================================
- * Base modal styles (.modal-overlay, .modal-content, .modal-header, .modal-body, .modal-footer, .close-btn)
- * are defined in src/styles/shared.css
- * Only OpkomstenPage-specific modal customizations below:
- */
-
-.modal-content-large {
-  max-width: 800px;
-}
-
-/* OpkomstenPage modal footer alignment */
-.modal-footer {
-  justify-content: flex-end;
-}
-
-
-.modal-btn {
-  padding: var(--space-3) var(--space-6);
-  border-radius: var(--radius-md);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-out);
-  border: none;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.modal-btn-primary {
-  background: var(--gradient-primary);
-  color: white;
-}
-
-.modal-btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-  transform: translateY(-1px);
-}
-
-.modal-btn-secondary {
-  background: var(--secondary-100);
-  color: var(--secondary-700);
-}
-
-.modal-btn-secondary:hover:not(:disabled) {
-  background: var(--secondary-200);
-}
-
-.modal-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-/* ================================================================
- * TOAST NOTIFICATIONS
- * ================================================================ */
-
-.toast {
-  position: fixed;
-  top: var(--space-6);
-  right: var(--space-6);
-  background: white;
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-2xl);
-  border: 1px solid var(--secondary-200);
-  padding: var(--space-4);
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  z-index: 1100;
-  animation: slideInRight var(--duration-normal) var(--ease-out);
-  max-width: 400px;
-}
-
-.toast-success {
-  border-left: 4px solid var(--primary-600);
-}
-
-.toast-error {
-  border-left: 4px solid var(--accent-red);
-}
-
-.toast-warning {
-  border-left: 4px solid var(--accent-yellow);
-}
-
-.toast-info {
-  border-left: 4px solid var(--primary-500);
-}
-
-.toast-icon {
-  font-weight: var(--font-weight-bold);
-  font-size: 0.875rem;
-}
-
-.toast-message {
-  flex: 1;
-  font-size: 0.875rem;
-  line-height: 1.4;
-}
-
-.toast-close {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: var(--space-1);
-  border-radius: var(--radius-sm);
-  color: var(--secondary-500);
-  transition: all var(--duration-fast) var(--ease-out);
-}
-
-.toast-close:hover {
-  background: var(--secondary-100);
-  color: var(--secondary-700);
-}
-
-/* ================================================================
- * ANIMATIONS - Now using shared.css
- * All standard animations are defined in src/styles/shared.css
- * ================================================================ */
-
-/* ================================================================
- * FORM STYLES (for edit modal)
- * ================================================================ */
-
-.form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-4);
-}
-
-@media (max-width: 768px) {
-  .form-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.form-group-full {
-  grid-column: 1 / -1;
-}
-
-.form-label {
-  font-weight: var(--font-weight-semibold);
-  color: var(--secondary-800);
-  font-size: 0.875rem;
-}
-
-.form-input,
-.form-textarea {
-  padding: var(--space-3);
-  border: 2px solid var(--secondary-200);
-  border-radius: var(--radius-md);
-  font-size: 1rem;
-  font-family: var(--font-primary);
-  color: var(--secondary-800);
-  transition: all var(--duration-fast) var(--ease-out);
-  background: white;
-}
-
-.form-input:focus,
-.form-textarea:focus {
-  outline: none;
-  border-color: var(--primary-500);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.form-input.error,
-.form-textarea.error {
-  border-color: var(--accent-red);
-}
-
-.form-textarea {
-  resize: vertical;
-  min-height: 100px;
-}
-
-.field-error {
-  color: var(--accent-red);
-  font-size: 0.8rem;
-  font-weight: var(--font-weight-medium);
-}
-
-.error-message {
+:where(.opkomsten-page-wrapper) .error-message {
   background: #fef2f2;
   border: 1px solid #fca5a5;
   color: #dc2626;
@@ -694,75 +267,4 @@
   border-radius: var(--radius-md);
   font-size: 0.875rem;
   margin-top: var(--space-4);
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: var(--font-weight-medium);
-  color: var(--secondary-700);
-  user-select: none;
-}
-
-.opkomstmakers-checkboxes {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: var(--space-2);
-  padding: var(--space-3);
-  border: 1px solid var(--secondary-200);
-  border-radius: var(--radius-md);
-  background: var(--secondary-25);
-}
-
-.opkomstmaker-checkbox {
-  padding: var(--space-2);
-  border-radius: var(--radius-sm);
-  transition: background-color var(--duration-fast) var(--ease-out);
-}
-
-.opkomstmaker-checkbox:hover {
-  background: var(--secondary-50);
-}
-
-/* Time Input Component */
-.time-input-24 {
-  display: flex;
-  align-items: center;
-  border: 2px solid var(--secondary-200);
-  border-radius: var(--radius-md);
-  padding: var(--space-3);
-  background: white;
-  transition: border-color var(--duration-fast) var(--ease-out);
-}
-
-.time-input-24:focus-within {
-  border-color: var(--primary-500);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.time-input-24.error {
-  border-color: var(--accent-red);
-}
-
-.time-select {
-  border: none;
-  background: none;
-  font-size: 1rem;
-  padding: var(--space-1);
-  cursor: pointer;
-  color: var(--secondary-800);
-  font-family: var(--font-primary);
-}
-
-.time-select:focus {
-  outline: none;
-}
-
-.time-separator {
-  color: var(--secondary-600);
-  font-weight: var(--font-weight-semibold);
-  margin: 0 var(--space-2);
 }

@@ -1,6 +1,6 @@
 {
   "name": "stamjer",
-  "version": "1.11.4",
+  "version": "1.11.5",
   "description": "Een React + Vite kalender applicatie met gebruikersauthenticatie en evenementbeheer",
   "private": true,
   "type": "module",
@@ -32,6 +32,7 @@
     "test": "node --test",
     "test:watch": "node --test --watch",
     "test:groups:browser": "node test-support/browserSmoke.js",
+    "test:styles:browser": "node test-support/browserSmoke.js --styles-only",
     "test:groups:mongo": "node --test test/groupMongoIntegration.test.js test/membershipMongoIntegration.test.js"
   },
   "main": "api/index.js",

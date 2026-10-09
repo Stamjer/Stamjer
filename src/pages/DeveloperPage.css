@@ -1,57 +1,232 @@
-.developer-page { width: min(1160px, 100%); margin: 0 auto; padding: 2rem 1.25rem 6rem; color: var(--secondary-900); }
-.developer-page *, .developer-page *::before, .developer-page *::after { box-sizing: border-box; }
-.developer-page .btn { width: auto; max-width: 100%; min-height: 44px; padding: .65rem 1rem; font-size: .875rem; white-space: normal; line-height: 1.4; }
-.developer-heading { display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem; }
-.developer-heading > label, .developer-search { display: flex; flex-direction: column; gap: .5rem; min-width: 0; font-size: .875rem; font-weight: 600; }
-.developer-heading > label { width: min(100%, 22rem); }
-.developer-heading select, .developer-search input { width: 100%; min-width: 0; min-height: 44px; padding: .65rem .8rem; background: white; color: var(--secondary-900); border: 1px solid var(--secondary-300); border-radius: 10px; font: inherit; }
-.developer-heading select:focus-visible, .developer-search input:focus-visible { outline: 2px solid var(--primary-500); outline-offset: 2px; border-color: var(--primary-500); }
-.developer-tabs { display: flex; padding: .25rem; gap: .25rem; border: 1px solid var(--secondary-200); border-radius: 12px; background: white; }
-.developer-tabs button { flex: 1; min-height: 44px; min-width: 0; padding: .65rem .9rem; border: 0; border-radius: 8px; background: transparent; color: var(--secondary-600); font: inherit; font-size: .875rem; cursor: pointer; }
-.developer-tabs button:hover { background: var(--secondary-50); }
-.developer-tabs button.is-active { background: var(--primary-50); color: var(--primary-700); font-weight: 700; }
-.developer-tabs button:focus-visible { outline: 2px solid var(--primary-500); outline-offset: 2px; }
-.developer-search { width: min(100%, 24rem); }
-.developer-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr)); gap: 1rem; margin-top: 1.25rem; }
-.developer-group-card, .developer-events, .developer-account-card, .developer-database, .developer-page .user-management { min-width: 0; background: white; border: 1px solid var(--secondary-200); border-radius: 16px; padding: 1.5rem; box-shadow: var(--shadow-sm); }
-.developer-group-card h2, .developer-account h2, .developer-database h2 { font-size: 1.2rem !important; line-height: 1.4; margin: 0; overflow-wrap: anywhere; }
-.developer-group-card p { color: var(--secondary-600); font-size: .8125rem; margin: .5rem 0 1rem; overflow-wrap: anywhere; }
-.developer-group-card dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 1.25rem 0; }
-.developer-group-card dt { color: var(--secondary-600); font-size: .8125rem; }
-.developer-group-card dd { margin: .25rem 0 0; font-size: 1.5rem; font-weight: 700; }
-.developer-card-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
-.developer-event-list { margin: 1rem 0 0; padding: 0; list-style: none; }
-.developer-event-list li { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 0; border-top: 1px solid var(--secondary-200); }
-.developer-event-list li > div:first-child { display: flex; flex-direction: column; gap: .35rem; min-width: 0; overflow-wrap: anywhere; }
-.developer-event-list span { color: var(--secondary-600); font-size: .8125rem; }
-.developer-account { width: min(100%, 36rem); margin: 0 auto; }
-.developer-account .management-form { padding-top: 1.5rem; gap: 1.25rem; }
-.developer-account .developer-logout { display: flex; margin: 1.5rem 0 0 auto; }
-.developer-page .management-toolbar { position: static; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: 1rem; padding: 1.25rem 0; }
-.developer-page .management-toolbar label:first-child { grid-column: auto; }
-.developer-page .management-heading { gap: 1.25rem; }
-.developer-page .management-heading p { line-height: 1.6; }
-.management-form .management-checkbox { flex-direction: row; align-items: center; }
-.management-form .management-checkbox input { width: 1.1rem; min-height: 1.1rem; }
-.developer-event-members { display: flex; flex-direction: column; gap: 1rem; }
-.developer-event-members fieldset { min-width: 0; display: flex; flex-direction: column; gap: .75rem; border: 1px solid var(--secondary-300); border-radius: 10px; padding: 1rem; }
-.developer-event-members legend { padding: 0 .25rem; font-size: .875rem; font-weight: 600; }
-.developer-event-members p { font-size: .875rem; margin: 0; }
-.developer-records details { padding: 1rem 0; border-top: 1px solid var(--secondary-200); }
-.developer-records summary { cursor: pointer; overflow-wrap: anywhere; font-size: .875rem; line-height: 1.6; }
-.developer-json { white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-mono); font-size: .8125rem; max-width: 100%; background: var(--secondary-100); color: var(--secondary-900); padding: .8rem; border-radius: 10px; }
-@media (max-width: 700px) {
-  .developer-page { padding: 1.25rem 1rem 6rem; }
-  .developer-heading { align-items: stretch; flex-direction: column; gap: 1rem; }
-  .developer-heading > label { width: 100%; }
-  .developer-group-card, .developer-events, .developer-account-card, .developer-database, .developer-page .user-management { padding: 1rem; }
-  .developer-tabs button { padding: .65rem .5rem; font-size: .8125rem; }
-  .developer-event-list li { align-items: stretch; flex-direction: column; }
-  .developer-page .management-toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .developer-page .management-toolbar label:first-child { grid-column: 1 / -1; }
-  .developer-card-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); }
+/* DeveloperPage: scoped layout and feature-specific presentation. */
+
+.developer-page {
+  color: var(--secondary-900);
 }
+
+.developer-page *, .developer-page *::before, .developer-page *::after {
+  box-sizing: border-box;
+}
+
+.developer-page .btn {
+  width: auto;
+}
+
+:where(.developer-page) .developer-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+:where(.developer-page) .developer-heading > label, :where(.developer-page) .developer-search {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  min-width: 0;
+  font-size: .875rem;
+  font-weight: 600;
+}
+
+:where(.developer-page) .developer-heading > label {
+  width: min(100%, 22rem);
+}
+
+:where(.developer-page) .developer-tabs {
+  display: flex;
+  padding: .25rem;
+  gap: .25rem;
+  border: 1px solid var(--secondary-200);
+  border-radius: 12px;
+  background: white;
+}
+
+:where(.developer-page) .developer-tabs button {
+  flex: 1;
+  min-height: 44px;
+  min-width: 0;
+  padding: .65rem .9rem;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--secondary-600);
+  font: inherit;
+  font-size: .875rem;
+  cursor: pointer;
+}
+
+:where(.developer-page) .developer-tabs button:hover {
+  background: var(--secondary-50);
+}
+
+:where(.developer-page) .developer-tabs button.is-active {
+  background: var(--primary-50);
+  color: var(--primary-700);
+  font-weight: 700;
+}
+
+:where(.developer-page) .developer-tabs button:focus-visible {
+  outline: 2px solid var(--primary-500);
+  outline-offset: 2px;
+}
+
+:where(.developer-page) .developer-search {
+  width: min(100%, 24rem);
+}
+
+:where(.developer-page) .developer-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr));
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+:where(.developer-page) .developer-group-card h2, :where(.developer-page) .developer-account h2, :where(.developer-page) .developer-database h2 {
+  font-size: 1.2rem;
+  line-height: 1.4;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+:where(.developer-page) .developer-group-card p {
+  color: var(--secondary-600);
+  font-size: .8125rem;
+  margin: .5rem 0 1rem;
+  overflow-wrap: anywhere;
+}
+
+:where(.developer-page) .developer-group-card dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1.25rem 0;
+}
+
+:where(.developer-page) .developer-group-card dt {
+  color: var(--secondary-600);
+  font-size: .8125rem;
+}
+
+:where(.developer-page) .developer-group-card dd {
+  margin: .25rem 0 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+:where(.developer-page) .developer-card-actions {
+  display: flex;
+  gap: .5rem;
+  flex-wrap: wrap;
+}
+
+:where(.developer-page) .developer-event-list {
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+:where(.developer-page) .developer-event-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-top: 1px solid var(--secondary-200);
+}
+
+:where(.developer-page) .developer-event-list li > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+:where(.developer-page) .developer-event-list span {
+  color: var(--secondary-600);
+  font-size: .8125rem;
+}
+
+:where(.developer-page) .developer-account {
+  width: min(100%, 36rem);
+  margin: 0 auto;
+}
+
+:where(.developer-page) .developer-account .management-form {
+  padding-top: 1.5rem;
+  gap: 1.25rem;
+}
+
+:where(.developer-page) .developer-account .developer-logout {
+  display: flex;
+  margin: 1.5rem 0 0 auto;
+}
+
+.developer-page .management-toolbar {
+  position: static;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: 1rem;
+  padding: 1.25rem 0;
+}
+
+.developer-page .management-toolbar label:first-child {
+  grid-column: auto;
+}
+
+.developer-page .management-heading {
+  gap: 1.25rem;
+}
+
+.developer-page .management-heading p {
+  line-height: 1.6;
+}
+
+@media (max-width: 700px) {
+
+  :where(.developer-page) .developer-heading {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  :where(.developer-page) .developer-heading > label {
+    width: 100%;
+  }
+
+  :where(.developer-page) .developer-tabs button {
+    padding: .65rem .5rem;
+    font-size: .8125rem;
+  }
+
+  :where(.developer-page) .developer-event-list li {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .developer-page .management-toolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .developer-page .management-toolbar label:first-child {
+    grid-column: 1 / -1;
+  }
+
+  :where(.developer-page) .developer-card-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  }
+}
+
 @media (max-width: 380px) {
-  .developer-tabs button { padding: .65rem .25rem; font-size: .75rem; }
-  .developer-page .management-toolbar { grid-template-columns: minmax(0, 1fr); }
+
+  :where(.developer-page) .developer-tabs button {
+    padding: .65rem .25rem;
+    font-size: .75rem;
+  }
+
+  .developer-page .management-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

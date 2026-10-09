@@ -14,7 +14,7 @@ export default function EventGuests({ names = [], onChange, disabled = false, er
           <span className="checkbox-custom" aria-hidden="true"></span>
           <em>{label}</em>
         </label>
-        {selected && <input className="event-guest-name" type="text" value={names[index]} placeholder="Naam"
+        {selected && <input className="form-input form-input-compact event-guest-name" type="text" value={names[index]} placeholder="Naam"
           aria-label={`Naam ${label.toLowerCase()}`} required autoFocus maxLength={MAX_GUEST_NAME_LENGTH}
           disabled={disabled} onChange={event => onChange(names.map((value, i) => i === index ? event.target.value : value))} />}
       </div>

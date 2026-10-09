@@ -2,9 +2,10 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { SpeedInsights } from '@vercel/speed-insights/react'
 import { Analytics } from '@vercel/analytics/react'
-import App from './App'
+import './styles/tokens.css'
 import './index.css'
 import './styles/shared.css'
+import App from './App'
 
 const bootstrapPWA = () => {
   if (!('serviceWorker' in navigator)) {

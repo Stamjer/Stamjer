@@ -426,7 +426,7 @@ function EventModal({ event, onClose, onDelete, onEdit, isAdmin = false, current
             <>
               <button 
                 type="button" 
-                className="modal-btn modal-btn-secondary"
+                className="btn btn-secondary"
                 onClick={() => onEdit(event)}
                 disabled={isDeleting}
               >
@@ -434,7 +434,7 @@ function EventModal({ event, onClose, onDelete, onEdit, isAdmin = false, current
               </button>
               <button 
                 type="button" 
-                className="modal-btn modal-btn-danger"
+                className="btn btn-danger"
                 onClick={handleDelete}
                 disabled={isDeleting}
               >
@@ -758,7 +758,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
         </div>
 
         <form className="modal-body" onSubmit={handleSubmit}>
-          <div className="form-grid">
+          <div className="form-grid form-grid-single">
             {/* Title */}
             <div className="form-group form-group-full">
               <label className="form-label" htmlFor="event-title">
@@ -1036,7 +1036,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
         <div className="modal-footer">
           <button 
             type="button" 
-            className="modal-btn modal-btn-secondary"
+            className="btn btn-secondary"
             onClick={onClose}
             disabled={isSubmitting}
           >
@@ -1044,7 +1044,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
           </button>
           <button 
             type="submit" 
-            className="modal-btn modal-btn-primary"
+            className="btn btn-primary"
             onClick={handleSubmit}
             disabled={isSubmitting}
           >
@@ -1426,7 +1426,7 @@ export default function CalendarPage({ user: currentUser }) {
   if (eventsLoading || usersLoading) {
     return (
       <div className="calendar-page-wrapper">
-        <div className="calendar-container">
+        <div className="page-content calendar-container">
           <div className="loading-state">
             <div className="loading-content">
               <div className="loading-spinner"></div>
@@ -1442,7 +1442,7 @@ export default function CalendarPage({ user: currentUser }) {
   if (eventsError) {
     return (
       <div className="calendar-page-wrapper">
-        <div className="calendar-container">
+        <div className="page-content calendar-container">
           <div className="error-state">
             <div className="error-content">
               <h2>Let op Er is iets misgegaan</h2>
@@ -1466,8 +1466,8 @@ export default function CalendarPage({ user: currentUser }) {
 
   return (
     <div className="calendar-page-wrapper">
-      <div className="calendar-container">
-        <div className="calendar-header">
+      <div className="page-content calendar-container">
+        <div className="page-header page-header-navigation calendar-header">
           <h1 className="calendar-title">Kalender</h1>
           {(createEventMutation.isPending || updateEventMutation.isPending || deleteEventMutation.isPending) && (
             <div className="calendar-loading-indicator">
@@ -1479,7 +1479,7 @@ export default function CalendarPage({ user: currentUser }) {
 
         {/* Removed duplicate mobile helpers to avoid double controls */}
 
-        <div className="calendar-wrapper" ref={calendarWrapperRef}>
+        <div className="card card-elevated calendar-wrapper" ref={calendarWrapperRef}>
           {isMobile ? (
             <MobileAgenda
               events={events}
@@ -1506,7 +1506,7 @@ export default function CalendarPage({ user: currentUser }) {
           <div className="mobile-create-event-wrapper">
             <button 
               type="button"
-              className="mobile-create-event-btn"
+              className="btn btn-primary mobile-create-event-btn"
               onClick={() => setShowNewForm(true)}
               aria-label="Nieuw evenement aanmaken"
             >

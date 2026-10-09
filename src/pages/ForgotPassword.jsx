@@ -105,14 +105,14 @@ export default function ForgotPassword() {
 
   return (
     <div className="auth-container">
-      <div className="auth-card">
+      <div className="card card-elevated auth-card">
         <div className="auth-header">
           <img 
             src="/stam_H.png" 
             alt="Stamjer Logo" 
             className="auth-logo"
           />
-          <h1 className="auth-title">Wachtwoord vergeten</h1>
+          <h1 className="page-title auth-title">Wachtwoord vergeten</h1>
           <p className="auth-subtitle">
             {step === 'request' 
               ? 'Voer je e-mailadres in om een herstelcode te ontvangen'
@@ -143,10 +143,10 @@ export default function ForgotPassword() {
               </div>
 
               {/* Submit Button */}
-              <button type="submit" className="btn-primary" disabled={isLoading || !email.trim()}>
+              <button type="submit" className="btn btn-primary" disabled={isLoading || !email.trim()}>
                 {isLoading ? 'Verzenden…' : 'Verstuur herstelcode'}
               </button>
-              <button type="button" className="btn-secondary" disabled={isLoading || !email.trim()} onClick={event => {
+              <button type="button" className="btn btn-secondary" disabled={isLoading || !email.trim()} onClick={event => {
                 if (event.currentTarget.form.reportValidity()) { setError(null); setStep('reset') }
               }}>Ik heb al een code</button>
             </form>
@@ -204,16 +204,16 @@ export default function ForgotPassword() {
                 </div>
 
                 {/* Submit */}
-                <button type="submit" className="btn-primary" disabled={isLoading}>
+                <button type="submit" className="btn btn-primary" disabled={isLoading}>
                   {isLoading ? 'Resetten…' : 'Reset wachtwoord'}
                 </button>
               </form>
 
               {/* Resend code button */}
-              <div style={{ marginTop: 12 }}>
+              <div className="auth-back-action">
                 <button
                   type="button"
-                  className="btn-link"
+                  className="btn btn-link"
                   onClick={resendCode}
                   disabled={isLoading}
                 >
@@ -239,7 +239,7 @@ export default function ForgotPassword() {
           <div className="auth-footer">
             <button
               type="button"
-              className="btn-link"
+              className="btn btn-link"
               onClick={() => navigate('/login')}
               disabled={isLoading}
             >

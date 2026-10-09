@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import ToggleSwitch from '../components/ToggleSwitch'
 import { isAdmin } from '../../shared/roles'
 import { useNavigate } from 'react-router-dom'
 import { withSupportContact } from '../config/appInfo'
@@ -36,16 +37,18 @@ function Toast({ message, type = 'info', onClose }) {
   }
 
   return (
-    <div className={`toast toast-${type}`} role="alert">
-      <span className="toast-icon">{icons[type]}</span>
-      <span className="toast-message">{message}</span>
-      <button
-        className="toast-close"
-        onClick={onClose}
-        aria-label="Notificatie sluiten"
-      >
-        ×
-      </button>
+    <div className="toast-container toast-container-top-right">
+      <div className={`toast toast-${type}`} role="alert">
+        <span className="toast-icon">{icons[type]}</span>
+        <span className="toast-message">{message}</span>
+        <button
+          className="toast-close"
+          onClick={onClose}
+          aria-label="Notificatie sluiten"
+        >
+          ×
+        </button>
+      </div>
     </div>
   )
 }
@@ -180,7 +183,7 @@ export default function StrepenPage({ user: userProp }) {
   if (isLoading) {
     return (
       <div className="strepen-page-wrapper">
-        <div className="strepen-page">
+        <div className="page-content strepen-page">
           <div className="loading-state">
             <div className="loading-content">
               <div className="loading-spinner"></div>
@@ -193,10 +196,10 @@ export default function StrepenPage({ user: userProp }) {
     )
   }
   if (error) {
-    return <div className="strepen-page-wrapper"><div className="strepen-page"><div className="error">{withSupportContact(error.message || 'Kon gegevens niet laden')}</div></div></div>
+    return <div className="strepen-page-wrapper"><div className="page-content strepen-page"><div className="error">{withSupportContact(error.message || 'Kon gegevens niet laden')}</div></div></div>
   }
   if (!selectedEvent) {
-    return <div className="strepen-page-wrapper"><div className="strepen-page"><div className="no-events">Geen opkomsten gevonden</div></div></div>
+    return <div className="strepen-page-wrapper"><div className="page-content strepen-page"><div className="no-events">Geen opkomsten gevonden</div></div></div>
   }
 
   const sortedUsers = [...users]
@@ -221,7 +224,7 @@ export default function StrepenPage({ user: userProp }) {
 
   return (
     <div className="strepen-page-wrapper">
-      <div className="strepen-page">
+      <div className="page-content strepen-page">
         {/* aria-live region for toggle feedback */}
         <div className="visually-hidden" aria-live="polite">{liveMsg}</div>
 
@@ -237,7 +240,7 @@ export default function StrepenPage({ user: userProp }) {
                   const ev = events.find(x => x.id === e.target.value)
                   setSelectedEvent(ev)
                 }}
-                className="mobile-select"
+                className="form-select mobile-select"
                 aria-label="Selecteer opkomst"
               >
                 {events.map(ev => (
@@ -248,7 +251,7 @@ export default function StrepenPage({ user: userProp }) {
               </select>
 
               <div className="mobile-search">
-                <input
+                <input className="form-input"
                   type="search"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
@@ -277,9 +280,9 @@ export default function StrepenPage({ user: userProp }) {
           </div>
         ) : (
           <>
-            <section className="event-selector">
+            <section className="card card-elevated event-selector">
               <label htmlFor="event-select">Selecteer opkomst:</label>
-              <select
+              <select className="form-select"
                 id="event-select"
                 value={selectedEvent.id}
                 onChange={e => {
@@ -295,7 +298,7 @@ export default function StrepenPage({ user: userProp }) {
               </select>
             </section>
 
-            <section className="event-info">
+            <section className="card card-elevated event-info">
               <h2>{selectedEvent.title}</h2>
               <p>📅 {capitalizeWeekday(selectedEvent.start)}</p>
               {selectedEvent.location && (
@@ -319,7 +322,7 @@ export default function StrepenPage({ user: userProp }) {
                     <div className="user-name">
                       {u.firstName} {u.lastName}
                       {(u.status || 'active') === 'inactive' && (
-                        <span className="account-pill account-pill-inactive" style={{ marginLeft: '0.5rem', fontSize: '0.75rem', padding: '0.1rem 0.4rem' }}>Inactief</span>
+                        <span className="account-pill account-pill-inactive account-pill-inline">Inactief</span>
                       )}
                       {isChanged && <span className="changed-dot" aria-hidden="true"></span>}
                     </div>
@@ -329,17 +332,13 @@ export default function StrepenPage({ user: userProp }) {
                     </div>
                   </div>
                   <div className="user-card-action">
-                    <input
-                      type="checkbox"
+                    <ToggleSwitch
                       id={`toggle-${u.id}`}
-                      checked={present}
-                      onChange={() => handleAttendanceToggle(u)}
+                      ariaLabel={`Aanwezigheid ${u.firstName} ${u.lastName || ''}`}
+                      isToggled={present}
+                      onToggle={() => handleAttendanceToggle(u)}
                       disabled={isSaving}
-                      className="toggle-input"
                     />
-                    <label htmlFor={`toggle-${u.id}`} className="toggle-switch">
-                      <div className="switch-ball"></div>
-                    </label>
                     <div className="toggle-label" aria-hidden="true">
                       {isSaving ? 'Opslaan...' : (present ? 'Aanwezig' : 'Afwezig')}
                     </div>
@@ -353,7 +352,7 @@ export default function StrepenPage({ user: userProp }) {
           </div>
         ) : (
           // Desktop table stays intact
-          <div className="attendance-table">
+          <div className="card card-elevated attendance-table">
             <div className="table-header">
               <div className="header-cell name">Naam</div>
               <div className="header-cell status">Aangemeld</div>
@@ -373,22 +372,18 @@ export default function StrepenPage({ user: userProp }) {
                   }`}
                 >
                   <div className="cell name">
-                    {u.firstName}{(u.status || 'active') === 'inactive' && <span className="account-pill account-pill-inactive" style={{ marginLeft: '0.4rem', fontSize: '0.7rem', padding: '0.1rem 0.35rem', verticalAlign: 'middle' }}>I</span>}{!defaultState && <span className="modified-indicator"> *</span>}
+                    {u.firstName}{(u.status || 'active') === 'inactive' && <span className="account-pill account-pill-inactive account-pill-inline account-pill-compact">I</span>}{!defaultState && <span className="modified-indicator"> *</span>}
                     {isSaving && <span className="saving-indicator"> (opslaan...)</span>}
                   </div>
                   <div className="cell status">{isPart ? '✅' : '❌'}</div>
                   <div className="cell toggle">
-                    <input
-                      type="checkbox"
+                    <ToggleSwitch
                       id={`toggle-${u.id}`}
-                      checked={present}
-                      onChange={() => handleAttendanceToggle(u)}
+                      ariaLabel={`Aanwezigheid ${u.firstName} ${u.lastName || ''}`}
+                      isToggled={present}
+                      onToggle={() => handleAttendanceToggle(u)}
                       disabled={isSaving}
-                      className="toggle-input"
                     />
-                    <label htmlFor={`toggle-${u.id}`} className="toggle-switch">
-                      <div className="switch-ball"></div>
-                    </label>
                   </div>
                   <div className="cell streepjes">{u.streepjes || 0}</div>
                 </div>

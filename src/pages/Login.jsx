@@ -135,14 +135,14 @@ export default function Login({ setUser }) {
 
   return (
     <div className="auth-container">
-      <div className="auth-card">
+      <div className="card card-elevated auth-card">
         <div className="auth-header">
           <img 
             src="/stam_H.png" 
             alt="Stamjer Logo" 
             className="auth-logo"
           />
-          <h1 className="auth-title">Welkom terug</h1>
+          <h1 className="page-title auth-title">Welkom terug</h1>
           <p className="auth-subtitle">Log in op je Stamjer account</p>
         </div>
         
@@ -216,7 +216,7 @@ export default function Login({ setUser }) {
             {/* Submit Button */}
             <button 
               type="submit" 
-              className={`btn-primary ${!isFormValid ? 'disabled' : ''}`} 
+              className={`btn btn-primary ${!isFormValid ? 'disabled' : ''}`}
               disabled={isLoading || !isFormValid}
               aria-describedby={error ? "login-error" : undefined}
             >
@@ -242,7 +242,7 @@ export default function Login({ setUser }) {
         <div className="auth-footer">
           <div className="auth-links">
             <button 
-              className="btn-link" 
+              className="btn btn-link"
               onClick={() => navigate('/forgot-password')} 
               disabled={isLoading}
               aria-label="Wachtwoord vergeten? Klik hier om je wachtwoord te resetten"

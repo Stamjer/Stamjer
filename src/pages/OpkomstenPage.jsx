@@ -572,7 +572,7 @@ function OpkomstEditForm({ event, onClose, onSave, users = [], currentUser = nul
         <div className="modal-footer">
           <button 
             type="button" 
-            className="modal-btn modal-btn-secondary"
+            className="btn btn-secondary"
             onClick={onClose}
             disabled={isSubmitting}
           >
@@ -580,7 +580,7 @@ function OpkomstEditForm({ event, onClose, onSave, users = [], currentUser = nul
           </button>
           <button 
             type="submit" 
-            className="modal-btn modal-btn-primary"
+            className="btn btn-primary"
             onClick={handleSubmit}
             disabled={isSubmitting}
           >
@@ -794,7 +794,7 @@ export default function OpkomstenPage({ user: currentUser }) {
   if (isLoading) {
     return (
       <div className="opkomsten-page-wrapper">
-        <div className="opkomsten-container">
+        <div className="page-content opkomsten-container">
           <div className="loading-state">
             <div className="loading-content">
               <div className="loading-spinner"></div>
@@ -810,7 +810,7 @@ export default function OpkomstenPage({ user: currentUser }) {
   if (error) {
     return (
       <div className="opkomsten-page-wrapper">
-        <div className="opkomsten-container">
+        <div className="page-content opkomsten-container">
           <div className="error-state">
             <div className="error-content">
               <h2>Er is iets misgegaan</h2>
@@ -830,8 +830,8 @@ export default function OpkomstenPage({ user: currentUser }) {
 
   return (
     <div className="opkomsten-page-wrapper">
-      <div className="opkomsten-container">
-        <div className="opkomsten-header">
+      <div className="page-content opkomsten-container">
+        <div className="page-header page-header-navigation opkomsten-header">
           <h1 className="opkomsten-title">Opkomsten</h1>
         </div>
 
@@ -846,7 +846,7 @@ export default function OpkomstenPage({ user: currentUser }) {
       ) : (
         <div className="opkomsten-cards-grid">
           {opkomstEvents.map((event) => (
-            <div key={event.id} className="opkomst-card">
+            <div key={event.id} className="card card-elevated opkomst-card">
               {/* Card Header with Date and Actions */}
               <div className="card-header">
                 <div className="date-section">
@@ -899,11 +899,11 @@ export default function OpkomstenPage({ user: currentUser }) {
                         (currentUser && event.participants && event.participants.includes(currentUser.id))
                       }
                       onChange={(e) => handleAttendanceChange(event.id, e.target.checked)}
-                      className="attendance-checkbox-input"
+                      className="checkbox-input attendance-checkbox-input"
                       disabled={!canChangeAttendance(event.start) || currentUser?.permissions?.canUseAttendance === false}
                       title={!canChangeAttendance(event.start) ? 'Aanwezigheid kan alleen worden gewijzigd voor de datum van de opkomst' : ''}
                     />
-                    <span className="attendance-checkbox-custom"></span>
+                    <span className="checkbox-custom attendance-checkbox-custom"></span>
                     <span className="attendance-label">
                       {(attendance[event.id] || (currentUser && event.participants && event.participants.includes(currentUser.id))) ? 'Aanwezig' : 'Afwezig'}
                     </span>
@@ -912,7 +912,7 @@ export default function OpkomstenPage({ user: currentUser }) {
                   {hasAdminRole(currentUser) && (
                     <button
                       onClick={() => handleEditEvent(event)}
-                      className="edit-btn"
+                      className="btn btn-secondary btn-compact edit-btn"
                       title="Opkomst bewerken"
                       type="button"
                     >

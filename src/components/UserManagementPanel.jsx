@@ -68,16 +68,16 @@ export default function UserManagementPanel({ actor, users = [], groupId, groups
   const input = field => ({ value: form[field] || '', onChange: event => setForm(current => ({ ...current, [field]: event.target.value })) })
   const groupName = id => groups.find(group => group.id === id)?.name || id
   return (
-    <section className="user-management" aria-label="Gebruikersbeheer">
+    <section className="card card-elevated card-padded user-management" aria-label="Gebruikersbeheer">
       <div className="management-heading"><div><h2>Gebruikersbeheer</h2><p>{counts.active} actief · {counts.inactive} inactief · {counts.legacy} alumni · {counts.admins} beheerders</p></div>
         <div className="management-heading-actions"><button className="btn btn-primary" onClick={() => open()} disabled={loading || archived || (developer && !groupId)}>Gebruiker toevoegen</button>
           {membershipMode && !archived && <button type="button" className="btn btn-secondary" onClick={() => setMembershipsFor(null)}>Bestaand account toevoegen</button>}
         </div></div>
       <div className="management-toolbar">
-        <label>Zoeken<input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Naam of e-mailadres" /></label>
-        <label>Status<select value={status} onChange={event => setStatus(event.target.value)}><option value="all">Alle statussen</option>{Object.entries(USER_STATUS_LABELS).filter(([value]) => value !== (membershipMode ? 'legacy' : 'alumni')).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-        <label>Rol<select value={role} onChange={event => setRole(event.target.value)}><option value="all">Alle rollen</option><option value="admin">Beheerders</option><option value="user">Gebruikers</option></select></label>
-        <label>Sorteren<select value={showStreepjes ? sort : sort === 'streepjes' ? 'name' : sort} onChange={event => setSort(event.target.value)}><option value="name">Naam</option><option value="status">Status</option>{showStreepjes && <option value="streepjes">Streepjes</option>}</select></label>
+        <label>Zoeken<input className="form-input" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Naam of e-mailadres" /></label>
+        <label>Status<select className="form-select" value={status} onChange={event => setStatus(event.target.value)}><option value="all">Alle statussen</option>{Object.entries(USER_STATUS_LABELS).filter(([value]) => value !== (membershipMode ? 'legacy' : 'alumni')).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+        <label>Rol<select className="form-select" value={role} onChange={event => setRole(event.target.value)}><option value="all">Alle rollen</option><option value="admin">Beheerders</option><option value="user">Gebruikers</option></select></label>
+        <label>Sorteren<select className="form-select" value={showStreepjes ? sort : sort === 'streepjes' ? 'name' : sort} onChange={event => setSort(event.target.value)}><option value="name">Naam</option><option value="status">Status</option>{showStreepjes && <option value="streepjes">Streepjes</option>}</select></label>
       </div>
       {error && <p role="alert" className="management-error">{error.message}</p>}
       {message && <p role="status" className="management-success">{message}</p>}
@@ -102,11 +102,11 @@ export default function UserManagementPanel({ actor, users = [], groupId, groups
       {passwordEmail && <UserPasswordEmailDialog user={passwordEmail} onClose={() => setPasswordEmail(null)} onSent={setMessage} />}
       {editing && <ManagementDialog title={editing.id ? 'Gebruiker bewerken' : 'Gebruiker toevoegen'} busy={mutation.isPending} onClose={() => setEditing(null)}>
         <form className="management-form" onSubmit={event => { event.preventDefault(); setFormError(''); mutation.mutate() }}>
-          <label>Voornaam<input {...input('firstName')} readOnly={Boolean(editing.id && membershipMode && !developer)} autoFocus required maxLength={80} /></label>
-          <label>Achternaam<input {...input('lastName')} readOnly={Boolean(editing.id && membershipMode && !developer)} required maxLength={120} /></label>
-          <label>E-mailadres<input {...input('email')} readOnly={Boolean(editing.id && membershipMode && !developer)} type="email" required maxLength={254} /></label>
-          {editing.id && (!membershipMode || editing.membershipState === 'current') && <label>Status<select {...input('status')}>{Object.entries(USER_STATUS_LABELS).filter(([value]) => membershipMode ? ['active', 'inactive'].includes(value) : value !== 'alumni').map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>}
-          {developer && (!editing.id || !membershipMode || editing.membershipState === 'current') && <label>Rol<select {...input('role')}><option value="user">Gebruiker</option><option value="admin">Beheerder</option></select></label>}
+          <label>Voornaam<input className="form-input" {...input('firstName')} readOnly={Boolean(editing.id && membershipMode && !developer)} autoFocus required maxLength={80} /></label>
+          <label>Achternaam<input className="form-input" {...input('lastName')} readOnly={Boolean(editing.id && membershipMode && !developer)} required maxLength={120} /></label>
+          <label>E-mailadres<input className="form-input" {...input('email')} readOnly={Boolean(editing.id && membershipMode && !developer)} type="email" required maxLength={254} /></label>
+          {editing.id && (!membershipMode || editing.membershipState === 'current') && <label>Status<select className="form-select" {...input('status')}>{Object.entries(USER_STATUS_LABELS).filter(([value]) => membershipMode ? ['active', 'inactive'].includes(value) : value !== 'alumni').map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>}
+          {developer && (!editing.id || !membershipMode || editing.membershipState === 'current') && <label>Rol<select className="form-select" {...input('role')}><option value="user">Gebruiker</option><option value="admin">Beheerder</option></select></label>}
           {developer && <p>Groep: {groupName(editing.groupId || groupId)}</p>}
           {!editing.id && <p>De gebruiker stelt een wachtwoord in via Wachtwoord vergeten.</p>}
           {formError && <p role="alert" className="management-error">{formError}</p>}

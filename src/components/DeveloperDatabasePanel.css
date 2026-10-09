@@ -1,0 +1,25 @@
+/* DeveloperDatabasePanel: styles owned by this reusable component. */
+
+.developer-records details {
+  padding: 1rem 0;
+  border-top: 1px solid var(--secondary-200);
+}
+
+.developer-records summary {
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  font-size: .875rem;
+  line-height: 1.6;
+}
+
+.developer-json {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: .8125rem;
+  max-width: 100%;
+  background: var(--secondary-100);
+  color: var(--secondary-900);
+  padding: .8rem;
+  border-radius: 10px;
+}

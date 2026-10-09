@@ -608,7 +608,7 @@ function App() {
 
           {/* Application Routes */}
 
-          <main id="main" role="main">
+          <main id="main" role="main" className={user ? 'app-main-authenticated' : undefined}>
             <Suspense fallback={<div className="page-loading" aria-live="polite">Laden...</div>}>
               <Routes key={`${user?.id}:${user?.groupId}:${user?.role}:${user?.membershipState}`}>
                 {/* Public Routes - Available to all users */}

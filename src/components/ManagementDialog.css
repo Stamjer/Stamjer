@@ -1,0 +1,84 @@
+/* Native dialog layout; surface and controls come from shared UI styles. */
+
+.management-dialog {
+  margin: auto;
+  width: min(94vw, 36rem);
+  max-height: calc(100dvh - 2rem);
+  padding: var(--card-padding);
+  color: var(--secondary-900);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.management-dialog::backdrop {
+  background: rgba(15, 23, 42, .5);
+  backdrop-filter: blur(8px);
+}
+
+.management-dialog-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--secondary-200);
+  min-width: 0;
+}
+
+.management-dialog-heading h2 {
+  margin: 0;
+  padding-top: var(--space-2);
+  font-size: 1.25rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.management-dialog-heading .btn {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: 1.25rem;
+}
+
+.management-form {
+  display: grid;
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+  min-width: 0;
+}
+
+.management-form .management-checkbox {
+  flex-direction: row;
+  align-items: center;
+}
+
+.management-checkbox input {
+  flex: 0 0 1.1rem;
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.management-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.management-error {
+  color: #b91c1c;
+  overflow-wrap: anywhere;
+}
+
+.management-success {
+  color: #047857;
+}
+
+@media (max-width: 480px) {
+
+  .management-form-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  }
+}

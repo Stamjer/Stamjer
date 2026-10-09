@@ -487,8 +487,8 @@ export default function PaymentRequestPage({ user: userProp }) {
   }
 
   return (
-    <section className="payment-request-page">
-      <header className="payment-request-header">
+    <section className="page-content payment-request-page">
+      <header className="page-header page-header-navigation payment-request-header">
         <h1>{resolvedUser.membershipState === 'ended' ? 'Mijn declaraties' : 'Declaratie indienen'}</h1>
         <p>
           Heb je voorgeschoten voor de stam?
@@ -503,11 +503,11 @@ export default function PaymentRequestPage({ user: userProp }) {
           setFormData(readStoredDraft(legacyDraftKey, getInitialFormData(resolvedUser))); clearStoredDraft(legacyDraftKey); setHasLegacyDraft(false)
         }}>Concept aan deze groep koppelen</button></p>}
 
-        {resolvedUser.membershipState === 'ended' ? <p>Je kunt als Alumni je eerdere declaraties bekijken. Nieuwe aanvragen indienen is niet beschikbaar.</p> : <form className="payment-request-form" onSubmit={handleSubmit} noValidate>
+        {resolvedUser.membershipState === 'ended' ? <p>Je kunt als Alumni je eerdere declaraties bekijken. Nieuwe aanvragen indienen is niet beschikbaar.</p> : <form className="card card-elevated payment-request-form" onSubmit={handleSubmit} noValidate>
           <div className="payment-request-grid">
             <div className={`form-field${validationErrors.requesterName ? ' has-error' : ''}`}>
               <label htmlFor="requesterName">Naam</label>
-              <input
+              <input className="form-input"
                 id="requesterName"
                 name="requesterName"
                 type="text"
@@ -522,7 +522,7 @@ export default function PaymentRequestPage({ user: userProp }) {
 
             <div className={`form-field${validationErrors.requesterEmail ? ' has-error' : ''}`}>
               <label htmlFor="requesterEmail">E-mailadres</label>
-              <input
+              <input className="form-input"
                 id="requesterEmail"
                 name="requesterEmail"
                 type="email"
@@ -537,7 +537,7 @@ export default function PaymentRequestPage({ user: userProp }) {
 
             <div className={`form-field${validationErrors.expenseTitle ? ' has-error' : ''}`}>
               <label htmlFor="expenseTitle">Waarvoor heb je betaald?</label>
-              <input
+              <input className="form-input"
                 id="expenseTitle"
                 name="expenseTitle"
                 type="text"
@@ -551,7 +551,7 @@ export default function PaymentRequestPage({ user: userProp }) {
 
             <div className={`form-field${validationErrors.paidTo ? ' has-error' : ''}`}>
               <label htmlFor="paidTo">Aan wie heb je betaald?</label>
-              <input
+              <input className="form-input"
                 id="paidTo"
                 name="paidTo"
                 type="text"
@@ -565,7 +565,7 @@ export default function PaymentRequestPage({ user: userProp }) {
 
             <div className={`form-field${validationErrors.expenseDate ? ' has-error' : ''}`}>
               <label htmlFor="expenseDate">Datum van betaling</label>
-              <input
+              <input className="form-input"
                 id="expenseDate"
                 name="expenseDate"
                 type="date"
@@ -580,7 +580,7 @@ export default function PaymentRequestPage({ user: userProp }) {
               <label htmlFor="amount">Bedrag</label>
               <div className="amount-input">
                 <span aria-hidden="true">€</span>
-                <input
+                <input className="form-input"
                   id="amount"
                   name="amount"
                   type="text"
@@ -637,7 +637,7 @@ export default function PaymentRequestPage({ user: userProp }) {
                 IBAN-nummer
                 <small>Wordt vertrouwelijk verwerkt en alleen gedeeld met de penningmeester.</small>
               </label>
-              <input
+              <input className="form-input"
                 id="iban"
                 name="iban"
                 type="text"
@@ -655,7 +655,7 @@ export default function PaymentRequestPage({ user: userProp }) {
           {formData.paymentMethod === 'paymentLink' && (
             <div className={`form-field${validationErrors.paymentLink ? ' has-error' : ''}`}>
               <label htmlFor="paymentLink">Link naar je betaalverzoek</label>
-              <input
+              <input className="form-input"
                 id="paymentLink"
                 name="paymentLink"
                 type="url"
@@ -670,7 +670,7 @@ export default function PaymentRequestPage({ user: userProp }) {
 
           <div className="form-field">
             <label htmlFor="description">Beschrijf kort wat er is gekocht</label>
-            <textarea
+            <textarea className="form-textarea"
               id="description"
               name="description"
               placeholder="Vertel in één of twee zinnen waarvoor dit bedrag bedoeld is."
@@ -684,7 +684,7 @@ export default function PaymentRequestPage({ user: userProp }) {
             <label htmlFor="notes">
               Opmerking voor de penningmeester (optioneel)
             </label>
-            <textarea
+            <textarea className="form-textarea"
               id="notes"
               name="notes"
               placeholder="Handige extra informatie voor de penningmeester."
@@ -701,7 +701,7 @@ export default function PaymentRequestPage({ user: userProp }) {
               <small>Maximaal {MAX_FILES} bestanden (tot 5MB per stuk).</small>
               <small>Afbeeldingen of PDFs.</small>
             </label>
-            <input
+            <input className="form-input"
               id="attachments"
               name="attachments"
               type="file"
@@ -731,10 +731,10 @@ export default function PaymentRequestPage({ user: userProp }) {
           {statusMessage && <div className="form-alert success">{statusMessage}</div>}
 
           <div className="form-actions">
-            <button type="submit" className="primary-btn" disabled={isSubmitting}>
+            <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
               {isSubmitting ? 'Versturen...' : 'Declaratie versturen'}
             </button>
-            {/* <button type="button" className="secondary-btn" onClick={resetForm} disabled={isSubmitting}>
+            {/* <button type="button" className="btn btn-secondary" onClick={resetForm} disabled={isSubmitting}>
               Alles leegmaken
             </button> */}
           </div>

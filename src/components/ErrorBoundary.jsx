@@ -144,7 +144,7 @@ class BaseErrorBoundary extends React.Component {
 
     return (
       <div className={`error-boundary ${baseStyles[level]}`}>
-        <div className="error-content">
+        <div className="boundary-content">
           <div className="error-icon">
             {level === 'app' ? '💥' : level === 'page' ? '⚠️' : '🔧'}
           </div>
@@ -154,7 +154,7 @@ class BaseErrorBoundary extends React.Component {
              level === 'page' ? 'Pagina Error' : 'Component Error'}
           </h2>
           
-          <p className="error-message">{supportMessage}</p>
+          <p className="boundary-message">{supportMessage}</p>
 
           {import.meta.env.DEV && (
             <details className="error-details">
@@ -171,7 +171,7 @@ class BaseErrorBoundary extends React.Component {
             {level === 'component' && (
               <button 
                 onClick={this.handleRetry}
-                className="btn btn-primary error-btn"
+                className="btn btn-primary boundary-action"
               >
                 🔄 Probeer opnieuw
               </button>
@@ -179,7 +179,7 @@ class BaseErrorBoundary extends React.Component {
             
             <button 
               onClick={this.handleReload}
-              className="btn btn-secondary error-btn"
+              className="btn btn-secondary boundary-action"
             >
               🔄 Pagina verversen
             </button>

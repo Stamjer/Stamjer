@@ -1,86 +1,24 @@
-/* Strepen Page Styles - Unified Design System */
+/* StrepenPage: scoped layout and feature-specific presentation. */
 
-/* Main page wrapper for horizontal scrolling */
 .strepen-page-wrapper {
   width: 100vw;
-  overflow-x: hidden; /* prevent horizontal scroll on mobile */
+  overflow-x: hidden;
   overflow-y: visible;
 }
 
-.strepen-page {
-  width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: var(--space-8);
-  font-family: var(--font-primary);
-  background: linear-gradient(135deg, var(--secondary-50) 0%, var(--primary-50) 100%);
-  min-height: 100vh;
-}
-
-.strepen-header {
-  text-align: center;
-  margin-bottom: var(--space-2);
-  animation: fadeInUp var(--duration-slow) var(--ease-out);
-}
-
-/* h1 styles now handled by shared.css */
-
-.strepen-header p {
+:where(.strepen-page-wrapper) .strepen-header p {
   font-size: 1.25rem;
   color: var(--secondary-600);
   font-weight: var(--font-weight-medium);
   margin: 0;
 }
 
-
-/* center the loader vertically & horizontally */
-.loading-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 60vh;             /* push it into view */
-}
-
-/* box around the spinner, headline & text */
-.loading-content {
-  text-align: center;
-  padding: var(--space-8);
-  background: white;             /* optional: match your panels */
-  border-radius: var(--radius-2xl);
-  box-shadow: var(--shadow-lg);
-  animation: fadeInUp var(--duration-slow) var(--ease-out);
-}
-
-/* the rotating circle */
-.loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid var(--secondary-100);
-  border-top: 4px solid var(--primary-500);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 0 auto var(--space-4);
-}
-
-/* Animations - Now using shared.css */
-
-.event-selector {
+:where(.strepen-page-wrapper) .event-selector {
   margin-bottom: var(--space-8);
-  padding: var(--space-6);
-  background: white;
-  border-radius: var(--radius-2xl);
-  box-shadow: var(--shadow-lg);
-  border: 1px solid var(--secondary-200);
-  animation: slideInUp var(--duration-slow) var(--ease-out) 0.1s both;
-  transition: all var(--duration-normal) var(--ease-out);
+  padding: var(--card-padding);
 }
 
-.event-selector:hover {
-  box-shadow: var(--shadow-xl);
-  transform: translateY(-2px);
-}
-
-.event-selector label {
+:where(.strepen-page-wrapper) .event-selector label {
   display: block;
   margin-bottom: var(--space-3);
   font-weight: var(--font-weight-semibold);
@@ -88,114 +26,81 @@
   font-size: 1.1em;
 }
 
-.event-selector select {
-  width: 100%;
-  padding: var(--space-4);
-  border: 2px solid var(--secondary-200);
-  border-radius: var(--radius-lg);
-  background: white;
-  font-size: 1rem;
-  font-family: var(--font-primary);
-  font-weight: var(--font-weight-medium);
-  color: var(--secondary-800);
-  transition: all var(--duration-fast) var(--ease-out);
-}
-
-.event-selector select:focus {
+:where(.strepen-page-wrapper) .event-selector select:focus {
   outline: none;
   border-color: var(--primary-500);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
   transform: translateY(-1px);
 }
 
-.event-selector select:hover:not(:focus) {
+:where(.strepen-page-wrapper) .event-selector select:hover:not(:focus) {
   border-color: var(--secondary-300);
 }
 
-.event-info {
+:where(.strepen-page-wrapper) .event-info {
   margin-bottom: var(--space-8);
-  padding: var(--space-6);
-  background: white;
-  border-radius: var(--radius-2xl);
-  box-shadow: var(--shadow-lg);
-  border: 1px solid var(--secondary-200);
+  padding: var(--card-padding);
   border-left: 4px solid var(--primary-500);
-  animation: slideInUp var(--duration-slow) var(--ease-out) 0.2s both;
-  transition: all var(--duration-normal) var(--ease-out);
 }
 
-.event-info:hover {
-  box-shadow: var(--shadow-xl);
-  transform: translateY(-2px);
-}
-
-.event-info h2 {
+:where(.strepen-page-wrapper) .event-info h2 {
   margin: 0 0 var(--space-4) 0;
-  color: var(--secondary-700) !important;
+  color: var(--secondary-700);
   font-size: 1.6em;
   font-weight: var(--font-weight-bold);
 }
 
-.event-info p {
+:where(.strepen-page-wrapper) .event-info p {
   margin: var(--space-2) 0;
   color: var(--secondary-600);
   font-size: 1.1em;
   font-weight: var(--font-weight-medium);
 }
 
-.attendance-table {
-  background: white;
-  border-radius: var(--radius-2xl);
-  box-shadow: var(--shadow-lg);
-  border: 1px solid var(--secondary-200);
+:where(.strepen-page-wrapper) .attendance-table {
   width: 100%;
   margin-bottom: var(--space-8);
-  animation: slideInUp var(--duration-slow) var(--ease-out) 0.3s both;
-  transition: all var(--duration-normal) var(--ease-out);
   overflow-x: auto;
-  
-  /* Smooth scrolling for better UX */
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: var(--secondary-300) transparent;
 }
 
-.attendance-table::-webkit-scrollbar {
+:where(.strepen-page-wrapper) .attendance-table::-webkit-scrollbar {
   height: 8px;
 }
 
-.attendance-table::-webkit-scrollbar-track {
+:where(.strepen-page-wrapper) .attendance-table::-webkit-scrollbar-track {
   background: var(--secondary-100);
 }
 
-.attendance-table::-webkit-scrollbar-thumb {
+:where(.strepen-page-wrapper) .attendance-table::-webkit-scrollbar-thumb {
   background: var(--secondary-300);
   border-radius: var(--radius-sm);
 }
 
-.attendance-table::-webkit-scrollbar-thumb:hover {
+:where(.strepen-page-wrapper) .attendance-table::-webkit-scrollbar-thumb:hover {
   background: var(--secondary-400);
 }
 
-.attendance-table:hover {
+:where(.strepen-page-wrapper) .attendance-table:hover {
   box-shadow: var(--shadow-xl);
-  transform: translateY(-2px);
 }
 
-.table-header {
+:where(.strepen-page-wrapper) .table-header {
   display: grid;
   grid-template-columns: repeat(4, minmax(120px, 1fr));
   gap: 1px;
-  background: var(--gradient-primary) !important;
+  background: var(--gradient-primary);
   color: white;
   font-weight: var(--font-weight-semibold);
   font-size: 1.1em;
 }
 
-.header-cell {
+:where(.strepen-page-wrapper) .header-cell {
   padding: var(--space-4);
   text-align: center;
-  background: transparent !important;
+  background: transparent;
   position: relative;
   overflow: hidden;
   text-transform: uppercase;
@@ -203,11 +108,11 @@
   font-size: 0.875rem;
 }
 
-.header-cell.name {
+:where(.strepen-page-wrapper) .header-cell.name {
   text-align: left;
 }
 
-.table-row {
+:where(.strepen-page-wrapper) .table-row {
   display: grid;
   grid-template-columns: repeat(4, minmax(120px, 1fr));
   gap: 1px;
@@ -215,28 +120,27 @@
   transition: all var(--duration-fast) var(--ease-out);
 }
 
-.table-row:hover {
+:where(.strepen-page-wrapper) .table-row:hover {
   background: var(--secondary-200);
-  transform: translateY(-1px);
 }
 
-.table-row.participant {
+:where(.strepen-page-wrapper) .table-row.participant {
   background: var(--primary-50);
 }
 
-.table-row.participant:hover {
+:where(.strepen-page-wrapper) .table-row.participant:hover {
   background: var(--primary-100);
 }
 
-.table-row.non-participant {
+:where(.strepen-page-wrapper) .table-row.non-participant {
   background: var(--accent-orange-light);
 }
 
-.table-row.non-participant:hover {
+:where(.strepen-page-wrapper) .table-row.non-participant:hover {
   background: var(--accent-orange);
 }
 
-.cell {
+:where(.strepen-page-wrapper) .cell {
   padding: var(--space-4);
   background: white;
   display: flex;
@@ -248,23 +152,19 @@
   transition: all var(--duration-fast) var(--ease-out);
 }
 
-.cell.name {
+:where(.strepen-page-wrapper) .cell.name {
   justify-content: flex-start;
   font-weight: var(--font-weight-semibold);
   color: var(--secondary-800);
 }
 
-.table-row.modified-state {
-  border-left: 3px solid var(--accent-orange);
-}
-
-.modified-indicator {
+:where(.strepen-page-wrapper) .modified-indicator {
   color: var(--accent-orange);
   font-weight: var(--font-weight-bold);
   margin-left: var(--space-2);
 }
 
-.saving-indicator {
+:where(.strepen-page-wrapper) .saving-indicator {
   color: var(--primary-600);
   font-weight: var(--font-weight-medium);
   font-size: 0.875rem;
@@ -272,118 +172,64 @@
   animation: pulse 1.5s infinite;
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
-.table-row.default-state {
+:where(.strepen-page-wrapper) .table-row.default-state {
   opacity: 0.9;
 }
 
-.table-row.modified-state {
+:where(.strepen-page-wrapper) .table-row.modified-state {
+  border-left: 3px solid var(--accent-orange);
   opacity: 1;
   font-weight: var(--font-weight-medium);
 }
 
-.strepen-info {
+:where(.strepen-page-wrapper) .strepen-info {
   margin-bottom: var(--space-8);
-  padding: var(--space-6);
-  background: white;
-  border-radius: var(--radius-2xl);
-  box-shadow: var(--shadow-lg);
-  border: 1px solid var(--secondary-200);
+  padding: var(--card-padding);
   border-left: 4px solid var(--accent-orange);
-  animation: slideInUp var(--duration-slow) var(--ease-out) 0.4s both;
-  transition: all var(--duration-normal) var(--ease-out);
 }
 
-.strepen-info:hover {
-  box-shadow: var(--shadow-xl);
-  transform: translateY(-2px);
-}
-
-.strepen-info h3 {
+:where(.strepen-page-wrapper) .strepen-info h3 {
   margin: 0 0 var(--space-4) 0;
   color: var(--accent-orange);
   font-size: 1.3em;
   font-weight: var(--font-weight-bold);
 }
 
-.strepen-info p {
+:where(.strepen-page-wrapper) .strepen-info p {
   margin: var(--space-3) 0;
   color: var(--accent-orange);
   font-weight: var(--font-weight-medium);
   font-size: 1.1em;
 }
 
-.strepen-info ul {
+:where(.strepen-page-wrapper) .strepen-info ul {
   margin: var(--space-3) 0;
   padding-left: var(--space-5);
   color: var(--accent-orange);
 }
 
-.strepen-info li {
+:where(.strepen-page-wrapper) .strepen-info li {
   margin: var(--space-2) 0;
   font-size: 1.1em;
   font-weight: var(--font-weight-medium);
 }
 
-.save-section {
+:where(.strepen-page-wrapper) .save-section {
   text-align: center;
   margin-top: var(--space-8);
   animation: fadeInUp var(--duration-slow) var(--ease-out) 0.5s both;
 }
 
-.save-button {
-  display: inline-flex;
-  flex-direction: column;       /* stack the two lines */
-  align-items: center;          
-  justify-content: center;
-  white-space: pre-wrap;        /* respect the <br/> */
-  color: white;
-  background: var(--gradient-primary) !important;
-  border: none !important;
-  border-radius: var(--radius-lg) !important;
-  font-weight: var(--font-weight-semibold) !important;
-  padding: var(--space-2) var(--space-24) !important;
-  transition: all var(--duration-normal) var(--ease-out) !important;
-  box-shadow: var(--shadow-sm) !important;
-  font-size: 1.35rem !important;
-  position: relative !important;
-  overflow: hidden !important;
-  /* Add space below the button */
+:where(.strepen-page-wrapper) .save-button {
+  flex-direction: column;
   margin-bottom: var(--space-8);
 }
 
-
-.save-button::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
+:where(.strepen-page-wrapper) .save-button::before {
   width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-  transition: left var(--duration-slower);
 }
 
-.save-button:hover:not(:disabled)::before {
-  left: 100%;
-}
-
-.save-button:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
-}
-
-.save-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.loading, .error, .no-events {
+:where(.strepen-page-wrapper) .loading, :where(.strepen-page-wrapper) .error, :where(.strepen-page-wrapper) .no-events {
   text-align: center;
   padding: var(--space-16) var(--space-5);
   font-size: 1.3em;
@@ -396,249 +242,99 @@
   animation: fadeInUp var(--duration-slow) var(--ease-out);
 }
 
-.error {
+:where(.strepen-page-wrapper) .error {
   color: var(--accent-red);
   background: white;
   border: 1px solid var(--accent-red);
   border-left: 4px solid var(--accent-red);
 }
 
-.no-events {
+:where(.strepen-page-wrapper) .no-events {
   background: white;
   border: 1px solid var(--primary-300);
   border-left: 4px solid var(--primary-500);
   color: var(--primary-700);
 }
 
+@keyframes strepenpage-slideIn {
 
-/* Animations - Now using shared.css
- * All standard animations are defined in src/styles/shared.css
- */
-
-/* ================================================================
- * TOAST NOTIFICATIONS
- * ================================================================ */
-
-.toast {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  padding: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  z-index: 1000;
-  min-width: 300px;
-  border-left: 4px solid #6b7280;
-  animation: slideIn 0.3s ease-out;
-}
-
-.toast-success {
-  border-left-color: var(--primary-600);
-}
-
-.toast-error {
-  border-left-color: #ef4444;
-}
-
-.toast-warning {
-  border-left-color: #f59e0b;
-}
-
-.toast-info {
-  border-left-color: #3b82f6;
-}
-
-.toast-icon {
-  font-size: 1.25rem;
-  flex-shrink: 0;
-}
-
-.toast-message {
-  flex: 1;
-  color: #374151;
-  font-weight: 500;
-}
-
-.toast-close {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  color: #9ca3af;
-  cursor: pointer;
-  padding: 0;
-  line-height: 1;
-  transition: color 0.2s ease;
-}
-
-.toast-close:hover {
-  color: #6b7280;
-}
-
-@keyframes slideIn {
   from {
     transform: translateX(100%);
     opacity: 0;
   }
+
   to {
     transform: translateX(0);
     opacity: 1;
   }
 }
 
-/* Toggle Switch Styling for Attendance */
-.cell.toggle {
+:where(.strepen-page-wrapper) .cell.toggle {
   padding: var(--space-3);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.toggle-container {
+:where(.strepen-page-wrapper) .toggle-container {
   display: flex;
   align-items: center;
   justify-content: flex-start;
   gap: 0.5rem;
 }
 
-/* Hide the default checkbox */
-.toggle-input {
-  opacity: 0;
-  width: 0;
-  height: 0;
+:where(.strepen-page-wrapper) .visually-hidden, :where(.strepen-page-wrapper) .sr-only {
   position: absolute;
-}
-
-/* The switch track */
-.toggle-switch {
-  position: relative;
-  width: 3.5rem;
-  height: 2rem;
-  background: #6b7280; /* Off state - absent */
-  border-radius: 1rem;
-  cursor: pointer;
-  transition: background 0.3s ease;
-  display: inline-block;
-  flex-shrink: 0;
-}
-
-/* The switch ball */
-.switch-ball {
-  position: absolute;
-  top: 0.125rem;
-  left: 0.125rem;
-  width: 1.75rem;
-  height: 1.75rem;
-  background: white;
-  border-radius: 50%;
-  transition: transform 0.3s ease;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-}
-
-/* Checked state - present */
-.toggle-input:checked + .toggle-switch {
-  background: var(--primary-600); /* On state - present */
-}
-
-.toggle-input:checked + .toggle-switch .switch-ball {
-  transform: translateX(1.5rem);
-}
-
-/* Disabled state */
-.toggle-input:disabled + .toggle-switch {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-/* Hover effects */
-.toggle-switch:hover:not(.toggle-input:disabled + *) {
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-  transform: translateY(-1px);
-}
-
-/* Focus state for accessibility */
-.toggle-input:focus + .toggle-switch {
-  outline: 2px solid var(--primary-500);
-  outline-offset: 2px;
-}
-
-/* ================================================================
- * MOBILE LAYOUT
- * ================================================================ */
-
-.visually-hidden, .sr-only {
-  position: absolute !important;
-  width: 1px !important;
-  height: 1px !important;
-  padding: 0 !important;
-  margin: -1px !important;
-  overflow: hidden !important;
-  clip: rect(0, 0, 0, 0) !important;
-  white-space: nowrap !important;
-  border: 0 !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 @media (max-width: 600px) {
-  .strepen-page {
-    padding: 0rem 2.25rem 0rem 0.75rem; /* add a little extra right padding for breathing room */
-  }
 
-  .strepen-header h1 {
+  :where(.strepen-page-wrapper) .strepen-header h1 {
     font-size: 2rem;
   }
 
-  .strepen-mobile-header {
+  :where(.strepen-page-wrapper) .strepen-mobile-header {
     position: sticky;
     z-index: 5;
     background: transparent;
     padding-bottom: 8px;
   }
 
-  .mobile-event-title {
+  :where(.strepen-page-wrapper) .mobile-event-title {
     padding: 6px 4px 10px;
   }
-  .mobile-event-main {
+
+  :where(.strepen-page-wrapper) .mobile-event-main {
     font-weight: var(--font-weight-bold);
     color: var(--secondary-800);
   }
-  .mobile-event-sub {
+
+  :where(.strepen-page-wrapper) .mobile-event-sub {
     color: var(--secondary-600);
     font-size: 0.95rem;
   }
 
-  .mobile-controls {
+  :where(.strepen-page-wrapper) .mobile-controls {
     display: grid;
     grid-template-columns: 1fr;
     gap: 8px;
   }
 
-  .mobile-select {
-    width: 100%;
-    padding: 10px 12px;
-    border: 2px solid var(--secondary-200);
-    border-radius: var(--radius-lg);
-    background: white;
-    font-size: 1rem;
-  }
-
-  .mobile-search input[type="search"] {
-    width: 100%;
-    padding: 10px 12px;
-    border: 2px solid var(--secondary-200);
-    border-radius: var(--radius-lg);
-    background: white;
-    font-size: 1rem;
-  }
-
-  .filter-chips {
+  :where(.strepen-page-wrapper) .filter-chips {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
   }
-  .chip {
+
+  :where(.strepen-page-wrapper) .chip {
     padding: 6px 10px;
     border-radius: 999px;
     border: 1px solid var(--secondary-300);
@@ -646,20 +342,21 @@
     color: var(--secondary-700);
     font-size: 0.9rem;
   }
-  .chip.active {
+
+  :where(.strepen-page-wrapper) .chip.active {
     background: var(--primary-50);
     border-color: var(--primary-400);
     color: var(--primary-700);
   }
 
-  .mobile-user-list {
+  :where(.strepen-page-wrapper) .mobile-user-list {
     display: flex;
     flex-direction: column;
     gap: 10px;
     margin-top: 10px;
   }
 
-  .user-card {
+  :where(.strepen-page-wrapper) .user-card {
     background: white;
     border-radius: var(--radius-xl);
     border: 1px solid var(--secondary-200);
@@ -670,25 +367,28 @@
     align-items: center;
   }
 
-  .user-card.participant {
+  :where(.strepen-page-wrapper) .user-card.participant {
     border-left: 4px solid var(--primary-600);
   }
-  .user-card.non-participant {
+
+  :where(.strepen-page-wrapper) .user-card.non-participant {
     border-left: 4px solid #f59e0b;
   }
-  .user-card.modified {
+
+  :where(.strepen-page-wrapper) .user-card.modified {
     outline: 2px dashed var(--accent-orange);
     outline-offset: 2px;
   }
 
-  .user-name {
+  :where(.strepen-page-wrapper) .user-name {
     font-weight: var(--font-weight-semibold);
     color: var(--secondary-800);
     display: flex;
     align-items: center;
     gap: 6px;
   }
-  .changed-dot {
+
+  :where(.strepen-page-wrapper) .changed-dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;
@@ -696,13 +396,14 @@
     display: inline-block;
   }
 
-  .user-meta {
+  :where(.strepen-page-wrapper) .user-meta {
     margin-top: 4px;
     display: flex;
     gap: 6px;
     flex-wrap: wrap;
   }
-  .pill {
+
+  :where(.strepen-page-wrapper) .pill {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -710,25 +411,36 @@
     border-radius: 999px;
     font-size: 0.8rem;
     color: var(--secondary-700);
-    /* background: var(--secondary-100); */
   }
-  .pill-yes { background: #dcfce7; color: #166534; }
-  .pill-no { background: #fff7ed; color: #9a3412; }
-  .pill-streepjes { background: #eef2ff; color: #3730a3; }
 
-  .user-card-action {
+  :where(.strepen-page-wrapper) .pill-yes {
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  :where(.strepen-page-wrapper) .pill-no {
+    background: #fff7ed;
+    color: #9a3412;
+  }
+
+  :where(.strepen-page-wrapper) .pill-streepjes {
+    background: #eef2ff;
+    color: #3730a3;
+  }
+
+  :where(.strepen-page-wrapper) .user-card-action {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 4px;
   }
-  .toggle-label {
+
+  :where(.strepen-page-wrapper) .toggle-label {
     font-size: 0.75rem;
     color: var(--secondary-600);
   }
 
-  /* Hide desktop table on mobile */
-  .attendance-table { display: none; }
+  :where(.strepen-page-wrapper) .attendance-table {
+    display: none;
+  }
 }
-
-

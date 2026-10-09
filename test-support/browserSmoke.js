@@ -9,6 +9,7 @@ import bcrypt from 'bcrypt'
 import nodemailer from 'nodemailer'
 import { createMemoryClient, createMemoryDb } from './memoryDb.js'
 import { newMembership, MEMBERSHIP_SCHEMA } from '../server/memberships.js'
+import { checkSiteStyles } from './styleChecks.js'
 
 const output = console.info.bind(console)
 const browserPath = process.env.BROWSER_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe'
@@ -115,9 +116,16 @@ try {
   const fill = async (selector, value) => evaluate(`(() => { const input = document.querySelector(${JSON.stringify(selector)}); const proto = input.tagName === 'SELECT' ? HTMLSelectElement.prototype : input.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype; Object.getOwnPropertyDescriptor(proto, 'value').set.call(input, ${JSON.stringify(value)}); input.dispatchEvent(new Event('input', { bubbles: true })); input.dispatchEvent(new Event('change', { bubbles: true })); return true })()`)
   const toggleGuest = async label => evaluate(`(() => { const row = [...document.querySelectorAll('.event-guest-toggle')].find(row => row.textContent.trim() === ${JSON.stringify(label)}); row.querySelector('input[type="checkbox"]').click() })()`)
   const screenshot = async (name, fullPage = true) => {
+    await evaluate(`document.fonts.ready`)
+    await evaluate(`Promise.all(document.getAnimations().filter(a => a.effect?.getComputedTiming().iterations !== Infinity).map(a => a.finished.catch(() => {})))`)
     const result = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: fullPage })
     await writeFile(path.join(artifacts, name), Buffer.from(result.data, 'base64'))
   }
+  if (process.argv.includes('--styles-only')) {
+    checks.push(await checkSiteStyles({ call, evaluate, waitFor, screenshot, origin, artifacts, baseline: process.argv.includes('--baseline') }))
+    await call('Browser.close')
+    output(JSON.stringify({ checks, artifacts }, null, 2))
+  } else {
   const openDeveloperPage = async pathname => {
     await evaluate(`(() => { const link = [...document.querySelectorAll('a')].find(item => item.getAttribute('href') === ${JSON.stringify(pathname)} && item.checkVisibility()); if (!link) throw Error('Developer navigation link missing'); link.click() })()`)
     await waitFor(`location.pathname === ${JSON.stringify(pathname)}`)
@@ -248,9 +256,9 @@ try {
   await fill('dialog textarea', JSON.stringify({ firstName: 'Reviewed Explorer' }))
   await click('Wijziging bekijken')
   await waitFor(`document.querySelector('dialog').textContent.includes('Wijziging bevestigen')`)
-  assert.equal(await evaluate(`getComputedStyle(document.querySelector('dialog pre')).color`), 'rgb(15, 23, 42)')
-  assert.equal(db.data.users.find(user => user.id === 3).firstName, 'Explorer')
   await screenshot('database-preview.png')
+  assert.equal(await evaluate(`getComputedStyle(document.querySelector('dialog pre')).color`), 'rgb(15, 23, 42)', JSON.stringify(await evaluate(`(() => { const e = document.querySelector('dialog pre'); return { classes: e.className, parent: e.parentElement.className, owner: !!e.closest('.developer-page'), token: getComputedStyle(e).getPropertyValue('--secondary-900'), media: matchMedia('print').matches } })()`)))
+  assert.equal(db.data.users.find(user => user.id === 3).firstName, 'Explorer')
   await click('Wijziging bevestigen')
   await waitFor(`!document.querySelector('dialog[open]') && document.querySelector('.developer-records').textContent.includes('Reviewed Explorer')`)
   assert.equal(db.data.users.find(user => user.id === 3).firstName, 'Reviewed Explorer')
@@ -411,7 +419,7 @@ try {
   assert.equal(await evaluate(`document.querySelectorAll('.event-guest-toggle').length`), 1)
   assert.equal(await evaluate(`getComputedStyle(document.querySelector('.event-guest-toggle em')).fontStyle`), 'italic')
   await toggleGuest('Gast')
-  await waitFor(`document.querySelectorAll('.event-guest-toggle').length === 2 && document.activeElement.className === 'event-guest-name'`)
+  await waitFor(`document.querySelectorAll('.event-guest-toggle').length === 2 && document.activeElement.classList.contains('event-guest-name')`)
   await click('Aanmaken')
   await waitFor(`!!document.querySelector('.event-guests [role="alert"]') && !!document.querySelector('#event-title')`)
   await fill('.event-guest-name', 'External helper, Jr.')
@@ -678,6 +686,7 @@ try {
   checks.push('developer logout clears the session and all three pages enforce authorization')
   await call('Browser.close')
   output(JSON.stringify({ checks, artifacts }, null, 2))
+  }
 } catch (error) {
   // The API installs an uncaughtException logger; browser assertions must still
   // fail the command even when that logger handles the rethrown error.
