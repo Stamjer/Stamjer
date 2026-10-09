@@ -6,7 +6,7 @@ import {
   getUsersFull, rotateCalendarToken, updateEvent, updateGroup
 } from '../services/api'
 import { queryKeys } from '../lib/queryClient'
-import { nextDay } from '../lib/eventPayload'
+import { nextDay, defaultEventTitle } from '../lib/eventPayload'
 import UserManagementPanel from '../components/UserManagementPanel'
 import ManagementDialog from '../components/ManagementDialog'
 import DeveloperEventMembers from '../components/DeveloperEventMembers'
@@ -29,7 +29,8 @@ function GroupEditor({ group, onClose }) {
     settings: {
       ...Object.fromEntries(Object.keys(GROUP_SETTINGS).map(key => [key, group?.settings?.[key] || ''])),
       allowUserSelfAttendance: group?.settings?.allowUserSelfAttendance !== false,
-      enablePaymentRequests: group?.settings?.enablePaymentRequests !== false
+      enablePaymentRequests: group?.settings?.enablePaymentRequests !== false,
+      enableStreepjes: group?.settings?.enableStreepjes !== false
     }
   })
   const mutation = useMutation({
@@ -48,6 +49,7 @@ function GroupEditor({ group, onClose }) {
       <label>Status<select {...field('status')}><option value="active">Actief</option><option value="archived">Gearchiveerd</option></select></label>
       {form.status === 'archived' && <p>Een gearchiveerde groep blijft leesbaar. Gebruikers en evenementen kunnen pas na heractiveren worden gewijzigd.</p>}
       <label className="management-checkbox"><input name="enablePaymentRequests" type="checkbox" checked={form.settings.enablePaymentRequests} onChange={event => setForm(current => ({ ...current, settings: { ...current.settings, enablePaymentRequests: event.target.checked } }))} /> Declaraties inschakelen</label>
+      <label className="management-checkbox"><input name="enableStreepjes" type="checkbox" checked={form.settings.enableStreepjes} onChange={event => setForm(current => ({ ...current, settings: { ...current.settings, enableStreepjes: event.target.checked } }))} /> Streepjes inschakelen</label>
       {Object.entries(GROUP_SETTINGS).map(([key, label]) => <label key={key}>{label}<input type={key.endsWith('Email') ? 'email' : 'text'} maxLength={key.endsWith('Email') ? 254 : 300} value={form.settings[key]} onChange={event => setForm(current => ({ ...current, settings: { ...current.settings, [key]: event.target.value } }))} /></label>)}
       <label className="management-checkbox"><input type="checkbox" checked={form.settings.allowUserSelfAttendance} onChange={event => setForm(current => ({ ...current, settings: { ...current.settings, allowUserSelfAttendance: event.target.checked } }))} /> Leden mogen hun eigen aanwezigheid wijzigen</label>
       {mutation.error && <p role="alert" className="management-error">{mutation.error.message}</p>}
@@ -87,6 +89,7 @@ function EventEditor({ event, group, onClose }) {
     allDay: Boolean(event?.allDay), location: event?.location || group?.settings?.defaultLocation || '',
     description: event?.description || '', isOpkomst: Boolean(event?.isOpkomst), isSchoonmaak: Boolean(event?.isSchoonmaak),
     participants: event?.participants || [], opkomstmakerIds: event?.opkomstmakerIds || [], schoonmakerIds: event?.schoonmakerIds || [],
+    guestOpkomstmakers: event?.guestOpkomstmakers || [],
     attendance: event?.attendance || {}, schoonmaakOptions: event?.schoonmaakOptions || []
   })
   const mutation = useMutation({
@@ -106,7 +109,7 @@ function EventEditor({ event, group, onClose }) {
       <label>{form.allDay ? 'Einde (eerste dag na het evenement)' : 'Einde'}<input {...field('end')} type={form.allDay ? 'date' : 'datetime-local'} /></label>
       <label>Locatie<input {...field('location')} /></label>
       <label>Beschrijving<textarea {...field('description')} rows={3} /></label>
-      {['isOpkomst', 'isSchoonmaak'].map(key => <label className="management-checkbox" key={key}><input type="checkbox" checked={form[key]} onChange={change => setForm(current => ({ ...current, [key]: change.target.checked }))} /> {key === 'isOpkomst' ? 'Opkomst' : 'Schoonmaak'}</label>)}
+      {['isOpkomst', 'isSchoonmaak'].map(key => <label className="management-checkbox" key={key}><input type="checkbox" checked={form[key]} onChange={change => { const checked = change.target.checked; setForm(current => ({ ...current, [key]: checked, title: checked && !current.title.trim() ? defaultEventTitle(key, group?.name) : current.title })) }} /> {key === 'isOpkomst' ? 'Opkomst' : 'Schoonmaak'}</label>)}
       <DeveloperEventMembers form={form} setForm={setForm} event={event} groupId={event?.groupId || group.id} />
       {mutation.error && <p role="alert" className="management-error">{mutation.error.message}</p>}
       <div className="management-form-actions"><button type="button" className="btn btn-secondary" disabled={mutation.isPending} onClick={onClose}>Annuleren</button><button className="btn btn-primary" disabled={mutation.isPending}>{mutation.isPending ? 'Opslaan…' : 'Opslaan'}</button></div>

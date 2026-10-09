@@ -116,7 +116,10 @@ export function createMembershipRouter({ getDb, getClient, requireAuthenticatedU
     const a = await auth(req, res); if (!a) return
     const group = await resolveGroup(req, a.user, { allowAllGroups: true })
     const users = await roster(group?.id)
-    res.json({ users: users.filter(u => isDeveloper(a.user) || canManageGroup(a.user, group.id) || u.id === a.userId) })
+    res.json({ users: users.filter(u => isDeveloper(a.user) || canManageGroup(a.user, group.id) || u.id === a.userId).map(user => {
+      if (!isDeveloper(a.user) && group?.settings?.enableStreepjes === false) delete user.streepjes
+      return user
+    }) })
   })
   router.post('/users', async (req, res) => {
     const a = await auth(req, res); if (!a) return

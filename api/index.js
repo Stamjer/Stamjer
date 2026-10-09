@@ -20,6 +20,7 @@
 
 import 'dotenv/config'
 import express from 'express'
+import { parsePaymentAmount, PAYMENT_AMOUNT_ERROR } from '../shared/paymentAmount.js'
 import cors from 'cors'
 import nodemailer from 'nodemailer'
 import validator from 'validator'
@@ -394,24 +395,27 @@ async function withUserPermissions(user, req = {}) {
     const group = groups.find(g => g.id === selected?.groupId)
     const current = selected?.state === 'current' && group?.status === 'active'
     const projected = scopedUser(user, selected)
-    return { ...projected, memberships: accessible.map(m => {
+    return { ...projected, groupName: group?.name || '', memberships: accessible.map(m => {
       const g = groups.find(g => g.id === m.groupId)
       const current = m.state === 'current' && g.status === 'active'
       return { ...mapMembership(m), group: { id: m.groupId, name: g.name, status: g.status }, permissions: {
         canUsePaymentRequests: g.settings?.enablePaymentRequests !== false, canSubmitPaymentRequests: current,
+        canUseStreepjes: g.settings?.enableStreepjes !== false,
         canManageUsers: current && m.role === 'admin', canUseAttendance: current && (m.role === 'admin' || g.settings?.allowUserSelfAttendance !== false), historicalCalendar: m.state === 'ended'
       } }
     }),
       permissions: { canUsePaymentRequests: Boolean(selected && group) && group.settings?.enablePaymentRequests !== false,
+        canUseStreepjes: Boolean(selected && group) && group.settings?.enableStreepjes !== false,
         canSubmitPaymentRequests: Boolean(current), canManageUsers: isDeveloper(user) || Boolean(current && selected.role === 'admin'),
         canUseAttendance: Boolean(current && (selected.role === 'admin' || group.settings?.allowUserSelfAttendance !== false)),
         historicalCalendar: selected?.state === 'ended' } }
   }
-  if (isDeveloper(user)) return { ...user, permissions: { canUseAttendance: false, canManageUsers: true, canUsePaymentRequests: false } }
+  if (isDeveloper(user)) return { ...user, permissions: { canUseAttendance: false, canManageUsers: true, canUsePaymentRequests: false, canUseStreepjes: false } }
   const db = await getDb()
   const group = await db.collection('groups').findOne({ id: user.groupId })
-  return { ...user, permissions: {
+  return { ...user, groupName: group?.name || '', permissions: {
     canUsePaymentRequests: Boolean(group) && group.settings?.enablePaymentRequests !== false,
+    canUseStreepjes: Boolean(group) && group.settings?.enableStreepjes !== false,
     canManageUsers: group?.status === 'active' && normalizeUserRole(user) === 'admin',
     canUseAttendance: group?.status === 'active' && user.status !== 'legacy'
       && (normalizeUserRole(user) === 'admin' || group.settings?.allowUserSelfAttendance !== false)
@@ -500,6 +504,11 @@ async function getAuthenticatedUser(req, { requireAdmin = false } = {}) {
       const storedUser = await db.collection('users').findOne({ id: session.userId }, { projection: { _id: 0 } })
       user = storedUser ? normalizeGroupUser(storedUser) : null
       if (user) {
+        // The shared roster needs memberships for every group, even when this
+        // session is viewing a different group than the event being validated.
+        if (await membershipMode(db)) {
+          user.memberships = await db.collection('groupMemberships').find({ userId: user.id }).toArray()
+        }
         const index = users.findIndex(candidate => candidate.id === user.id)
         if (index >= 0) users[index] = user
         else users.push(user)
@@ -642,7 +651,8 @@ function mapEventForClient(event) {
   )
   return {
     ...safeEvent,
-    opkomstmakers: opkomstmakerNames.join(', '),
+    opkomstmakers: [...opkomstmakerNames, ...(safeEvent.guestOpkomstmakers || [])].join(', '),
+    opkomstmakerNames: [...opkomstmakerNames, ...(safeEvent.guestOpkomstmakers || [])],
     schoonmakers: schoonmakerNames.join(', ')
   }
 }
@@ -660,6 +670,9 @@ function applyEventInput(event, input = {}) {
   }
   if (Object.hasOwn(input, 'opkomstmakerIds')) {
     updated.opkomstmakerIds = sanitizeIdArray(input.opkomstmakerIds)
+  }
+  if (Object.hasOwn(input, 'guestOpkomstmakers')) {
+    updated.guestOpkomstmakers = input.guestOpkomstmakers.map(name => name.trim())
   }
   if (Object.hasOwn(input, 'schoonmakerIds')) {
     updated.schoonmakerIds = sanitizeIdArray(input.schoonmakerIds)
@@ -1094,32 +1107,9 @@ function detectAttachmentTypeFromBuffer(buffer) {
   return ''
 }
 
-function resolveAttachmentType(declaredType, fileName, buffer) {
-  const normalizedDeclaredType = safeTrimmedString(declaredType, 120).toLowerCase()
-  if (normalizedDeclaredType === 'image/jpg') {
-    return 'image/jpeg'
-  }
-  if (PAYMENT_ATTACHMENT_TYPES.has(normalizedDeclaredType)) {
-    return normalizedDeclaredType
-  }
-
+function resolveAttachmentType(buffer) {
   const detectedType = detectAttachmentTypeFromBuffer(buffer)
-  if (PAYMENT_ATTACHMENT_TYPES.has(detectedType)) {
-    return detectedType
-  }
-
-  const extension = safeTrimmedString(fileName, 120).toLowerCase().split('.').pop() || ''
-  if (extension === 'jpg' || extension === 'jpeg') {
-    return 'image/jpeg'
-  }
-  if (extension === 'png') {
-    return 'image/png'
-  }
-  if (extension === 'pdf') {
-    return 'application/pdf'
-  }
-
-  return ''
+  return PAYMENT_ATTACHMENT_TYPES.has(detectedType) ? detectedType : ''
 }
 
 function buildReplyTo(name, email) {
@@ -1143,6 +1133,10 @@ async function buildPaymentRequestPdf(request, attachments = []) {
 
   const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica)
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+  // The standard PDF font cannot encode emoji and many non-Latin characters.
+  // Keep original text in storage and mail; substitute only in the PDF preview.
+  const supportedCharacters = new Set(fontRegular.getCharacterSet())
+  const pdfText = value => Array.from(String(value || ''), char => /[\r\n\t]/.test(char) ? ' ' : supportedCharacters.has(char.codePointAt(0)) ? char : '?').join('')
   const pageSize = [595.28, 841.89] // A4 portrait in points
   const headingColor = rgb(0.12, 0.23, 0.45)
   const textColor = rgb(0.16, 0.18, 0.22)
@@ -1168,7 +1162,7 @@ async function buildPaymentRequestPdf(request, attachments = []) {
   }
 
   const wrapText = (text = '', font = fontRegular, size = 11, maxWidth = maxLineWidth) => {
-    const value = String(text || '').trim()
+    const value = pdfText(text).trim()
     if (!value) {
       return ['-']
     }
@@ -1267,19 +1261,17 @@ async function buildPaymentRequestPdf(request, attachments = []) {
 
   const drawParagraph = (text) => {
     const lines = wrapText(text, fontRegular, 11)
-    ensureSpace(lines.length)
-
-    lines.forEach((line, index) => {
+    lines.forEach((line) => {
+      ensureSpace()
       page.drawText(line, {
         x: leftMargin,
-        y: cursorY - index * lineHeight,
+        y: cursorY,
         size: 11,
         font: fontRegular,
         color: textColor
       })
+      cursorY -= lineHeight
     })
-
-    cursorY -= lineHeight * lines.length
     cursorY -= 8
   }
 
@@ -1342,15 +1334,7 @@ async function buildPaymentRequestPdf(request, attachments = []) {
   } else {
     drawParagraph('De originele bestanden vind je op de vervolgpaginaâ€™s van dit document.')
     attachments.forEach((attachment, index) => {
-      ensureSpace(1)
-      page.drawText(`${index + 1}. ${attachment.name} (${attachment.type})`, {
-        x: leftMargin,
-        y: cursorY,
-        size: 11,
-        font: fontRegular,
-        color: textColor
-      })
-      cursorY -= lineHeight
+      drawParagraph(`${index + 1}. ${attachment.name} (${attachment.type})`)
     })
     cursorY -= 8
   }
@@ -1365,7 +1349,7 @@ async function buildPaymentRequestPdf(request, attachments = []) {
         copiedPages.forEach((copiedPage) => pdfDoc.addPage(copiedPage))
       } catch {
         const attachmentPage = pdfDoc.addPage(pageSize)
-        attachmentPage.drawText(`Bijlage ${i + 1}: ${attachment.name}`, {
+        attachmentPage.drawText(pdfText(`Bijlage ${i + 1}: ${attachment.name}`), {
           x: leftMargin,
           y: attachmentPage.getHeight() - topMargin,
           size: 14,
@@ -1394,7 +1378,7 @@ async function buildPaymentRequestPdf(request, attachments = []) {
         embeddedImage = await pdfDoc.embedJpg(attachment.buffer)
       }
     } catch {
-      attachmentPage.drawText(`Bijlage ${i + 1}: ${attachment.name}`, {
+      attachmentPage.drawText(pdfText(`Bijlage ${i + 1}: ${attachment.name}`), {
         x: leftMargin,
         y: pageHeight - topMargin,
         size: 14,
@@ -1421,7 +1405,7 @@ async function buildPaymentRequestPdf(request, attachments = []) {
     const imageWidth = embeddedImage.width * scale
     const imageHeight = embeddedImage.height * scale
 
-    attachmentPage.drawText(`Bijlage ${i + 1}: ${attachment.name}`, {
+    attachmentPage.drawText(pdfText(`Bijlage ${i + 1}: ${attachment.name}`), {
       x: leftMargin,
       y: pageHeight - topMargin + 10,
       size: 14,
@@ -1597,7 +1581,11 @@ apiRouter.get('/users/full', async (req, res) => {
     const streepjes = Object.assign({}, ...Array.from(new Set(visibleUsers.map((user) => user.groupId)))
       .map((groupId) => calculateGroupStreepjes(users, events, groupId)))
     res.json({
-      users: visibleUsers.map(u => mapManagedUser(u, streepjes[u.id] || 0))
+      users: visibleUsers.map(u => {
+        const mapped = mapManagedUser(u, streepjes[u.id] || 0)
+        if (!isDeveloper(auth.user) && group?.settings?.enableStreepjes === false) delete mapped.streepjes
+        return mapped
+      })
     })
   } catch (err) {
     if (err instanceof GroupAccessError) throw err
@@ -2406,10 +2394,7 @@ async function submitPaymentRequestHandler(req, res) {
     const sanitizedIban = normalizedPaymentMethod === 'iban' ? sanitizeIban(iban) : ''
     const trimmedPaymentLink = normalizedPaymentMethod === 'paymentLink' ? safeTrimmedString(paymentLink, 1024) : ''
     const submittedAt = new Date()
-    const normalizedAmount = typeof amount === 'string'
-      ? amount.replace(',', '.').trim()
-      : amount
-    const amountNumber = Number.parseFloat(normalizedAmount)
+    const amountNumber = parsePaymentAmount(amount)
     const expenseDateValue = expenseDate ? new Date(expenseDate) : null
 
     if (!trimmedName) {
@@ -2432,9 +2417,10 @@ async function submitPaymentRequestHandler(req, res) {
       errors.push('Kies een geldige datum waarop je hebt betaald.')
     }
 
-    if (!Number.isFinite(amountNumber) || amountNumber <= 0) {
-      errors.push('Voer een geldig bedrag groter dan 0 in.')
+    if (amountNumber === null) {
+      errors.push(PAYMENT_AMOUNT_ERROR)
     }
+    if (!['iban', 'paymentLink'].includes(paymentMethod)) errors.push('Kies IBAN of betaallink als betaalmethode.')
 
     if (normalizedPaymentMethod === 'iban') {
       if (!sanitizedIban) {
@@ -2445,12 +2431,13 @@ async function submitPaymentRequestHandler(req, res) {
     } else if (normalizedPaymentMethod === 'paymentLink') {
       if (!trimmedPaymentLink) {
         errors.push('Voeg een betaallink toe of kies voor IBAN.')
-      } else if (!validator.isURL(trimmedPaymentLink, { require_protocol: true })) {
+      } else if (!validator.isURL(trimmedPaymentLink, { require_protocol: true, protocols: ['http', 'https'], require_valid_protocol: true, disallow_auth: true })) {
         errors.push('De betaallink moet beginnen met http(s)://')
       }
     }
 
     const attachmentPayload = Array.isArray(attachments) ? attachments : []
+    if (!Array.isArray(attachments)) errors.push('Bijlagen moeten een lijst met bestanden zijn.')
     if (attachmentPayload.length > PAYMENT_REQUEST_ATTACHMENT_LIMIT) {
       const maxText = PAYMENT_REQUEST_ATTACHMENT_LIMIT === 1
         ? '1 bestand'
@@ -2464,7 +2451,6 @@ async function submitPaymentRequestHandler(req, res) {
     for (let i = 0; i < attachmentPayload.length; i++) {
       const attachment = attachmentPayload[i] || {}
       const base64Content = safeTrimmedString(attachment.content, PAYMENT_REQUEST_TOTAL_SIZE_LIMIT * 3)
-      const declaredType = safeTrimmedString(attachment.type, 120).toLowerCase()
       const originalName = safeTrimmedString(attachment.name || `bijlage-${i + 1}`, 180)
       const safeName = originalName || `bijlage-${i + 1}.dat`
 
@@ -2492,7 +2478,7 @@ async function submitPaymentRequestHandler(req, res) {
         continue
       }
 
-      const normalizedType = resolveAttachmentType(declaredType, safeName, buffer)
+      const normalizedType = resolveAttachmentType(buffer)
       if (!normalizedType) {
         errors.push(`Bestandstype van bijlage ${safeName} wordt niet ondersteund.`)
         continue
@@ -2669,13 +2655,13 @@ async function submitPaymentRequestHandler(req, res) {
       }
     })
 
-    const responsePayload = { msg: 'Declaratie succesvol verstuurd.', declaration: mapPaymentRecord(await db.collection('paymentRequests').findOne({ id: savedRequest.id })) }
+    const responsePayload = { msg: rejected ? 'Declaratie opgeslagen, maar de mailserver heeft de e-mail geweigerd. Controleer de historie.' : 'Declaratie succesvol verstuurd.', declaration: mapPaymentRecord(await db.collection('paymentRequests').findOne({ id: savedRequest.id })) }
     const previewUrl = nodemailer.getTestMessageUrl(sendResult)
     if (previewUrl) {
       responsePayload.previewUrl = previewUrl
     }
 
-    res.status(201).json(responsePayload)
+    res.status(rejected ? 502 : 201).json(responsePayload)
   } catch (error) {
     if (savedRequest && sendingRequest) await finishPaymentDelivery(await getDb(), savedRequest.id)
     if (error instanceof GroupAccessError) throw error

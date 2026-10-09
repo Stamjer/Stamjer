@@ -10,6 +10,10 @@ export function canUsePaymentRequests(user) {
   return Boolean(user && !isDeveloper(user) && user.permissions?.canUsePaymentRequests !== false)
 }
 
+export function canUseStreepjes(user) {
+  return Boolean(user && !isDeveloper(user) && user.permissions?.canUseStreepjes !== false)
+}
+
 export function getAuthenticatedLandingPath(user) {
   if (!user) return null
   if (isDeveloper(user)) return '/developer'

@@ -5,6 +5,7 @@ import './PaymentRequestPage.css'
 import PaymentHistory from '../components/PaymentHistory'
 import { useQueryClient } from '@tanstack/react-query'
 import { getGroupContext } from '../lib/groupContext'
+import { parsePaymentAmount, PAYMENT_AMOUNT_ERROR } from '../../shared/paymentAmount'
 
 const MAX_FILES = 3
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5 MB per file
@@ -409,8 +410,8 @@ export default function PaymentRequestPage({ user: userProp }) {
     }
     if (!formData.amount) {
       errors.amount = 'Het bedrag is verplicht.'
-    } else if (Number.isNaN(Number.parseFloat(formData.amount)) || Number(formData.amount) <= 0) {
-      errors.amount = 'Voer een geldig bedrag in groter dan 0.'
+    } else if (parsePaymentAmount(formData.amount) === null) {
+      errors.amount = PAYMENT_AMOUNT_ERROR
     }
 
     if (formData.paymentMethod === 'iban') {
@@ -470,7 +471,7 @@ export default function PaymentRequestPage({ user: userProp }) {
         ...(resolvedUser.groupId ? { groupId: resolvedUser.groupId } : {}),
         userId: resolvedUser?.id,
         ...formData,
-        amount: Number.parseFloat(formData.amount),
+        amount: parsePaymentAmount(formData.amount),
         attachments: preparedAttachments
       })
 
@@ -582,9 +583,8 @@ export default function PaymentRequestPage({ user: userProp }) {
                 <input
                   id="amount"
                   name="amount"
-                  type="number"
-                  min="0"
-                  step="0.01"
+                  type="text"
+                  inputMode="decimal"
                   placeholder="0,00"
                   value={formData.amount}
                   onChange={handleInputChange}

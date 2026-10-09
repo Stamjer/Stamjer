@@ -1,0 +1,38 @@
+.event-guests {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.event-guest-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.event-guests .event-guest-toggle {
+  flex: 0 0 auto;
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.event-guests .event-guest-name {
+  flex: 0 1 11rem;
+  width: 11rem;
+  min-width: 0;
+  height: 2rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--secondary-300);
+  border-radius: var(--radius-sm);
+  background: white;
+  color: var(--secondary-800);
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.event-guest-name:focus-visible {
+  outline: 2px solid var(--primary-500);
+  outline-offset: 2px;
+}

@@ -1,8 +1,17 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { canUsePaymentRequests, getAuthenticatedLandingPath, isNonAdminAlumni } from '../src/lib/authRouting.js'
+import { canUsePaymentRequests, canUseStreepjes, getAuthenticatedLandingPath, isNonAdminAlumni } from '../src/lib/authRouting.js'
 
 describe('authenticated landing routes', () => {
+  it('hides streepjes only for an explicitly disabled group feature', () => {
+    assert.equal(canUseStreepjes(null), false)
+    assert.equal(canUseStreepjes({ role: 'developer' }), false)
+    for (const role of ['admin', 'user']) {
+      assert.equal(canUseStreepjes({ role }), true)
+      assert.equal(canUseStreepjes({ role, permissions: { canUseStreepjes: false } }), false)
+      assert.equal(canUseStreepjes({ role, permissions: { canUseStreepjes: true } }), true)
+    }
+  })
   it('retains the historical calendar landing for ended memberships and handles accounts without groups', () => {
     assert.equal(getAuthenticatedLandingPath({ role: 'user', groupId: 'a', membershipState: 'ended', memberships: [{ id: 'm', state: 'ended' }], permissions: { canUsePaymentRequests: false } }), '/kalender')
     assert.equal(getAuthenticatedLandingPath({ role: 'user', groupId: null, memberships: [] }), '/account')

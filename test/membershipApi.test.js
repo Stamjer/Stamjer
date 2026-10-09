@@ -7,7 +7,7 @@ import { newMembership, MEMBERSHIP_SCHEMA } from '../server/memberships.js'
 import { freezeLegacyAttendance } from '../server/attendanceScoring.js'
 import { storePaymentRequest } from '../server/paymentHistory.js'
 
-let db, server, origin, failMail = false
+let db, server, origin, failMail = false, rejectMail = false
 const cookies = {}, mail = []
 const memberA = newMembership(1, 'a', { role: 'admin', now: new Date('2020-01-01') })
 const memberB = newMembership(1, 'b', { status: 'inactive', now: new Date('2020-01-01') })
@@ -24,7 +24,7 @@ before(async () => {
   for (const event of db.data.events) event.attendanceMeta = freezeLegacyAttendance(event, db.data.groupMemberships)
   global._mongoClientPromise = Promise.resolve(createMemoryClient(db))
   const original = nodemailer.createTransport
-  nodemailer.createTransport = () => ({ async verify() { return true }, async sendMail(message) { if (failMail) throw new Error('Transient SMTP failure'); mail.push(message); return { messageId: 'test', accepted: [message.to] } } })
+  nodemailer.createTransport = () => ({ async verify() { return true }, async sendMail(message) { if (failMail) throw new Error('Transient SMTP failure'); mail.push(message); return { messageId: 'test', accepted: rejectMail ? [] : [message.to], rejected: rejectMail ? [message.to] : [] } } })
   try { server = (await import('../api/index.js')).default.listen(0, '127.0.0.1') } finally { nodemailer.createTransport = original }
   await new Promise(resolve => server.once('listening', resolve)); origin = `http://127.0.0.1:${server.address().port}`
   for (let id = 1; id <= 4; id++) {
@@ -51,6 +51,22 @@ describe('multi-group HTTP authorization, subscriptions and declarations', () =>
     assert.equal((await api(1, '/users/2', 'PATCH', { firstName: 'Unauthorized identity' }, 'a')).status, 403)
     assert.equal((await api(4, '/users/1/group/preview', 'POST', { groupId: 'b' })).status, 410)
     assert.equal((await api(4, '/groups')).status, 200)
+  })
+  it('keeps group memberships available for participant validation after session refreshes', async () => {
+    await api(2, '/session', 'GET', null, 'a')
+    await api(1, '/session', 'GET', null, 'b')
+    const created = await api(1, '/events', 'POST', { title: 'Membership cache regression', start: '2099-09-01', isOpkomst: true, participants: [1, 2], guestOpkomstmakers: ['External helper'] }, 'a')
+    assert.equal(created.status, 201, JSON.stringify(created.data))
+    try {
+      assert.deepEqual(created.data.participants, [1, 2])
+      assert.deepEqual(created.data.guestOpkomstmakers, ['External helper'])
+      const invalid = await api(1, `/events/${created.data.id}`, 'PUT', { participants: [1, 2, 3] }, 'a')
+      assert.equal(invalid.status, 400)
+      const updated = await api(1, `/events/${created.data.id}`, 'PUT', { title: 'Guest planning', opkomstmakerIds: [2] }, 'a')
+      assert.equal(updated.status, 200, JSON.stringify(updated.data))
+      assert.deepEqual(updated.data.participants, [1, 2])
+      assert.deepEqual(updated.data.guestOpkomstmakers, ['External helper'])
+    } finally { assert.equal((await api(1, `/events/${created.data.id}`, 'DELETE', null, 'a')).status, 200) }
   })
   it('onboards atomic global identities using the historical counter and developers attach existing accounts', async () => {
     const created = await api(4, '/users', 'POST', { firstName: 'New', lastName: 'Member', email: 'new@example.test', groupId: 'a' })
@@ -192,5 +208,102 @@ describe('multi-group HTTP authorization, subscriptions and declarations', () =>
     const memberships = await api(4, '/developer/database/groupMemberships?groupId=a')
     assert.equal(memberships.status, 200)
     assert.ok(memberships.data.records.every(item => item.editable === null && item.record.calendarTokenVersion === undefined))
+  })
+})
+
+describe('event guests, declaration validation and retained group features', () => {
+  it('saves guest names without accounts, preserves them on edits and protects historical assignments', async () => {
+    const identities = db.data.users.length
+    const created = await api(4, '/events', 'POST', { groupId: 'a', title: 'Outdoor cooking', start: '2099-05-01T20:00', isOpkomst: true, guestOpkomstmakers: [' Guest, Jr. ', 'Zoë'] })
+    assert.equal(created.status, 201)
+    assert.deepEqual(created.data.guestOpkomstmakers, ['Guest, Jr.', 'Zoë'])
+    assert.deepEqual(created.data.opkomstmakerNames, ['Guest, Jr.', 'Zoë'])
+    assert.deepEqual(created.data.opkomstmakerIds, [])
+    assert.equal(db.data.users.length, identities)
+    const updated = await api(4, `/events/${created.data.id}`, 'PUT', { title: 'Outdoor cooking and games' })
+    assert.equal(updated.status, 200)
+    assert.deepEqual(updated.data.guestOpkomstmakers, ['Guest, Jr.', 'Zoë'])
+    const visible = await api(1, `/events/${created.data.id}`, 'GET', null, 'a')
+    assert.deepEqual(visible.data.event.guestOpkomstmakers, ['Guest, Jr.', 'Zoë'])
+    const calendar = await api(1, '/events', 'GET', null, 'a')
+    assert.deepEqual(calendar.data.events.find(event => event.id === created.data.id).opkomstmakerNames, ['Guest, Jr.', 'Zoë'])
+    assert.equal((await api(4, '/events/past', 'PUT', { guestOpkomstmakers: ['New historical guest'] })).status, 403)
+    assert.equal((await api(4, '/events/past', 'PUT', { title: 'Past title remains editable', guestOpkomstmakers: [] })).status, 200)
+    assert.equal((await api(4, `/events/${created.data.id}`, 'PUT', { guestOpkomstmakers: [] })).status, 200)
+  })
+
+  it('rejects malformed declarations before saving or mailing them', async () => {
+    const before = db.data.paymentRequests.length
+    const sent = mail.length
+    const invalid = ['12abc', '12,50abc', '1.234,56', '1,234.56', '12.345', '1e3', '-1', 0, null, {}].map(amount => ({ amount }))
+    invalid.push({ paymentMethod: 'cash' }, { paymentLink: 'ftp://example.com/pay' }, { attachments: 'invalid' },
+      { attachments: [{ name: 'fake.pdf', type: 'application/pdf', content: Buffer.from('This is not a PDF').toString('base64') }] })
+    for (const [index, patch] of invalid.entries()) {
+      const result = await api(1, '/payment-requests', 'POST', { ...payment, ...patch, requestKey: `invalid-payment-${index}` }, 'a')
+      assert.equal(result.status, 400, JSON.stringify(patch))
+    }
+    assert.equal(db.data.paymentRequests.length, before)
+    assert.equal(mail.length, sent)
+  })
+
+  it('stores exact cents for both separators, deduplicates equivalent retries and accepts Unicode text', async () => {
+    const request = { ...payment, amount: '12,50', requestKey: 'comma-amount-test', description: 'Supplies 🧭. ' + 'Long description. '.repeat(250),
+      attachments: [{ ...payment.attachments[0], name: 'bon 🧾.pdf' }] }
+    const created = await api(1, '/payment-requests', 'POST', request, 'a')
+    assert.equal(created.status, 201)
+    assert.equal(created.data.declaration.form.amount, 12.5)
+    assert.equal(created.data.declaration.form.description, request.description.trim())
+    assert.ok(mail.at(-1).html.includes('Supplies 🧭.'))
+    const count = mail.length
+    const retry = await api(1, '/payment-requests', 'POST', { ...request, amount: '12.50' }, 'a')
+    assert.equal(retry.status, 200)
+    assert.equal(retry.data.declaration.id, created.data.declaration.id)
+    assert.equal(mail.length, count)
+  })
+
+  it('reports mailserver rejection without claiming the declaration was sent', async () => {
+    rejectMail = true
+    let result
+    try { result = await api(1, '/payment-requests', 'POST', { ...payment, requestKey: 'smtp-rejected-test' }, 'a') }
+    finally { rejectMail = false }
+    assert.equal(result.status, 502)
+    assert.equal(result.data.declaration.status, 'delivery-failed')
+    assert.match(result.data.msg, /geweigerd/)
+    const sent = mail.length
+    assert.equal((await api(1, '/payment-requests', 'POST', { ...payment, requestKey: 'smtp-rejected-test' }, 'a')).status, 200)
+    assert.equal(mail.length, sent)
+  })
+
+  it('hides declarations and streepjes per group and restores all records, receipts and totals', async () => {
+    const events = structuredClone(db.data.events)
+    const declarations = structuredClone(db.data.paymentRequests)
+    const files = structuredClone(db.data.paymentRequestFiles)
+    const total = (await api(1, '/users/full', 'GET', null, 'a')).data.users[0].streepjes
+    const record = db.data.paymentRequests.find(record => record.userId === 1 && record.groupId === 'a')
+    assert.equal((await api(1, '/groups/a', 'PATCH', { settings: { enableStreepjes: false } }, 'a')).status, 403)
+    assert.equal((await api(4, '/groups/a', 'PATCH', { settings: { enableStreepjes: false, enablePaymentRequests: false } })).status, 200)
+    try {
+      const session = (await api(1, '/session', 'GET', null, 'a')).data.user
+      assert.equal(session.permissions.canUseStreepjes, false)
+      assert.equal(session.permissions.canUsePaymentRequests, false)
+      assert.equal(session.memberships.find(m => m.groupId === 'a').permissions.canUseStreepjes, false)
+      assert.equal(session.memberships.find(m => m.groupId === 'b').permissions.canUseStreepjes, true)
+      assert.equal(Object.hasOwn((await api(1, '/users/full', 'GET', null, 'a')).data.users[0], 'streepjes'), false)
+      assert.equal((await api(1, '/payment-requests', 'GET', null, 'a')).status, 403)
+      assert.equal((await api(1, `/payment-requests/${record.id}/files/${record.attachments[0].id}`, 'GET', null, 'a')).status, 403)
+      assert.equal((await api(1, '/payment-requests', 'POST', { ...payment, requestKey: 'feature-disabled' }, 'a')).status, 403)
+      assert.deepEqual(db.data.events, events)
+      assert.deepEqual(db.data.paymentRequests, declarations)
+      assert.deepEqual(db.data.paymentRequestFiles, files)
+    } finally {
+      assert.equal((await api(4, '/groups/a', 'PATCH', { settings: { enableStreepjes: true, enablePaymentRequests: true } })).status, 200)
+    }
+    assert.equal((await api(1, '/session', 'GET', null, 'a')).data.user.permissions.canUseStreepjes, true)
+    assert.equal((await api(1, '/users/full', 'GET', null, 'a')).data.users[0].streepjes, total)
+    assert.equal((await api(1, '/payment-requests', 'GET', null, 'a')).data.declarations.length, declarations.filter(record => record.userId === 1 && record.groupId === 'a').length)
+    assert.equal((await api(1, `/payment-requests/${record.id}/files/${record.attachments[0].id}`, 'GET', null, 'a')).status, 200)
+    assert.deepEqual(db.data.events, events)
+    assert.deepEqual(db.data.paymentRequests, declarations)
+    assert.deepEqual(db.data.paymentRequestFiles, files)
   })
 })

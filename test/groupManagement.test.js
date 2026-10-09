@@ -43,6 +43,14 @@ describe('group management validation and privacy', () => {
     ], [{ groupId: 'stam', isOpkomst: true, start: '2099-01-01' }, { groupId: 'other', isOpkomst: true, start: '2099-01-01' }])
     assert.deepEqual(summary, { users: 1, admins: 1, activeUsers: 1, events: 1, futureOpkomsten: 1 })
   })
+  it('accepts only boolean streepjes settings and maps both saved states', () => {
+    for (const enableStreepjes of [false, true]) {
+      const settings = { enableStreepjes }
+      assert.deepEqual(validateGroupInput({ settings }).settings, settings)
+      assert.deepEqual(mapGroupForClient({ id: 'stam', settings }).settings, settings)
+    }
+    for (const enableStreepjes of ['false', 0, 1, null, {}, []]) assert.throws(() => validateGroupInput({ settings: { enableStreepjes } }), { status: 400 })
+  })
 })
 
 describe('managed user updates', () => {

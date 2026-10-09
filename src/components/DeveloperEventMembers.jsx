@@ -2,6 +2,7 @@ import React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getUsersFull } from '../services/api'
 import { queryKeys } from '../lib/queryClient'
+import EventGuests from './EventGuests'
 
 export default function DeveloperEventMembers({ form, setForm, event, groupId }) {
   const members = useQuery({ queryKey: queryKeys.developer.users(groupId), queryFn: () => getUsersFull(groupId), staleTime: 0 })
@@ -21,6 +22,7 @@ export default function DeveloperEventMembers({ form, setForm, event, groupId })
         const eligible = (!user.membershipState || user.membershipState === 'current') && (field === 'participants' ? user.status !== 'legacy' : user.status === 'active')
         return <label className="management-checkbox" key={user.id}><input type="checkbox" checked={checked} disabled={historical || automatic || (!eligible && !checked)} onChange={change => toggle(field, user.id, change.target.checked)} />{user.firstName} {user.lastName}{user.status !== 'active' ? ` (${user.status})` : ''}</label>
       })}
+      {field === 'opkomstmakerIds' && form.isOpkomst && <EventGuests names={form.guestOpkomstmakers} disabled={historical} onChange={names => setForm(current => ({ ...current, guestOpkomstmakers: names }))} />}
       {field !== 'participants' && (event?.[field === 'opkomstmakerIds' ? 'legacyOpkomstmakerNames' : 'legacySchoonmakerNames'] || []).length > 0 && <p>Historische namen: {event[field === 'opkomstmakerIds' ? 'legacyOpkomstmakerNames' : 'legacySchoonmakerNames'].join(', ')}</p>}
     </fieldset>)}
     <fieldset><legend>Werkelijke aanwezigheid</legend><p>Standaard volgt de aanmelding. Een afwijking levert bij een opkomst één streepje op.</p>

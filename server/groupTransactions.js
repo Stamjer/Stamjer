@@ -91,7 +91,7 @@ export async function persistGroupRecord(client, db, collection, input, { creati
           record.publishedAt = new Date().toISOString()
           if (record.isOpkomst) record.participants = [...new Set([...sanitizeIdArray(record.participants), ...memberships.filter(m => m.state === 'current' && m.status === 'active').map(m => m.userId)])].sort((a, b) => a - b)
         } else record.publishedAt = current.publishedAt
-        if (!creating && eventStartInstant(current.start) <= Date.now() && ['participants', 'opkomstmakerIds', 'schoonmakerIds'].some(field => JSON.stringify(record[field]) !== JSON.stringify(current[field]))) throw new GroupAccessError('Historische deelname en taken kunnen niet worden gewijzigd', 403)
+        if (!creating && eventStartInstant(current.start) <= Date.now() && ['participants', 'opkomstmakerIds', 'schoonmakerIds', 'guestOpkomstmakers'].some(field => JSON.stringify(record[field] || []) !== JSON.stringify(current[field] || []))) throw new GroupAccessError('Historische deelname en taken kunnen niet worden gewijzigd', 403)
         for (const field of ['participants', 'opkomstmakerIds', 'schoonmakerIds']) {
           const previous = new Set(sanitizeIdArray(current?.[field]))
           for (const id of sanitizeIdArray(record[field])) if (!previous.has(id)) {

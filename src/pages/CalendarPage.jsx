@@ -33,6 +33,8 @@ import { useIsMobile } from '../hooks/useDeviceDetection'
 // Location input with autocomplete
 import LocationInput from '../components/LocationInput'
 import LocationLink from '../components/LocationLink'
+import EventGuests from '../components/EventGuests'
+import { validEventGuests } from '../../shared/eventGuests'
 
 // TanStack Query hooks
 import { 
@@ -50,7 +52,7 @@ import { CalendarErrorBoundary, FormErrorBoundary, ComponentErrorBoundary } from
 // Toast hook
 import { useToast } from '../hooks/useToast'
 import { withSupportContact } from '../config/appInfo'
-import { buildEventPayload } from '../lib/eventPayload'
+import { buildEventPayload, defaultEventTitle } from '../lib/eventPayload'
 
 // Component styling
 import './CalendarPage.css'
@@ -170,6 +172,7 @@ function EventModal({ event, onClose, onDelete, onEdit, isAdmin = false, current
   }, [event])
 
   const { title, start, end, allDay, extendedProps } = event || {}
+  const opkomstmakerNames = extendedProps?.opkomstmakerNames || extendedProps?.opkomstmakers?.split(',') || []
 
   // Attendance state derived from event participants
   const participants = extendedProps?.participants || []
@@ -365,11 +368,11 @@ function EventModal({ event, onClose, onDelete, onEdit, isAdmin = false, current
             {extendedProps?.isOpkomst && extendedProps?.opkomstmakers && (
               <div className="detail-item">
                 <div className="detail-content">
-                  <strong>Team Opkomstmakers:</strong>
-                  {extendedProps.opkomstmakers.split(',').map((maker, index) => (
+                  <strong>Opkomstmakers:</strong>
+                  {opkomstmakerNames.map((maker, index) => (
                     <React.Fragment key={index}>
                       {maker.trim()}
-                      {index < extendedProps.opkomstmakers.split(',').length - 1 && <br />}
+                      {index < opkomstmakerNames.length - 1 && <br />}
                     </React.Fragment>
                   ))}
                 </div>
@@ -456,7 +459,7 @@ function EventModal({ event, onClose, onDelete, onEdit, isAdmin = false, current
 // NEW/EDIT EVENT FORM COMPONENT
 // ================================================================
 
-function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = [] }) {
+function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = [], groupName = '' }) {
   // Initialize opkomstmakers as an array of selected user IDs
   const initializeOpkomstmakers = () => {
     if (event?.opkomstmakers) {
@@ -500,6 +503,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
     description: event?.description || '',
     isOpkomst: event?.isOpkomst || false,
     opkomstmakers: initializeOpkomstmakers(),
+    guestOpkomstmakers: event?.guestOpkomstmakers || [],
     isSchoonmaak: event?.isSchoonmaak || false,
     schoonmakers: initializeSchoonmakers(),
     schoonmaakOptions: event?.schoonmaakOptions || []
@@ -515,7 +519,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
       // If opkomst is toggled, update title accordingly
       if (field === 'isOpkomst') {
         if (value) {
-          newData.title = 'Opkomst'
+          if (!prev.title.trim()) newData.title = defaultEventTitle('isOpkomst', groupName)
           newData.startTime = '20:30'
           newData.endTime = '22:30'
           newData.location = 'Clubhuis Scouting MPD'
@@ -526,6 +530,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
           // Only clear opkomstmakers if explicitly toggling off
           if (prev.isOpkomst) {
             newData.opkomstmakers = []
+            newData.guestOpkomstmakers = []
           }
         }
       }
@@ -533,11 +538,12 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
       // If schoonmaak is toggled, update defaults accordingly
       if (field === 'isSchoonmaak') {
         if (value) {
-          newData.title = 'Schoonmaak Stam'
+          if (!prev.title.trim()) newData.title = defaultEventTitle('isSchoonmaak', groupName)
           newData.isAllDay = true
           newData.location = 'Veulenkamp 41, 2623 XA Delft'
           newData.isOpkomst = false
           newData.opkomstmakers = []
+          newData.guestOpkomstmakers = []
         } else {
           // Only clear schoonmakers if explicitly toggling off
           if (prev.isSchoonmaak) {
@@ -660,6 +666,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
     if (!formData.title.trim()) {
       newErrors.title = 'Titel is verplicht'
     }
+    if (!validEventGuests(formData.guestOpkomstmakers)) newErrors.guestOpkomstmakers = 'Vul voor elke geselecteerde gast een naam in zonder controletekens, of vink de gast uit.'
 
     if (!formData.startDate) {
       newErrors.startDate = formData.isAllDay ? 'Startdatum is verplicht' : 'Datum is verplicht'
@@ -717,7 +724,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
       }
 
       // Call the parent handler - this will use TanStack Query mutations
-      onAdd(eventData)
+      await onAdd(eventData)
       onClose()
     } catch (err) {
       console.error('Error preparing event data:', err)
@@ -764,7 +771,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
                 value={formData.title}
                 onChange={e => handleInputChange('title', e.target.value)}
                 placeholder="Evenement titel"
-                disabled={isSubmitting || formData.isOpkomst || formData.isSchoonmaak}
+                disabled={isSubmitting}
                 aria-describedby={errors.title ? "title-error" : undefined}
               />
               {errors.title && (
@@ -793,7 +800,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
             {formData.isOpkomst && (
               <div className="form-group form-group-full">
                 <label className="form-label">
-                  Team Opkomstmakers selecteren
+                  Opkomstmakers selecteren
                 </label>
                 <div className="opkomstmakers-checkboxes">
                   {users.map(user => (
@@ -809,6 +816,7 @@ function NewEventForm({ event = null, isEdit = false, onClose, onAdd, users = []
                       {user.firstName}
                     </label>
                   ))}
+                  <EventGuests names={formData.guestOpkomstmakers} error={errors.guestOpkomstmakers} disabled={isSubmitting} onChange={names => handleInputChange('guestOpkomstmakers', names)} />
                 </div>
               </div>
             )}
@@ -1255,16 +1263,16 @@ export default function CalendarPage({ user: currentUser }) {
   const handleAdd = useCallback((eventData, isEdit = false) => {
     if (!currentUser) {
       showError('Je moet ingelogd zijn om evenementen aan te maken')
-      return
+      return Promise.reject(new Error('Je moet ingelogd zijn om evenementen aan te maken'))
     }
 
     if (isEdit) {
-      updateEventMutation.mutate({
+      return updateEventMutation.mutateAsync({
         eventId: eventData.id,
         eventData: eventData
       })
     } else {
-      createEventMutation.mutate({
+      return createEventMutation.mutateAsync({
         eventData: eventData
       })
     }
@@ -1318,6 +1326,7 @@ export default function CalendarPage({ user: currentUser }) {
       description: ev.extendedProps.description || '',
       isOpkomst: ev.extendedProps.isOpkomst || false,
       opkomstmakers: opkomstmakersArray,
+      guestOpkomstmakers: ev.extendedProps.guestOpkomstmakers || [],
       isSchoonmaak: ev.extendedProps.isSchoonmaak || false,
       schoonmakers: schoonmakersArray,
       schoonmaakOptions: ev.extendedProps.schoonmaakOptions || [],
@@ -1528,6 +1537,7 @@ export default function CalendarPage({ user: currentUser }) {
               onClose={() => setShowNewForm(false)}
               onAdd={(eventData) => handleAdd(eventData, false)}
               users={activeMemberUsers}
+              groupName={currentUser?.groupName}
             />
           </FormErrorBoundary>
         )}
@@ -1540,6 +1550,7 @@ export default function CalendarPage({ user: currentUser }) {
               onClose={() => setEditingEvent(null)}
               onAdd={(eventData) => handleAdd(eventData, true)}
               users={activeMemberUsers}
+              groupName={currentUser?.groupName}
             />
           </FormErrorBoundary>
         )}

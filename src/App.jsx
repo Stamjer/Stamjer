@@ -34,7 +34,7 @@ import PullToRefresh from './components/PullToRefresh'
 // Query client configuration
 import { queryClient } from './lib/queryClient'
 import { performHardReset } from './lib/hardReset'
-import { canUsePaymentRequests, getAuthenticatedLandingPath, isNonAdminAlumni } from './lib/authRouting'
+import { canUsePaymentRequests, canUseStreepjes, getAuthenticatedLandingPath, isNonAdminAlumni } from './lib/authRouting'
 import { isAdmin, isDeveloper } from '../shared/roles'
 import { getCurrentSession, logout as logoutSession } from './services/api'
 import { setGroupContext, hasPendingGroupWrites } from './lib/groupContext'
@@ -133,9 +133,9 @@ function App() {
     if (nextUser?.memberships && !isDeveloper(nextUser)) {
       const preferred = localStorage.getItem(`selected-group:${nextUser.id}`)
       const selected = nextUser.memberships.find(m => m.groupId === preferred) || nextUser.memberships.find(m => m.state === 'current') || nextUser.memberships[0]
-      nextUser = { ...nextUser, groupId: selected?.groupId || null, membershipId: selected?.id || null, membershipState: selected?.state || null,
+      nextUser = { ...nextUser, groupId: selected?.groupId || null, groupName: selected?.group?.name || '', membershipId: selected?.id || null, membershipState: selected?.state || null,
         role: selected?.state === 'current' ? selected.role : 'user', isAdmin: selected?.state === 'current' && selected.role === 'admin',
-        status: selected?.state === 'ended' ? 'alumni' : selected?.status || 'inactive', permissions: selected?.permissions || { canUsePaymentRequests: false, canUseAttendance: false, canManageUsers: false } }
+        status: selected?.state === 'ended' ? 'alumni' : selected?.status || 'inactive', permissions: selected?.permissions || { canUsePaymentRequests: false, canUseStreepjes: false, canUseAttendance: false, canManageUsers: false } }
       if (selected) localStorage.setItem(`selected-group:${nextUser.id}`, selected.groupId)
     }
     const nextScope = nextUser ? `${nextUser.id}:${nextUser.groupId}:${nextUser.role}:${nextUser.membershipState}` : 'anonymous'
@@ -392,7 +392,7 @@ function App() {
       }
     )
 
-    if (isAdmin(user) && !isNonAdminAlumni(user)) {
+    if (isAdmin(user) && !isNonAdminAlumni(user) && canUseStreepjes(user)) {
       baseItems.push({
         to: '/strepen',
         label: ROUTE_LABELS['/strepen'],
@@ -452,7 +452,7 @@ function App() {
       }
     )
 
-    if (isAdmin(user) && !isNonAdminAlumni(user)) {
+    if (isAdmin(user) && !isNonAdminAlumni(user) && canUseStreepjes(user)) {
       items.push({
         to: '/strepen',
         label: ROUTE_LABELS['/strepen'],
@@ -658,7 +658,7 @@ function App() {
                   <ProtectedRoute user={user}>
                     <AlumniRestrictedRoute user={user}>
                       <PageErrorBoundary pageName="Strepen">
-                        {isAdmin(user) ? <StrepenPage user={user} /> : <div>Alleen toegankelijk voor admins.</div>}
+                        {!canUseStreepjes(user) ? <Navigate to={getAuthenticatedLandingPath(user)} replace /> : isAdmin(user) ? <StrepenPage user={user} /> : <div>Alleen toegankelijk voor admins.</div>}
                       </PageErrorBoundary>
                     </AlumniRestrictedRoute>
                   </ProtectedRoute>

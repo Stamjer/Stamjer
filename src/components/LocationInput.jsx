@@ -145,11 +145,6 @@ export default function LocationInput({ value, onChange, placeholder, disabled, 
           Locatie service laden...
         </div>
       )}
-      {isLoaded && (
-        <div className="location-input-hint">
-          Begin te typen voor suggesties
-        </div>
-      )}
     </div>
   )
 }

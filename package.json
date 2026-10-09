@@ -1,6 +1,6 @@
 {
   "name": "stamjer",
-  "version": "1.11.3",
+  "version": "1.11.4",
   "description": "Een React + Vite kalender applicatie met gebruikersauthenticatie en evenementbeheer",
   "private": true,
   "type": "module",
@@ -22,7 +22,7 @@
   ],
   "scripts": {
     "dev": "vite",
-    "api": "node api/index.js",
+    "api": "node --watch api/index.js",
     "start": "concurrently \"npm:api\" \"npm:dev\"",
     "build": "vite build",
     "build:analyze": "set ANALYZE=true && vite build",

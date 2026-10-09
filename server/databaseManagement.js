@@ -19,7 +19,7 @@ export function mapDatabaseRecord(collection, record) {
   if (collection === 'users') return mapManagedUser(record)
   if (collection === 'events') return { ...pick(record, ['id', ...EVENT_EDIT_FIELDS]), groupId: getEventGroupId(record),
     ...Object.fromEntries(['participants', 'opkomstmakerIds', 'schoonmakerIds'].map(field => [field, sanitizeIdArray(record[field])])),
-    ...Object.fromEntries(['schoonmaakOptions', 'legacyOpkomstmakerNames', 'legacySchoonmakerNames'].map(field => [field, Array.isArray(record[field]) ? record[field].filter(value => typeof value === 'string') : []])),
+    ...Object.fromEntries(['guestOpkomstmakers', 'schoonmaakOptions', 'legacyOpkomstmakerNames', 'legacySchoonmakerNames'].map(field => [field, Array.isArray(record[field]) ? record[field].filter(value => typeof value === 'string') : []])),
     attendance: Object.fromEntries(Object.entries(record.attendance || {}).map(([id, value]) => [id, Boolean(value?.present ?? value)])) }
   if (collection === 'auditLogs') return pick(record, ['id', 'timestamp', 'action', 'actorId', 'actorRole', 'groupId', 'destinationGroupId', 'collection', 'targetId', 'changedFields'])
   if (collection === 'sessions') return pick(record, ['sessionId', 'userId', 'createdAt', 'expiresAt', 'lastSeenAt', 'revokedAt'])

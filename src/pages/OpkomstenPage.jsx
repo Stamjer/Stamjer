@@ -19,6 +19,8 @@ import { isAdmin as hasAdminRole } from '../../shared/roles'
 import { withSupportContact } from '../config/appInfo'
 import { useToast } from '../hooks/useToast'
 import { buildEventPayload } from '../lib/eventPayload'
+import EventGuests from '../components/EventGuests'
+import { validEventGuests } from '../../shared/eventGuests'
 import {
   useOpkomstEvents,
   useUpdateAttendance,
@@ -216,7 +218,8 @@ function OpkomstEditForm({ event, onClose, onSave, users = [], currentUser = nul
     location: event?.location || 'Clubhuis Scouting MPD',
     description: event?.description || '',
     isOpkomst: true, // Always true for opkomst events
-    opkomstmakers: initializeOpkomstmakers()
+    opkomstmakers: initializeOpkomstmakers(),
+    guestOpkomstmakers: event?.guestOpkomstmakers || []
   })
 
   const [errors, setErrors] = useState({})
@@ -297,6 +300,7 @@ function OpkomstEditForm({ event, onClose, onSave, users = [], currentUser = nul
     if (!formData.title.trim()) {
       newErrors.title = 'Titel is verplicht'
     }
+    if (!validEventGuests(formData.guestOpkomstmakers)) newErrors.guestOpkomstmakers = 'Vul voor elke geselecteerde gast een naam in zonder controletekens, of vink de gast uit.'
 
     if (!formData.startDate) {
       newErrors.startDate = formData.isAllDay ? 'Startdatum is verplicht' : 'Datum is verplicht'
@@ -419,6 +423,7 @@ function OpkomstEditForm({ event, onClose, onSave, users = [], currentUser = nul
                     {user.firstName}
                   </label>
                 ))}
+                <EventGuests names={formData.guestOpkomstmakers} error={errors.guestOpkomstmakers} disabled={isSubmitting} onChange={names => handleInputChange('guestOpkomstmakers', names)} />
               </div>
             </div>
 
@@ -669,6 +674,7 @@ export default function OpkomstenPage({ user: currentUser }) {
         isOpkomst: event.isOpkomst || false,
         opkomstmakers: opkomstmakersArray,
         opkomstmakerIds: opkomstmakersArray,
+        guestOpkomstmakers: event.guestOpkomstmakers || [],
       })
     }, [currentUser, showToast])
 
@@ -872,7 +878,7 @@ export default function OpkomstenPage({ user: currentUser }) {
                     </div>
 
                     <div className="opkomsten-card__makers-badges">
-                      {event.opkomstmakers.split(',').map((maker, index) => (
+                      {(event.opkomstmakerNames || event.opkomstmakers.split(',')).map((maker, index) => (
                         <span
                           key={index}
                           className="opkomsten-card__maker-pill"

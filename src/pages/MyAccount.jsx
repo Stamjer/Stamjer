@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { withSupportContact } from '../config/appInfo'
 import { changePassword } from '../services/api'
 import { isAdmin } from '../../shared/roles'
+import { canUseStreepjes } from '../lib/authRouting'
 import { USER_STATUS_LABELS } from '../lib/userManagement'
 import UserManagementPanel from '../components/UserManagementPanel'
 import { useRawEvents, useUpdateUserProfile, useUsersWithStreepjes } from '../hooks/useQueries'
@@ -33,6 +34,7 @@ const TIME_FORMAT_HM = new Intl.DateTimeFormat('nl-NL', {
 })
 
 function splitNames(value = '') {
+  if (Array.isArray(value)) return value.map(name => name.trim()).filter(Boolean)
   return value
     .replace(/\sen\s/gi, ',')
     .split(/[,/&]+/)
@@ -231,7 +233,7 @@ export default function MyAccount({ user: userProp, onLogout, onGroupChange }) {
   const selectedOpkomstTimeRange = selectedOpkomst ? renderOpkomstTimeRange(selectedOpkomst) : null
   const selectedOpkomstMakers = selectedOpkomst
     ? selectedOpkomst.isOpkomst
-      ? splitOpkomstmakerNames(selectedOpkomst.opkomstmakers)
+      ? splitOpkomstmakerNames(selectedOpkomst.opkomstmakerNames || selectedOpkomst.opkomstmakers)
       : selectedOpkomst.isSchoonmaak
       ? splitSchoonmakerNames(selectedOpkomst.schoonmakers)
       : []
@@ -395,7 +397,7 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
                       {USER_STATUS_LABELS[userStatus]}
                     </span>
                   </div>
-                  <div className="info-item">
+                  {canUseStreepjes(user) && <div className="info-item">
                     <label>Streepjes</label>
                     {isStreepjesLoading ? (
                       <span className="streepjes-loading">Laden...</span>
@@ -404,7 +406,7 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
                         {streepjes}
                       </span>
                     )}
-                  </div>
+                  </div>}
                 </div>
               </div>
             </div>
@@ -431,7 +433,7 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
                         const isOpkomst = event?.isOpkomst
                         const isSchoonmaak = event?.isSchoonmaak
                         const makerNames = isOpkomst
-                          ? splitOpkomstmakerNames(event.opkomstmakers)
+                          ? splitOpkomstmakerNames(event.opkomstmakerNames || event.opkomstmakers)
                           : isSchoonmaak
                           ? splitSchoonmakerNames(event.schoonmakers)
                           : []
@@ -487,10 +489,10 @@ Let op: voor de alle toekomstige opkomsten die al zijn gepland, word je ook als 
               <div className="account-card-body">
                 {user.memberships?.length > 1 && <div className="setting-section account-group-setting">
                   <label className="account-group-selector">
-                    <span>Groep</span>
+                    <h6>Groep</h6>
                     <select className="form-select account-group-select" aria-label="Groep selecteren" value={user.groupId || ''} onChange={onGroupChange}>
                       {user.memberships.map(membership => <option key={membership.id} value={membership.groupId}>
-                        {membership.group.name} · {membership.state === 'ended' ? 'Alumni' : membership.status === 'inactive' ? 'Inactief' : 'Actief'}
+                        {membership.group.name}
                       </option>)}
                     </select>
                   </label>

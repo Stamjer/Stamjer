@@ -13,7 +13,7 @@ import { durableGroupTotals } from './attendanceScoring.js'
 const GROUP_KEY = /^[a-z0-9][a-z0-9-]{0,79}$/
 // eslint-disable-next-line no-control-regex
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/
-const SETTINGS = ['defaultLocation', 'calendarName', 'paymentRequestEmail', 'dailyChangeEmail', 'allowUserSelfAttendance', 'enablePaymentRequests']
+const SETTINGS = ['defaultLocation', 'calendarName', 'paymentRequestEmail', 'dailyChangeEmail', 'allowUserSelfAttendance', 'enablePaymentRequests', 'enableStreepjes']
 
 function invalid(message) { throw new GroupAccessError(message, 400) }
 
@@ -42,8 +42,8 @@ export function validateGroupInput(input, { creating = false } = {}) {
     patch.settings = {}
     for (const [field, value] of Object.entries(input.settings)) {
       if (!SETTINGS.includes(field)) invalid(`Onbekende groepsinstelling: ${field}`)
-      if (field === 'allowUserSelfAttendance' || field === 'enablePaymentRequests') {
-        if (typeof value !== 'boolean') invalid(`${field === 'allowUserSelfAttendance' ? 'Zelf aanwezigheid wijzigen' : 'Declaraties inschakelen'} moet true of false zijn`)
+      if (['allowUserSelfAttendance', 'enablePaymentRequests', 'enableStreepjes'].includes(field)) {
+        if (typeof value !== 'boolean') invalid(`${field} moet true of false zijn`)
         patch.settings[field] = value
       } else {
         if (typeof value !== 'string' || CONTROL_CHARACTERS.test(value) || value.length > (field.endsWith('Email') ? 254 : 300)) invalid(`Ongeldige instelling: ${field}`)

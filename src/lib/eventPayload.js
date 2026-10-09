@@ -1,3 +1,7 @@
+export function defaultEventTitle(kind, groupName = '') {
+  return `${kind === 'isSchoonmaak' ? 'Schoonmaak' : 'Opkomst'} ${groupName}`.trim()
+}
+
 export function nextDay(dateString) {
   const [year, month, day] = dateString.split('-').map(Number)
   const date = new Date(year, month - 1, day + 1)
@@ -17,6 +21,7 @@ export function buildEventPayload(formData, { forceOpkomst = false } = {}) {
     description: formData.description.trim(),
     isOpkomst: forceOpkomst || formData.isOpkomst,
     opkomstmakerIds: formData.opkomstmakers || [],
+    guestOpkomstmakers: (formData.guestOpkomstmakers || []).map(name => name.trim()),
     isSchoonmaak: forceOpkomst ? false : Boolean(formData.isSchoonmaak),
     schoonmakerIds: forceOpkomst ? [] : formData.schoonmakers || [],
     schoonmaakOptions: forceOpkomst ? [] : formData.schoonmaakOptions || []

@@ -23,7 +23,6 @@ export default function UserManagementPanel({ actor, users = [], groupId, groups
   const [form, setForm] = useState({})
   const [message, setMessage] = useState('')
   const [formError, setFormError] = useState('')
-  const visible = useMemo(() => filterManagedUsers(users, { search, status, role, sort }), [users, search, status, role, sort])
   const counts = useMemo(() => ({
     active: users.filter((user) => user.status === 'active').length,
     inactive: users.filter((user) => user.status === 'inactive').length,
@@ -31,6 +30,10 @@ export default function UserManagementPanel({ actor, users = [], groupId, groups
     admins: users.filter(isAdmin).length
   }), [users])
   const currentGroup = groups.find((group) => group.id === groupId)
+  const showStreepjes = developer ? currentGroup?.settings?.enableStreepjes !== false : actor.permissions?.canUseStreepjes !== false
+  const showGroupStreepjes = id => developer ? groups.find(group => group.id === id)?.settings?.enableStreepjes !== false : showStreepjes
+  const effectiveSort = !showStreepjes && sort === 'streepjes' ? 'name' : sort
+  const visible = useMemo(() => filterManagedUsers(users, { search, status, role, sort: effectiveSort }), [users, search, status, role, effectiveSort])
   const archived = currentGroup?.status === 'archived' || (!developer && actor.permissions?.canManageUsers === false)
   const historyScope = developer ? groupId || '__all__' : undefined
   const historyQuery = useQuery({ queryKey: queryKeys.users.history(historyScope), queryFn: () => getUserGroupHistory(historyScope), refetchInterval: 15_000 })
@@ -74,7 +77,7 @@ export default function UserManagementPanel({ actor, users = [], groupId, groups
         <label>Zoeken<input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Naam of e-mailadres" /></label>
         <label>Status<select value={status} onChange={event => setStatus(event.target.value)}><option value="all">Alle statussen</option>{Object.entries(USER_STATUS_LABELS).filter(([value]) => value !== (membershipMode ? 'legacy' : 'alumni')).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         <label>Rol<select value={role} onChange={event => setRole(event.target.value)}><option value="all">Alle rollen</option><option value="admin">Beheerders</option><option value="user">Gebruikers</option></select></label>
-        <label>Sorteren<select value={sort} onChange={event => setSort(event.target.value)}><option value="name">Naam</option><option value="status">Status</option><option value="streepjes">Streepjes</option></select></label>
+        <label>Sorteren<select value={showStreepjes ? sort : sort === 'streepjes' ? 'name' : sort} onChange={event => setSort(event.target.value)}><option value="name">Naam</option><option value="status">Status</option>{showStreepjes && <option value="streepjes">Streepjes</option>}</select></label>
       </div>
       {error && <p role="alert" className="management-error">{error.message}</p>}
       {message && <p role="status" className="management-success">{message}</p>}
@@ -82,7 +85,7 @@ export default function UserManagementPanel({ actor, users = [], groupId, groups
       {loading ? <p role="status">Gebruikers laden…</p> : visible.length === 0 ? <p>Geen gebruikers gevonden.</p> : <ul className="management-users">
         {visible.map(user => <li key={user.membershipId || user.id} className="management-user">
           <div className="management-user-identity"><strong>{user.firstName} {user.lastName}</strong><span>{user.email}</span>{developer && <span>{groupName(user.groupId)}</span>}</div>
-          <div className="management-user-meta"><span className="management-badge">{isAdmin(user) ? 'Beheerder' : 'Gebruiker'}</span><span className={`management-badge status-${user.status}`}>{USER_STATUS_LABELS[user.status]}</span><span>{user.streepjes || 0} streepjes</span></div>
+          <div className="management-user-meta"><span className="management-badge">{isAdmin(user) ? 'Beheerder' : 'Gebruiker'}</span><span className={`management-badge status-${user.status}`}>{USER_STATUS_LABELS[user.status]}</span>{showGroupStreepjes(user.groupId) && <span>{user.streepjes || 0} streepjes</span>}</div>
           <details className="management-actions"><summary aria-label={`Acties voor ${user.firstName} ${user.lastName}`}>Acties</summary><div><button type="button" disabled={archived || (membershipMode && !developer && user.membershipState !== 'current') || groups.some(group => group.id === user.groupId && group.status === 'archived')} onClick={event => { const menu = event.currentTarget.closest('details'); menu.open = false; menu.querySelector('summary').focus(); open(user) }}>Bewerken</button>
             {membershipMode && user.membershipState !== 'historical' && <button type="button" disabled={archived} onClick={() => setMembershipsFor(user)}>Lidmaatschappen</button>}
             <button type="button" disabled={archived || groups.some(group => group.id === user.groupId && group.status === 'archived')} onClick={event => { const menu = event.currentTarget.closest('details'); menu.open = false; menu.querySelector('summary').focus(); setMessage(''); setPasswordEmail(user) }}>Wachtwoord-e-mail</button>
@@ -90,9 +93,9 @@ export default function UserManagementPanel({ actor, users = [], groupId, groups
         </li>)}
       </ul>}
       {historyQuery.error && <p role="alert" className="management-error">Groepsarchief laden mislukt: {historyQuery.error.message}</p>}
-      {historyQuery.data?.history?.length > 0 && <details className="management-history"><summary>Groepsarchief · {historyQuery.data.history.length} verplaatsingen</summary><p>Historie van vertrokken leden blijft in hun oude groep. Deze streepjes tellen niet mee in een nieuwe groep.</p>
-        {historyQuery.data.history.map(record => <details key={record.id}><summary>{record.name} · {record.streepjes} streepjes · {new Date(record.movedAt).toLocaleDateString('nl-NL')}{developer ? ` · ${groupName(record.groupId)}` : ''}</summary>
-          <ul>{record.events.map(event => <li key={event.eventId}><strong>{event.title}</strong> · {new Date(event.start).toLocaleDateString('nl-NL')} · {event.participant ? 'Aangemeld' : 'Niet aangemeld'}{event.opkomstmaker ? ' · Opkomstmaker' : ''}{event.schoonmaker ? ' · Schoonmaker' : ''}{event.attendance === null ? '' : event.attendance ? ' · Aanwezig' : ' · Afwezig'} · {event.streepjes} streepjes{event.future ? ' · Toekomstig bij vertrek' : ''}</li>)}</ul>
+      {historyQuery.data?.history?.length > 0 && <details className="management-history"><summary>Groepsarchief · {historyQuery.data.history.length} verplaatsingen</summary><p>Historie van vertrokken leden blijft in hun oude groep.{showStreepjes ? ' Deze streepjes tellen niet mee in een nieuwe groep.' : ''}</p>
+        {historyQuery.data.history.map(record => <details key={record.id}><summary>{record.name}{showGroupStreepjes(record.groupId) ? ` · ${record.streepjes} streepjes` : ''} · {new Date(record.movedAt).toLocaleDateString('nl-NL')}{developer ? ` · ${groupName(record.groupId)}` : ''}</summary>
+          <ul>{record.events.map(event => <li key={event.eventId}><strong>{event.title}</strong> · {new Date(event.start).toLocaleDateString('nl-NL')} · {event.participant ? 'Aangemeld' : 'Niet aangemeld'}{event.opkomstmaker ? ' · Opkomstmaker' : ''}{event.schoonmaker ? ' · Schoonmaker' : ''}{event.attendance === null ? '' : event.attendance ? ' · Aanwezig' : ' · Afwezig'}{showGroupStreepjes(record.groupId) ? ` · ${event.streepjes} streepjes` : ''}{event.future ? ' · Toekomstig bij vertrek' : ''}</li>)}</ul>
         </details>)}
       </details>}
       {membershipsFor !== undefined && <MembershipManager actor={actor} groupId={groupId || actor.groupId} user={membershipsFor} groups={groups} onClose={() => setMembershipsFor(undefined)} onChanged={setMessage} />}
